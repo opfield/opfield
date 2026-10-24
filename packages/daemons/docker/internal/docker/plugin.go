@@ -623,6 +623,8 @@ func (p *DockerPlugin) BuildRegisterMessage(nodeID string) *pb.RegisterMessage {
 			// The lease runtime runs on storage-profile daemons for their availability set members.
 			values = append(values, p.leaseCapabilities()...)
 			values = append(values, p.setMemberCapabilities()...)
+			// The CPU level and the Valkey modules that follow it (cpu_level.go).
+			values = append(values, cpuCapabilities()...)
 			if p.backupHandler != nil {
 				values = append(values, "database_backups_v1", "database_backups_deadline_v1", "database_backups_tls_verification_v1", storageCopyCapability)
 			}

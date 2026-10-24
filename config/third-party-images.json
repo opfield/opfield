@@ -208,6 +208,12 @@
       "usedBy": "Opfield Redis service (install.sh)"
     },
     {
+      "name": "busybox",
+      "tag": "1.37.0",
+      "source": "docker.io/library/busybox@sha256:bdf57e528e45e4433820e045b29b4597825a1c9e38353532d90a01445013f82e",
+      "usedBy": "Docker daemon volume file helper and the Secure Runtime (runsc) smoke test"
+    },
+    {
       "name": "docker",
       "tag": "27.5.1-cli",
       "source": "docker.io/library/docker@sha256:851f91d241214e7c6db86513b270d58776379aacc5eb9c4a87e5b47115e3065c",

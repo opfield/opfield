@@ -392,8 +392,14 @@ func (p *DockerPlugin) handleManagedDatabaseCommand(cmd *pb.DockerDatabaseComman
 		defer cancel()
 		containerID, err := p.databaseManager.resolveOwnedContainer(ctx, cmd.ManagedDatabaseId)
 		if err != nil {
-			result.Success = false
-			result.Error = err.Error()
+			// A database without its container (a create that failed, a
+			// recreate that did not come up) shows the log of its last failed
+			// start, which the node kept when it removed the container.
+			if cmd.Action == "logs_stop" {
+				result.Detail = `{"streaming":false}`
+				return
+			}
+			p.answerFailedStartLog(cmd, result, err)
 			return
 		}
 		if cmd.Action == "logs_stop" {
@@ -438,6 +444,39 @@ func (p *DockerPlugin) handleManagedDatabaseCommand(cmd *pb.DockerDatabaseComman
 		return
 	}
 	result.Detail = detail
+}
+
+// answerFailedStartLog answers a logs command for a database that has no
+// container with the kept log of its last failed start, or says it has none.
+func (p *DockerPlugin) answerFailedStartLog(cmd *pb.DockerDatabaseCommand, result *pb.CommandResult, cause error) {
+	var input struct {
+		TailLines  int32 `json:"tailLines"`
+		Follow     bool  `json:"follow"`
+		Timestamps bool  `json:"timestamps"`
+	}
+	_ = json.Unmarshal([]byte(cmd.ConfigJson), &input)
+	lines, ok := p.databaseManager.failedStartLog(cmd.ManagedDatabaseId, int(input.TailLines), input.Timestamps)
+	if !ok {
+		result.Success = false
+		if errors.Is(cause, os.ErrNotExist) {
+			result.Error = "the database has no engine container on this node and no log of a failed start"
+		} else {
+			result.Error = cause.Error()
+		}
+		return
+	}
+	if input.Follow {
+		result.Success = false
+		result.Error = "the database has no engine container on this node to follow; its last failed start is in the logs without follow"
+		return
+	}
+	data, err := json.Marshal(lines)
+	if err != nil {
+		result.Success = false
+		result.Error = fmt.Sprintf("marshal logs: %v", err)
+		return
+	}
+	result.Detail = string(data)
 }
 
 // resolveOwnedContainer keeps the database-profile daemon from becoming a
@@ -661,6 +700,7 @@ func (m *managedDatabaseManager) handle(ctx context.Context, action, id, configJ
 			if err := m.removeLeftover(ctx, id); err != nil {
 				return "", err
 			}
+			m.forgetFailedStart(id)
 			return `{"status":"deleted"}`, nil
 		}
 		record, err := m.loadRecord(id)
@@ -672,6 +712,7 @@ func (m *managedDatabaseManager) handle(ctx context.Context, action, id, configJ
 			if err := m.removeLostRecord(ctx, id); err != nil {
 				return "", err
 			}
+			m.forgetFailedStart(id)
 			return `{"status":"deleted"}`, nil
 		}
 		if err != nil {

@@ -30,7 +30,15 @@ type FileEntry struct {
 	IsWritable  bool   `json:"isWritable,omitempty"`
 }
 
-const volumeHelperImage = "busybox:latest"
+// volumeHelperImage runs volume file operations: busybox pinned by digest and
+// mirrored with the other third-party images (config/third-party-images.json),
+// so it never depends on Docker Hub alone. legacyVolumeHelperImage is the tag
+// earlier daemons pulled; a node that has it keeps working when no registry
+// answers.
+const (
+	volumeHelperImage       = "docker.io/library/busybox@sha256:bdf57e528e45e4433820e045b29b4597825a1c9e38353532d90a01445013f82e"
+	legacyVolumeHelperImage = "busybox:latest"
+)
 const dockerFileUploadBlockBytes int64 = 65536
 
 // ListDir lists the contents of a directory inside a container.
@@ -67,7 +75,8 @@ func ExportVolume(ctx context.Context, c *Client, volumeName string, maxBytes in
 	if maxBytes <= 0 {
 		maxBytes = 512 * 1024 * 1024
 	}
-	if err := ensureVolumeHelperImage(ctx, c); err != nil {
+	helperImage, err := ensureVolumeHelperImage(ctx, c)
+	if err != nil {
 		return nil, err
 	}
 
@@ -75,7 +84,7 @@ func ExportVolume(ctx context.Context, c *Client, volumeName string, maxBytes in
 	defer cancel()
 	created, err := c.cli.ContainerCreate(createCtx, client.ContainerCreateOptions{
 		Config: &container.Config{
-			Image:  volumeHelperImage,
+			Image:  helperImage,
 			Cmd:    []string{"sleep", "60"},
 			Labels: helperContainerLabels(helperKindVolume, nil),
 		},
@@ -400,7 +409,8 @@ func runMountedVolumeHelper(ctx context.Context, c *Client, mounts []mount.Mount
 }
 
 func runMountedVolumeHelperWithInput(ctx context.Context, c *Client, mounts []mount.Mount, command []string, input []byte, maxBytes int64) ([]byte, error) {
-	if err := ensureVolumeHelperImage(ctx, c); err != nil {
+	helperImage, err := ensureVolumeHelperImage(ctx, c)
+	if err != nil {
 		return nil, err
 	}
 
@@ -408,7 +418,7 @@ func runMountedVolumeHelperWithInput(ctx context.Context, c *Client, mounts []mo
 	defer cancel()
 	created, err := c.cli.ContainerCreate(createCtx, client.ContainerCreateOptions{
 		Config: &container.Config{
-			Image:        volumeHelperImage,
+			Image:        helperImage,
 			Cmd:          command,
 			AttachStdout: true,
 			AttachStderr: true,
@@ -484,7 +494,8 @@ func runMountedVolumeHelperWithInput(ctx context.Context, c *Client, mounts []mo
 }
 
 func readMountedVolumePathArchive(ctx context.Context, c *Client, mounts []mount.Mount, targetPath string, maxBytes int64) ([]byte, error) {
-	if err := ensureVolumeHelperImage(ctx, c); err != nil {
+	helperImage, err := ensureVolumeHelperImage(ctx, c)
+	if err != nil {
 		return nil, err
 	}
 
@@ -492,7 +503,7 @@ func readMountedVolumePathArchive(ctx context.Context, c *Client, mounts []mount
 	defer cancel()
 	created, err := c.cli.ContainerCreate(createCtx, client.ContainerCreateOptions{
 		Config: &container.Config{
-			Image:  volumeHelperImage,
+			Image:  helperImage,
 			Cmd:    []string{"sleep", "60"},
 			Labels: helperContainerLabels(helperKindVolume, nil),
 		},
@@ -550,15 +561,13 @@ func readSingleRegularFileFromTar(reader io.Reader, maxBytes int64) ([]byte, err
 	}
 }
 
-func ensureVolumeHelperImage(ctx context.Context, c *Client) error {
-	if _, err := c.cli.ImageInspect(ctx, volumeHelperImage); err == nil {
-		return nil
+func ensureVolumeHelperImage(ctx context.Context, c *Client) (string, error) {
+	image, err := c.EnsureThirdPartyImage(ctx, volumeHelperImage)
+	if err == nil {
+		return image, nil
 	}
-	resp, err := c.cli.ImagePull(ctx, volumeHelperImage, client.ImagePullOptions{})
-	if err != nil {
-		return fmt.Errorf("pull helper image %s: %w", volumeHelperImage, err)
+	if present, inspectErr := c.localImagePresent(ctx, legacyVolumeHelperImage); inspectErr == nil && present {
+		return legacyVolumeHelperImage, nil
 	}
-	defer resp.Close()
-	_, _ = io.Copy(io.Discard, resp)
-	return nil
+	return "", fmt.Errorf("pull helper image: %w", err)
 }

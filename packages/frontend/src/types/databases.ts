@@ -307,6 +307,8 @@ export interface DatabaseConnection {
     version: string;
     /** Engine the instance runs; for type redis either "valkey" or "redis". */
     engine?: ManagedDatabaseEngine;
+    /** Modules the store runs without on its node (Valkey Search on a CPU without AVX2). */
+    unavailableModules?: Array<{ module: "search"; reason: string }>;
     storageSizeBytes: number;
     runtimeConfig: { cpuCores: number; memoryMb: number; swapMb: number };
     publishedPort: number | null;

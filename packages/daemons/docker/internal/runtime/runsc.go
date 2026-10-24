@@ -49,11 +49,19 @@ const (
 	StepRestartingDocker   InstallStep = "restarting_docker"
 	StepVerifyingRuntime   InstallStep = "verifying_runtime"
 	runtimeSmokeRuns                   = 6
-	runtimeSmokeImage                  = "busybox:1.36"
 	// RuntimeSmokeLabel marks the daemon's own Secure Runtime smoke containers, so they never count as changes
 	// made outside Opfield.
 	RuntimeSmokeLabel = "net.opfield.runtime-smoke"
 )
+
+// runtimeSmokeImages are the references of the smoke test image, in pull
+// order: busybox pinned by digest, mirrored to GHCR with the other
+// third-party images (config/third-party-images.json; the docker package's
+// allow-list names the upstream reference), then Docker Hub.
+var runtimeSmokeImages = []string{
+	"ghcr.io/opfield/opfield/busybox@sha256:bdf57e528e45e4433820e045b29b4597825a1c9e38353532d90a01445013f82e",
+	"docker.io/library/busybox@sha256:bdf57e528e45e4433820e045b29b4597825a1c9e38353532d90a01445013f82e",
+}
 
 type Status struct {
 	State               State       `json:"state"`
@@ -367,7 +375,31 @@ func (m *Manager) reportProgress(step InstallStep, message string, percent *uint
 	})
 }
 
+// runtimeSmokeImage makes the smoke test image available and returns the
+// reference it is present under: one already on the node, else the first that
+// pulls.
+func (m *Manager) runtimeSmokeImage(ctx context.Context) (string, error) {
+	for _, reference := range runtimeSmokeImages {
+		if _, err := m.runDocker(ctx, "image", "inspect", "--format", "{{.Id}}", reference); err == nil {
+			return reference, nil
+		}
+	}
+	var failures []string
+	for _, reference := range runtimeSmokeImages {
+		if _, err := m.runDocker(ctx, "pull", "--quiet", reference); err != nil {
+			failures = append(failures, err.Error())
+			continue
+		}
+		return reference, nil
+	}
+	return "", fmt.Errorf("pull the smoke test image: %s", strings.Join(failures, "; "))
+}
+
 func (m *Manager) verifyDockerRuntime(ctx context.Context) error {
+	runtimeSmokeImage, err := m.runtimeSmokeImage(ctx)
+	if err != nil {
+		return err
+	}
 	for attempt := 1; attempt <= runtimeSmokeRuns; attempt++ {
 		// A process that exits immediately can race containerd's post-start OOM
 		// adjustment in nested LXC environments and report a false failure.

@@ -247,9 +247,18 @@ func (m *managedDatabaseManager) createPinnedContainer(ctx context.Context, reco
 		return "", fmt.Errorf("start managed database container: %w", err)
 	}
 	if err := m.waitForDatabaseReady(ctx, created.ID, input); err != nil {
-		_ = m.client.RemoveContainer(ctx, created.ID, true)
+		// The container goes; its log of the failed start stays for the
+		// database's logs, and the error names a timeout's last log lines.
+		lines := m.keepFailedStartLog(ctx, record.ID, created.ID, err)
+		if !errors.Is(err, errEngineExited) {
+			if excerpt := engineLogExcerpt(lines); excerpt != "" {
+				err = fmt.Errorf("%w; last log: %s", err, excerpt)
+			}
+		}
+		_ = m.client.RemoveContainer(context.WithoutCancel(ctx), created.ID, true)
 		return "", err
 	}
+	m.forgetFailedStart(record.ID)
 	m.refreshPostgresDiskSettings(ctx, *record, created.ID, true)
 	if input.Type == "clickhouse" && !availabilityMember {
 		if err := m.cleanupClickHouseSystemLogs(ctx, created.ID, input); err != nil {
@@ -386,6 +395,10 @@ func (m *managedDatabaseManager) waitForDatabaseReady(ctx context.Context, conta
 		loading := errors.Is(err, errManagedDatabaseLoading)
 		if loading {
 			deadline = time.Now().Add(managedDatabaseReadinessTimeout)
+		} else if exit, crashed := m.crashedEngine(ctx, containerID); crashed {
+			// It cannot become ready any more: say what it died of now.
+			lines, _ := m.client.ContainerLogs(context.WithoutCancel(ctx), containerID, 80, false, "", "")
+			return engineExitError(exit, lines)
 		}
 
 		timer := time.NewTimer(managedDatabaseReadinessInterval)
@@ -744,7 +757,11 @@ func (m *managedDatabaseManager) remove(ctx context.Context, record managedDatab
 	if record.NetworkName != "" {
 		_, _ = m.client.cli.NetworkRemove(ctx, record.NetworkName, mobyclient.NetworkRemoveOptions{})
 	}
-	return m.cleanupStorage(ctx, &record, true)
+	if err := m.cleanupStorage(ctx, &record, true); err != nil {
+		return err
+	}
+	m.forgetFailedStart(record.ID)
+	return nil
 }
 
 func (m *managedDatabaseManager) cleanupStorage(ctx context.Context, record *managedDatabaseRecord, removeImage bool) error {

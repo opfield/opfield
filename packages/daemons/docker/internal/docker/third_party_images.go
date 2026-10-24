@@ -14,19 +14,21 @@ import (
 
 // thirdPartyMirrorRepository is the Opfield-owned GHCR namespace the release
 // pipeline mirrors digest-pinned third-party runtime images into
-// (scripts/mirror-third-party-images.mjs, config/third-party-images.json). The
-// mirror keeps the upstream index digest byte for byte, so the digest stays the
-// trust anchor whichever registry serves it. Releases publish the mirror under
-// ghcr.io/opfield/opfield too; nodes keep pulling the earlier repository, which
-// stays published, because running containers are matched by this exact reference.
-const thirdPartyMirrorRepository = legacycompat.ImageRepository
+// (scripts/mirror-third-party-images.mjs, config/third-party-images.json, the
+// Image workflow's mirror job). The mirror keeps the upstream index digest
+// byte for byte, so the digest stays the trust anchor whichever registry
+// serves it. Since 2.12.1 releases publish only here: an image pinned since
+// then (valkey-bundle, the witness Keeper) exists under no other name, so this
+// name is pulled first.
+const thirdPartyMirrorRepository = "ghcr.io/opfield/opfield"
 
-// thirdPartyAlternateMirrorRepositories hold the same mirror under other
-// official names (releases from 2.12 publish it under ghcr.io/opfield/opfield
-// too). A reference under one of them is accepted as the mirror of its
-// upstream image and pulled as named, with thirdPartyMirrorRepository and the
-// upstream reference as its fallbacks.
-var thirdPartyAlternateMirrorRepositories = []string{"ghcr.io/opfield/opfield"}
+// thirdPartyAlternateMirrorRepositories hold the same mirror under earlier
+// official names: releases before 2.12.1 published it under the old image
+// repository, which keeps the images pinned before then. A reference under
+// one of them is accepted as the mirror of its upstream image and pulled as
+// named, with thirdPartyMirrorRepository and the upstream reference as its
+// fallbacks; an upstream reference falls back to them after the mirror.
+var thirdPartyAlternateMirrorRepositories = []string{legacycompat.ImageRepository}
 
 var thirdPartyImageReferencePattern = regexp.MustCompile(`^([a-z0-9.-]+\.[a-z]+(?::[0-9]+)?/[a-z0-9._/-]+)@(sha256:[a-f0-9]{64})$`)
 
@@ -70,6 +72,8 @@ var thirdPartyMirroredImages = map[string]struct{}{
 	"docker.io/library/registry@sha256:ddf754342cfc8acc51a56d5d0ab6af06826461864460636d8bd5c546dab2a7b8":             {},
 	"docker.io/library/postgres@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea":             {},
 	"docker.io/library/redis@sha256:858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499":                {},
+	"docker.io/library/busybox@sha256:bdf57e528e45e4433820e045b29b4597825a1c9e38353532d90a01445013f82e":              {},
+	"docker.io/clickhouse/clickhouse-keeper@sha256:79767b4b69aa0425057128c8f741dd31d8052ad5edab2f2839ebfa9c6d3ad3e6": {},
 }
 
 // thirdPartyMirrorReference returns the GHCR mirror reference of an
@@ -109,9 +113,10 @@ func thirdPartyUpstreamReference(mirror string) (string, bool) {
 }
 
 // thirdPartyImageCandidates returns the references to try, in order, for one
-// digest-pinned image: the GHCR mirror first and the upstream reference as the
-// fallback when the image is allow-listed, otherwise the reference alone. A
-// reference under an alternate mirror name is tried first, as named.
+// digest-pinned image: the GHCR mirror first, its earlier names next and the
+// upstream reference as the last fallback when the image is allow-listed,
+// otherwise the reference alone. A reference under an earlier mirror name is
+// tried first, as named.
 func thirdPartyImageCandidates(reference string) []string {
 	upstream := reference
 	if mapped, ok := thirdPartyUpstreamReference(reference); ok {
@@ -121,10 +126,26 @@ func thirdPartyImageCandidates(reference string) []string {
 	if !ok {
 		return []string{reference}
 	}
-	if reference != upstream && reference != mirror {
-		return []string{reference, mirror, upstream}
+	candidates := []string{}
+	add := func(candidate string) {
+		for _, existing := range candidates {
+			if existing == candidate {
+				return
+			}
+		}
+		candidates = append(candidates, candidate)
 	}
-	return []string{mirror, upstream}
+	if reference != upstream {
+		add(reference)
+	}
+	add(mirror)
+	for _, repository := range thirdPartyAlternateMirrorRepositories {
+		if alternate, ok := thirdPartyMirrorReferenceIn(repository, upstream); ok {
+			add(alternate)
+		}
+	}
+	add(upstream)
+	return candidates
 }
 
 // isThirdPartyMirrorOf reports whether candidate is the GHCR mirror of

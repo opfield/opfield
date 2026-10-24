@@ -512,6 +512,17 @@ export function DatabaseOverviewTab({
             }
           />
           <DetailRow label="Provider" value={databaseTypeLabel(database.type)} />
+          {(database.managed?.unavailableModules ?? []).length > 0 && (
+            <DetailRow
+              label="Modules"
+              value={
+                <span className="block max-w-[24rem] break-words text-right">
+                  JSON and Bloom. Search is unavailable: this node&apos;s CPU has no AVX2
+                  (x86-64-v3).
+                </span>
+              }
+            />
+          )}
           <DetailRow
             label="Last Check"
             value={<RelativeTime value={database.lastHealthCheckAt} fallback="Never" />}

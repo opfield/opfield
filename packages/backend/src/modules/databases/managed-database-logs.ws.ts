@@ -232,7 +232,22 @@ export function createManagedDatabaseLogStreamWSHandlers(
     }
     state.authenticated = true;
 
-    const target = await databases.resolveLogTarget(databaseId);
+    let target: Awaited<ReturnType<typeof databases.resolveLogTarget>>;
+    try {
+      target = await databases.resolveLogTarget(databaseId);
+    } catch (error) {
+      // A database without its engine container (a create or recreate that failed): its node keeps the log of the
+      // failed start, which is shown once; there is nothing to follow.
+      const kept = await databases
+        .getLogs(databaseId, { tailLines: tail, follow: false, timestamps: true })
+        .catch(() => null);
+      if (states.get(ws) !== state) return;
+      if (!kept || kept.length === 0) throw error;
+      send(ws, { type: 'initial', lines: kept, hasMore: false });
+      send(ws, { type: 'logs_ended' });
+      closeSocket(ws, 1000, 'Log stream ended');
+      return;
+    }
     if (states.get(ws) !== state) return;
     state.target = target;
     if (!registry.getNode(target.nodeId)) {

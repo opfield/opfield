@@ -37,20 +37,40 @@ func managedRedisRunsValkey(image string) bool {
 // managedValkeyModules are the bundle's modules a store loads, in load order
 // (Search can index JSON documents, so JSON loads first). The bundle's
 // entrypoint adds a --loadmodule for every module of /usr/lib/valkey the
-// config file does not name; the LDAP authentication module is named in a
-// comment so that it is not loaded: stores authenticate with their ACL file.
+// config file does not name; a module left out is named in a comment so that
+// it is not loaded. The LDAP authentication module is always left out: stores
+// authenticate with their ACL file.
 var managedValkeyModules = []string{
 	"/usr/lib/valkey/libjson.so",
-	"/usr/lib/valkey/libsearch.so",
+	managedValkeySearchModule,
 	"/usr/lib/valkey/libvalkey_bloom.so",
 }
 
+// managedValkeySearchModule needs AVX2 (x86-64-v3): on an older CPU it dies
+// with SIGILL at load, so a store there runs without Search (cpu_level.go).
+const managedValkeySearchModule = "/usr/lib/valkey/libsearch.so"
+
 const managedValkeyUnloadedModules = "# Not loaded: loadmodule /usr/lib/valkey/libvalkey_ldap.so\n"
+
+// managedValkeyNodeModules are the modules a store loads on this node.
+func managedValkeyNodeModules() []string {
+	modules := make([]string, 0, len(managedValkeyModules))
+	for _, module := range managedValkeyModules {
+		if module == managedValkeySearchModule && !valkeySearchRuns() {
+			continue
+		}
+		modules = append(modules, module)
+	}
+	return modules
+}
 
 func managedValkeyModuleConfig() string {
 	var config strings.Builder
-	for _, module := range managedValkeyModules {
+	for _, module := range managedValkeyNodeModules() {
 		config.WriteString("loadmodule " + module + "\n")
+	}
+	if !valkeySearchRuns() {
+		config.WriteString("# Not loaded (this CPU has no AVX2, x86-64-v3): loadmodule " + managedValkeySearchModule + "\n")
 	}
 	config.WriteString(managedValkeyUnloadedModules)
 	return config.String()

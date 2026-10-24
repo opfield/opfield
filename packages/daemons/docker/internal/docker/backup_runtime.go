@@ -1082,10 +1082,11 @@ func (r *backupRuntime) startRedisStage(ctx context.Context, runID string, paylo
 // dump is complete, with the modules of its image, so a dump holding JSON,
 // Bloom or Search data loads: the Redis 8 images keep theirs in
 // /usr/local/lib/redis/modules, the valkey-bundle image in /usr/lib/valkey
-// (its LDAP module is left out). An image's own entrypoint adds them only when
-// it starts the server itself, which a staging container does not.
+// (its LDAP module is left out, and Search on a CPU below x86-64-v3, where it
+// cannot run). An image's own entrypoint adds them only when it starts the
+// server itself, which a staging container does not.
 func redisStageCommand() string {
-	modules := "/usr/local/lib/redis/modules/*.so " + strings.Join(managedValkeyModules, " ")
+	modules := "/usr/local/lib/redis/modules/*.so " + strings.Join(managedValkeyNodeModules(), " ")
 	return `until [ -f /work/redis-stage/dump.rdb ]; do sleep 0.1; done
 set --
 for module in ` + modules + `; do

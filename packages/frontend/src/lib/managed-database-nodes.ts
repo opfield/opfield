@@ -99,3 +99,26 @@ export function isDatabaseBackupCandidateNode(
     nodeSupportsCapability(node, DATABASE_BACKUPS_CAPABILITY)
   );
 }
+
+/** The node's database daemon starts Valkey with the modules its CPU runs and reports its x86-64 level. */
+export const VALKEY_CPU_MODULES_CAPABILITY = "managed_redis_valkey_cpu_modules_v1";
+
+/**
+ * Whether a Valkey key-value store on the node runs without Search: Search needs AVX2 (x86-64-v3), and on an older
+ * CPU (a VM with an x86-64-v2 CPU type) the daemon starts Valkey with JSON and Bloom only. False when the node's
+ * daemon does not say (an older daemon).
+ */
+export function valkeySearchUnavailableOnNode(
+  node: Pick<Node, "capabilities"> | null | undefined
+): boolean {
+  if (!nodeSupportsCapability(node, VALKEY_CPU_MODULES_CAPABILITY)) return false;
+  const advertised = node?.capabilities?.capabilities;
+  if (!Array.isArray(advertised)) return false;
+  const level = advertised
+    .map((capability) => /^cpu_x86_64_v(\d)$/.exec(String(capability)))
+    .find((match) => match !== null);
+  return !!level && Number(level[1]) < 3;
+}
+
+export const VALKEY_SEARCH_UNAVAILABLE_TEXT =
+  "This node's CPU has no AVX2 (x86-64-v3), so Valkey runs here with JSON and Bloom but without Search (FT.* commands).";

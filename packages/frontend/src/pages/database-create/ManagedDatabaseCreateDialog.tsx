@@ -63,7 +63,11 @@ import {
   KEY_VALUE_TYPE_DESCRIPTION,
   managedDatabaseVersionLabel,
 } from "@/lib/database-type";
-import { listManagedDatabaseCandidateNodes } from "@/lib/managed-database-nodes";
+import {
+  listManagedDatabaseCandidateNodes,
+  VALKEY_SEARCH_UNAVAILABLE_TEXT,
+  valkeySearchUnavailableOnNode,
+} from "@/lib/managed-database-nodes";
 import { databaseRoute } from "@/lib/resource-routes";
 import { canCreateInFolder } from "@/lib/scope-utils";
 import { api } from "@/services/api";
@@ -314,6 +318,10 @@ export function ManagedDatabaseCreateForm({
                 </SelectContent>
               </Select>
               {nodeHint && <p className="text-xs text-muted-foreground">{nodeHint}</p>}
+              {draft.type === "redis" &&
+                valkeySearchUnavailableOnNode(nodes.find((node) => node.id === draft.nodeId)) && (
+                  <p className="text-xs text-muted-foreground">{VALKEY_SEARCH_UNAVAILABLE_TEXT}</p>
+                )}
             </div>
             {serversField}
             <div className="space-y-1.5">
