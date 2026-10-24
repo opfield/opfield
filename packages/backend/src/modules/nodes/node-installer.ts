@@ -14,7 +14,7 @@ import { DEFAULT_RELAY_SERVICE_PORT, requestedRelayServicePort } from '@/service
 const RELEASE_DOWNLOADS = `${INSTALLER_RELEASES_URL}/download`;
 // An unreleased build has no release assets of its own, so its commands run the installers from main.
 const MAIN_INSTALLERS = 'https://raw.githubusercontent.com/opfield/opfield/main/scripts';
-const INSTALLER_CHECKSUMS = 'opfield-node-installers.sha256';
+export const INSTALLER_CHECKSUMS = 'opfield-node-installers.sha256';
 // legacy-name: checksum list of releases before 2.12.1, whose relay installer a pool on such a release needs — remove
 // once every relay pool runs 2.12.1 or later
 const LEGACY_INSTALLER_CHECKSUMS = LEGACY_INSTALLER_CHECKSUMS_ASSET;
@@ -318,7 +318,10 @@ export function relayReenrollmentInstallation(
   });
 }
 
-async function daemonInstallVersion(nodeType: string, relayVersion: string | null | undefined): Promise<string | null> {
+export async function daemonInstallVersion(
+  nodeType: string,
+  relayVersion: string | null | undefined
+): Promise<string | null> {
   if (nodeType === 'relay') {
     const poolVersion =
       relayVersion !== undefined

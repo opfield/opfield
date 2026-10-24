@@ -6,7 +6,12 @@ import { checkServerIdentity } from 'node:tls';
 import { isAlwaysBlockedOutboundIp, isPrivateIp, normalizeIp } from '@/lib/ip-cidr.js';
 import { logger } from '@/lib/logger.js';
 import { AppError } from '@/middleware/error-handler.js';
-import { cloudBlastErrorMessage, digitalOceanErrorMessage, hetznerErrorMessage } from './hosting-http-errors.js';
+import {
+  cloudBlastErrorMessage,
+  digitalOceanErrorMessage,
+  hetznerErrorMessage,
+  proxmoxErrorMessage,
+} from './hosting-http-errors.js';
 import type { HostingConnection } from './hosting-provider.types.js';
 
 export interface HostingRequestOptions {
@@ -301,6 +306,8 @@ export class HostingHttpClient implements HostingHttp {
   private errorMessage(body: string, status: number, fallback: string): string {
     if (this.connection.provider === 'hetzner') return hetznerErrorMessage(body, status, fallback);
     if (this.connection.provider === 'cloudblast') return cloudBlastErrorMessage(body, status, fallback);
+    if (this.connection.provider === 'proxmox')
+      return proxmoxErrorMessage(body, this.connection.token, status, fallback);
     return digitalOceanErrorMessage(body, this.connection.token, status, fallback);
   }
 
@@ -410,7 +417,7 @@ export class HostingHttpClient implements HostingHttp {
               const fail = (detail = message) =>
                 reject(new HostingProviderError(status, method !== 'GET' && status >= 500, detail));
               if (
-                !['digitalocean', 'hetzner', 'cloudblast'].includes(this.connection.provider) ||
+                !['digitalocean', 'hetzner', 'cloudblast', 'proxmox'].includes(this.connection.provider) ||
                 status < 400 ||
                 status >= 500
               ) {

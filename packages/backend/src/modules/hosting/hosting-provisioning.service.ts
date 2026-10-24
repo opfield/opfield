@@ -35,6 +35,7 @@ import type { HostingConnectorRow, HostingConnectorsService } from './hosting-co
 import { compareHostingDecimal } from './hosting-decimal.js';
 import { HostingProviderError } from './hosting-http.js';
 import { applyHostingImagePolicy, hostingImageRoles } from './hosting-image-policy.js';
+import { resolveHostingInstallers } from './hosting-installers.js';
 import { type CachedHostingCatalog, HOSTING_CATALOG_SNAPSHOT } from './hosting-inventory.service.js';
 import { withKnownLocation } from './hosting-location.js';
 import {
@@ -187,6 +188,8 @@ export class HostingProvisioningService {
         'Configure a reachable Opfield enrollment endpoint before creating a VM'
       );
     validateHostingOpfieldAddress(opfieldAddress, connector.provider === 'proxmox');
+    // Refused before anything is ordered when this build has no published, verifiable installers.
+    const installers = await resolveHostingInstallers(input.role);
     const catalog = await adapter.catalog();
     assertHostingQuote(input, catalog, connector.provider === 'proxmox');
     if (connector.provider === 'proxmox' && !input.existingResourceId) {
@@ -352,6 +355,7 @@ export class HostingProvisioningService {
           operationMarker: `gw-${operationId}`,
           // Cloud-init runs this installer unobserved; Opfield reads its result through the guest agent.
           reportResult: connector.provider === 'proxmox' && !existing && Boolean(proxmoxProfile?.imageStorage),
+          installers,
         });
         const payload: BootstrapPayload = {
           script,
@@ -475,6 +479,7 @@ export class HostingProvisioningService {
       throw new AppError(409, 'HOSTING_OPFIELD_NOT_READY', 'Configure a reachable Opfield enrollment endpoint');
     validateHostingOpfieldAddress(opfieldAddress, connector.provider === 'proxmox');
     const certificateFingerprint = await this.nodeService.getOpfieldEnrollmentCertificateFingerprint();
+    const installers = await resolveHostingInstallers(previous.role);
     const marker =
       typeof original.result?.bootstrapMarker === 'string' ? original.result.bootstrapMarker : `gw-${original.id}`;
     const reserved = await this.operations.reserve(
@@ -513,6 +518,7 @@ export class HostingProvisioningService {
           relayServicePort: previous.role === 'relay' ? previous.relayServicePort : undefined,
           operationMarker: marker,
           expectedOperationMarker: marker,
+          installers,
         });
         const payload: BootstrapPayload = { script, create: { ...previous, marker, userData: script } };
         return {
@@ -1472,6 +1478,7 @@ export class HostingProvisioningService {
       relayServicePort: input.role === 'relay' ? input.relayServicePort : undefined,
       requireCleanHost: true,
       operationMarker: `gw-${row.id}`,
+      installers: await resolveHostingInstallers(input.role),
     });
   }
 
@@ -1521,11 +1528,28 @@ export class HostingProvisioningService {
         const invalidBoot =
           error instanceof AppError &&
           ['HOSTING_BOOT_ORDER_UNVERIFIED', 'HOSTING_INITIAL_FIREWALL_UNVERIFIED'].includes(error.code);
-        const phase = !invalidBoot && !rejectedCreate && (unknown || current?.dispatchStartedAt) ? 'unknown' : 'failed';
+        // A provider that answered a later step (VM preparation, installer dispatch) with a definite rejection did not
+        // perform it: nothing is uncertain, so the operation fails with the provider's reason instead of waiting in
+        // `unknown` for an outcome that will never come. A rate limit (429) or server error stays uncertain.
+        const rejectedStep =
+          (row.action === 'create' || row.action === 'install') &&
+          !!current?.resourceId &&
+          error instanceof HostingProviderError &&
+          !unknown &&
+          [400, 401, 403, 404, 405, 413, 415, 422].includes(error.providerStatus);
+        const phase =
+          !invalidBoot && !rejectedCreate && !rejectedStep && (unknown || current?.dispatchStartedAt)
+            ? 'unknown'
+            : 'failed';
         try {
-          const code = error instanceof AppError ? error.code : 'HOSTING_OPERATION_FAILED';
-          const message =
-            error instanceof AppError
+          const code = rejectedStep
+            ? 'HOSTING_PROVIDER_REJECTED'
+            : error instanceof AppError
+              ? error.code
+              : 'HOSTING_OPERATION_FAILED';
+          const message = rejectedStep
+            ? `${(error as Error).message}. The VM was kept; delete it, or retry installation on it.`
+            : error instanceof AppError
               ? error.message
               : 'Hosting operation failed; no automatic replacement was ordered';
           if (phase === 'failed') {

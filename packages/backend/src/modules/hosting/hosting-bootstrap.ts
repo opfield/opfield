@@ -3,29 +3,12 @@ import { LEGACY_STATE_ROOT } from '@/lib/legacy-compat.js';
 import { AppError } from '@/middleware/error-handler.js';
 import { isPubliclyRoutableIp } from '@/modules/nodes/node-service-address.js';
 import { DEFAULT_RELAY_SERVICE_PORT } from '@/services/relay-service-endpoint.js';
+import {
+  HOSTING_ROLE_INSTALLERS,
+  type HostingInstallerSource,
+  hostingRoleInstallerFiles,
+} from './hosting-installers.js';
 import type { HostingRole } from './hosting-provider.types.js';
-
-const INSTALLERS: Record<HostingRole, string> = {
-  nginx: 'setup-node.sh',
-  docker: 'setup-docker-node.sh',
-  builder: 'setup-docker-node.sh',
-  databases: 'setup-database-node.sh',
-  storage: 'setup-storage-node.sh',
-  monitoring: 'setup-monitoring-node.sh',
-  relay: 'setup-relay-node.sh',
-};
-// Published revision containing the Storage wrapper and self-sufficient Relay installation.
-// Update revision and hashes together after publishing installer changes.
-export const HOSTING_INSTALLER_REVISION = 'b4cbbb7c4ebe1f4904f90313d7a2bf8b0f7f18c6';
-export const HOSTING_INSTALLER_BASE = `https://raw.githubusercontent.com/opfield/opfield/${HOSTING_INSTALLER_REVISION}/scripts`;
-const INSTALLER_SHA256: Record<string, string> = {
-  'setup-node.sh': 'e34bc09f0b5fc4394c8e3ed8f725bee7ba58d285d3a5a6674dc1bd60c2a36f9b',
-  'setup-docker-node.sh': '707ab131f65bd2be7f8b858c01e1a44de8a2aa127a69835f7426a1dcbbed446e',
-  'setup-database-node.sh': 'ebc4491d05f65cc13553f3de8d9b089f514c2e9a1b0f7fe3ac23966c3d1b4eba',
-  'setup-storage-node.sh': 'b1fc4d0ac01a766b88a11698fc2b97f11351adfa6b9423b82ea9401fc4fb864d',
-  'setup-monitoring-node.sh': '6c4d1f76ff001db05e3c18f2b5ed5cabfa6ea131ad5dd5ff34423d78780a1851',
-  'setup-relay-node.sh': '908df4d0bb81c655ef704306561de6b640ae2b8cde18fe70c8fcb95ea495e895',
-};
 
 /** Written by a reportResult bootstrap when it ends; read through the guest agent (root-only, 0600). */
 export const HOSTING_INSTALL_RESULT_FILE = '/var/lib/opfield/hosting-install.result';
@@ -87,8 +70,17 @@ export function buildHostingBootstrap(input: {
    * the installer's error instead of at the bootstrap deadline. Requires operationMarker.
    */
   reportResult?: boolean;
+  /** This Opfield release's published installers and their checksums (resolveHostingInstallers). */
+  installers: HostingInstallerSource;
 }): string {
-  if (!INSTALLERS[input.role]) throw new AppError(400, 'HOSTING_ROLE_UNSUPPORTED', 'Unsupported node role');
+  const main = HOSTING_ROLE_INSTALLERS[input.role];
+  if (!main) throw new AppError(400, 'HOSTING_ROLE_UNSUPPORTED', 'Unsupported node role');
+  const files = hostingRoleInstallerFiles(input.role);
+  if (
+    !/^https:\/\/[^\s'"\\]+$/.test(input.installers.baseUrl) ||
+    files.some((file) => !/^[a-f0-9]{64}$/.test(input.installers.sha256[file] ?? ''))
+  )
+    throw new AppError(500, 'HOSTING_INSTALLERS_INVALID', 'The node installers of this release are not verified');
   if (!input.opfieldAddress || !/^sha256:[a-f0-9]{64}$/i.test(input.certificateFingerprint))
     throw new AppError(
       409,
@@ -107,6 +99,12 @@ export function buildHostingBootstrap(input: {
     input.certificateFingerprint,
   ];
   if (input.role !== 'relay') args.push('--yes');
+  // The daemon release of this Opfield's line, as the node setup commands pin it.
+  if (input.installers.daemonVersion) {
+    if (!/^v?\d+\.\d+\.\d+(?:-rc\.\d+)?$/.test(input.installers.daemonVersion))
+      throw new AppError(500, 'HOSTING_INSTALLERS_INVALID', 'Invalid daemon release');
+    args.push('--version', input.installers.daemonVersion);
+  }
   if (input.role === 'builder') args.push('--mode', 'builder');
   if (input.role === 'relay') {
     if (!input.relayAddress)
@@ -205,9 +203,9 @@ ${
 fetch_installer() {
 local installer="$installer_dir/$1" expected="$2"
 if command -v curl >/dev/null 2>&1; then
-  curl --fail --silent --show-error --location --retry 3 --connect-timeout 15 --max-time 120 "${HOSTING_INSTALLER_BASE}/$1" -o "$installer"
+  curl --fail --silent --show-error --location --retry 3 --connect-timeout 15 --max-time 120 "${input.installers.baseUrl}/$1" -o "$installer"
 elif command -v wget >/dev/null 2>&1; then
-  wget --timeout=120 -qO "$installer" "${HOSTING_INSTALLER_BASE}/$1"
+  wget --timeout=120 -qO "$installer" "${input.installers.baseUrl}/$1"
 else
   echo 'The selected image needs curl or wget' >&2
   exit 43
@@ -215,10 +213,10 @@ fi
 printf '%s  %s\\n' "$expected" "$installer" | sha256sum -c - >/dev/null || { echo 'Installer integrity check failed' >&2; exit 47; }
 chmod 0700 "$installer"
 }
-${input.role === 'databases' || input.role === 'storage' ? `fetch_installer 'setup-docker-node.sh' '${INSTALLER_SHA256['setup-docker-node.sh']}'` : ''}
-${input.role === 'storage' ? `fetch_installer 'setup-database-node.sh' '${INSTALLER_SHA256['setup-database-node.sh']}'` : ''}
-fetch_installer '${INSTALLERS[input.role]}' '${INSTALLER_SHA256[INSTALLERS[input.role]]}'
-installer="$installer_dir/${INSTALLERS[input.role]}"
+# The release-staged installers of Opfield ${input.installers.release}, checked against the hashes Opfield read from
+# that release's opfield-node-installers.sha256.
+${files.map((file) => `fetch_installer '${file}' '${input.installers.sha256[file]}'`).join('\n')}
+installer="$installer_dir/${main}"
 ${
   input.reportResult
     ? `bash "$installer" ${args.map(shellArgument).join(' ')} 2>&1 | tee -a ${HOSTING_INSTALL_LOG_FILE}`

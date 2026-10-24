@@ -115,3 +115,35 @@ export function cloudBlastErrorMessage(body: string, status: number, fallback: s
     return fallback;
   }
 }
+
+/**
+ * Proxmox answers a rejected request with {"message": "...", "errors": {"<parameter>": "<reason>"}}. Read only those
+ * scalars, drop anything that looks like a credential or bootstrap data, and keep it short.
+ */
+export function proxmoxErrorMessage(body: string, token: string, status: number, fallback: string): string {
+  const unsafe = (value: string) =>
+    (token && value.includes(token)) ||
+    // legacy-name: gw_node_ = node enrollment tokens issued before 2.12.1 — remove once 2.12.0 is no longer an update source
+    /opf_node_|gw_node_|PVEAPIToken=|Bearer\s|-----BEGIN|user_data|cloud[-_ ]?init|#!|["']?(?:password|token|secret|privateKey)["']?\s*[:=]/i.test(
+      value
+    );
+  const clean = (value: string) => value.replace(/[\p{Cc}\p{Cf}]+/gu, ' ').trim();
+  try {
+    const payload: unknown = JSON.parse(body);
+    if (!payload || typeof payload !== 'object') return fallback;
+    const parts: string[] = [];
+    const message = 'message' in payload ? payload.message : undefined;
+    if (typeof message === 'string' && message.trim() && message.length <= 1024 && !unsafe(message))
+      parts.push(clean(message).replace(/[.\s]+$/, ''));
+    const errors = 'errors' in payload ? payload.errors : undefined;
+    if (errors && typeof errors === 'object')
+      for (const [parameter, reason] of Object.entries(errors).slice(0, 5)) {
+        if (!/^[A-Za-z0-9_-]{1,64}$/.test(parameter) || typeof reason !== 'string' || unsafe(reason)) continue;
+        parts.push(`${parameter}: ${clean(reason).slice(0, 200)}`);
+      }
+    if (!parts.length) return fallback;
+    return `Proxmox rejected the request (HTTP ${status}): ${parts.join('; ').slice(0, 500)}`;
+  } catch {
+    return fallback;
+  }
+}
