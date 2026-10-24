@@ -544,7 +544,8 @@ export function createControlHandlers(deps: GrpcServerDeps) {
               .limit(1);
 
             if (!node) {
-              logger.error('Unknown node ID during registration', { nodeId: claimedNodeId });
+              // Expected after a node is removed while its daemon still runs: it is refused, not an Opfield fault.
+              logger.warn('Unknown node ID during registration', { nodeId: claimedNodeId });
               registering = false;
               messagesDuringRegistration.length = 0;
               clearPendingCommandRegistration(claimedNodeId, registrationToken);
