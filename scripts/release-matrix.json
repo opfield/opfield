@@ -213,7 +213,7 @@
       ]
     },
     "nginx.old-version": {
-      "description": "An existing nginx older than 1.25.1: refused non-interactively and with --skip-nginx, upgraded from nginx.org only after interactive approval.",
+      "description": "An existing nginx older than 1.30.6: refused with --skip-nginx, upgraded from nginx.org non-interactively and after interactive approval, configuration and service files unchanged, no connection closed.",
       "doc": "docs/nodes.md#nginx-node-modes",
       "os": [
         "ubuntu"
@@ -1601,7 +1601,7 @@
         "Re-run without a token; restart nginx-daemon; reboot the host."
       ],
       "expect": [
-        "Debian: nginx from the nginx.org stable repository; Alpine: the apk nginx package; version 1.25.1 or newer; connected; no 'Fresh enrollment token provided' line and no enrollment-backup directory.",
+        "Debian: nginx from the nginx.org stable repository; Alpine: the nginx.org apk package (nginx@nginx); version 1.30.6 or newer; connected; no 'Fresh enrollment token provided' line and no enrollment-backup directory.",
         "The route answers 200; the unknown name gets a refused TLS handshake (ssl_reject_handshake).",
         "Re-run connected without a new enrollment; after restart and reboot the node is online, the /run socket directories exist and the route answers 200."
       ]
@@ -1651,7 +1651,7 @@
         "lifecycle nginx user-to-user"
       ],
       "preconditions": [
-        "A host with Debian's nginx (1.25.1 or newer) prepared to run as www-data per docs/nodes.md, no nginx-daemon; a second user gwngx."
+        "A host with Debian's nginx (any version; the installer upgrades one older than 1.30.6) prepared to run as www-data per docs/nodes.md, no nginx-daemon; a second user gwngx."
       ],
       "steps": [
         "Run the nginx setup command with --user www-data --nginx-mode integrate.",
@@ -2103,9 +2103,9 @@
         "Prepare nginx (now from nginx.org) to run as www-data per docs/nodes.md, re-run with --user www-data --nginx-mode integrate, create and change a route."
       ],
       "expect": [
-        "-y: exit 1 'nginx 1.25.1+ is required. Re-run interactively to approve the stable nginx upgrade.' before any config change or enrollment.",
-        "--skip-nginx: exit 1 '--skip-nginx requires nginx 1.25.1+; found 1.24…'.",
-        "Declined: stops before Opfield changes nginx config or enrolls; approved: nginx.org stable repository, nginx 1.25.1 or newer, connected.",
+        "-y: upgraded from the nginx.org stable repository (nginx 1.30.6 or newer), nginx.conf and the nginx service unchanged, no .apk-new/.dpkg-dist left, connected.",
+        "--skip-nginx: exit 1 '--skip-nginx requires nginx 1.30.6+; found 1.24…'.",
+        "Declined: stops before Opfield changes nginx config or enrolls; approved: nginx.org stable repository, nginx 1.30.6 or newer, connected.",
         "Non-root under AppArmor: no AppArmor denial in the kernel log; nginx -t and reload succeed as www-data; routes answer 200."
       ]
     },

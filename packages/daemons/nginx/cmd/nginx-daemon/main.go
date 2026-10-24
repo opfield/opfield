@@ -42,11 +42,15 @@ func main() {
 		case "install":
 			runInstall()
 			return
+		case "upgrade-nginx":
+			exitOnExtraArgs()
+			runUpgradeNginx()
+			return
 		case "run":
 			exitOnExtraArgs()
 			// explicit run, continue below
 		default:
-			fmt.Fprintf(os.Stderr, "Usage: nginx-daemon [run|install|version]\n")
+			fmt.Fprintf(os.Stderr, "Usage: nginx-daemon [run|install|upgrade-nginx|version]\n")
 			os.Exit(1)
 		}
 	}
@@ -211,7 +215,7 @@ WantedBy=multi-user.target
 // exitOnExtraArgs ends with the usage when run or version got arguments (lifecycle.ExtraArgs).
 func exitOnExtraArgs() {
 	if err := lifecycle.ExtraArgs(os.Args); err != nil {
-		fmt.Fprintf(os.Stderr, "%v\nUsage: nginx-daemon [run|install|version]\n", err)
+		fmt.Fprintf(os.Stderr, "%v\nUsage: nginx-daemon [run|install|upgrade-nginx|version]\n", err)
 		os.Exit(1)
 	}
 }

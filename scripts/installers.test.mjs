@@ -308,6 +308,11 @@ test('the installers take their settings from the environment', { skip: !linux }
   ];
   for (const [script, args, env, expected] of runs) {
     const { status, output } = dryRun(script, args, env);
+    if (env.OPFIELD_NODE_SKIP_NGINX && /--skip-nginx requires nginx/.test(output)) {
+      // A host nginx older than the minimum (or none) refuses --skip-nginx; the summary still shows the setting.
+      assert.match(output, /Skip nginx:\s+yes/, `${script}\n${output}`);
+      continue;
+    }
     assert.equal(status, 0, `${script} ${JSON.stringify(env)}\n${output}`);
     assert.match(output, expected, `${script} ${JSON.stringify(env)}\n${output}`);
     if (env.OPFIELD_NODE_DISABLE_CONSOLE) assert.match(output, /console\.enabled: false/, `${script}\n${output}`);
@@ -1041,9 +1046,11 @@ test('a terminal that cannot be read is never answered with a default', { skip: 
     // The node type menu of setup-daemon.sh does not pick its default for an unreadable terminal either.
     const daemon = readFileSync(path.join(scriptsDir, 'setup-daemon.sh'), 'utf8');
     assert.match(daemon, /read -r reply < "\$tty" 2>\/dev\/null \|\| die "Cannot read an answer from the terminal/);
-    // -y stays the way to run without a terminal, and it still refuses an nginx upgrade it cannot ask about.
+    // -y stays the way to run without a terminal: it upgrades an nginx older than the minimum without asking (security
+    // fixes), an interactive run asks first.
     const node = readFileSync(path.join(scriptsDir, 'setup-node.sh'), 'utf8');
-    assert.match(node, /if \[\[ "\$NON_INTERACTIVE" -eq 1 \]\]; then\n\s+die "nginx \$\{NGINX_MIN_VERSION\}\+ is required\. Re-run interactively to approve the stable nginx upgrade\."/);
+    assert.match(node, /if \[\[ "\$NON_INTERACTIVE" -eq 0 \]\] && ! prompt_yes_no "Upgrade nginx to the official stable repository now\?" "Y"; then\n\s+die "Opfield node setup aborted\./);
+    assert.doesNotMatch(node, /Re-run interactively to approve the stable nginx upgrade/);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
@@ -1115,6 +1122,7 @@ test('the nginx service repair of a non-root install is planned before the promp
       'err() { echo "ERR $*" >&2; }',
       'die() { err "$@"; exit 1; }',
       'backup_if_exists() { :; }',
+      'grant_daemon_paths_to_run_user() { :; }',
       'id() { case "$1" in -u) echo 1000 ;; *) echo nginx ;; esac; }',
       'stat() { case "$*" in *"/proc/"*) echo 1000 ;; *"-c %u"*) echo 0 ;; *) echo 755 ;; esac; }',
       // The service is down until something starts it; every call is recorded.

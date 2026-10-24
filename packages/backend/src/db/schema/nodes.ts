@@ -185,6 +185,27 @@ export interface NodeHealthReport {
   // Daemons of 2.12.3 and later on hosts with OpenSSH host keys: their SHA256 fingerprints. An SSH connector pinned to
   // one of them is refused, whatever address reaches the node. Absent when the host has none.
   sshHostKeyFingerprints?: string[];
+  // Nginx daemons that upgrade the host's nginx themselves: where that upgrade stands. Absent from older daemons.
+  nginxUpgrade?: NodeNginxUpgrade;
+  // Nginx nodes whose nginx is older than NGINX_MINIMUM_VERSION: one sentence ending with what to do. Absent while
+  // nginx is current.
+  nginxVersionNotice?: string;
+}
+
+/** The nginx daemon's upgrade of the host's nginx to the nginx.org stable package (HealthReport.nginx_upgrade). */
+export interface NodeNginxUpgrade {
+  /** current, deferred, upgrading, failed, manual or unknown. */
+  state: string;
+  minimumVersion: string;
+  /** direct (daemon runs as root), helper (installer's root helper) or manual. */
+  mode: string;
+  detail: string;
+  /** The root command an operator runs when the daemon cannot upgrade nginx itself; empty otherwise. */
+  command: string;
+  /** Unix seconds; 0 when never. */
+  lastAttemptAt: number;
+  upgradedAt: number;
+  previousVersion: string;
 }
 
 /** The nginx logs of one nginx node as its log budget last measured them. */

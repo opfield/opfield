@@ -48,7 +48,9 @@ func (r *Reporter) CollectHealth(base *pb.HealthReport) *pb.HealthReport {
 		base.WorkerCount = int32(workers)
 	}
 
+	r.mu.RLock()
 	base.NginxVersion = r.version
+	r.mu.RUnlock()
 
 	// Nginx RSS
 	base.NginxRssBytes = r.mgr.GetProcessRSS()
@@ -94,4 +96,11 @@ func (r *Reporter) SetErrorRates(total, count4xx, count5xx int) {
 	}
 	r.rate4xx = float64(count4xx) / float64(total) * 100.0
 	r.rate5xx = float64(count5xx) / float64(total) * 100.0
+}
+
+// setVersion is called once the running nginx moved to an upgraded binary.
+func (r *Reporter) setVersion(version string) {
+	r.mu.Lock()
+	r.version = version
+	r.mu.Unlock()
 }

@@ -231,6 +231,32 @@ message HealthReport {
   // runs them with both answering (rc3-avail range 215-219). Absent from
   // older daemons and from build workers.
   DockerEngineHealth docker_engine_health = 215;
+  // Nginx daemons that upgrade the host's nginx themselves: where that upgrade
+  // stands (nginx-upgrade range 220-224). Absent from older daemons.
+  NginxUpgradeReport nginx_upgrade = 220;
+}
+
+// The nginx daemon's upgrade of the host's nginx to the nginx.org stable
+// package once it is older than minimum_version. The configuration and the
+// service definition stay as they were, and the running nginx is handed over to
+// the new binary without closing a connection.
+message NginxUpgradeReport {
+  // current: nginx is minimum_version or newer. deferred: an upgrade waits for
+  // what detail names. upgrading: one runs. failed: the last one failed with
+  // detail, and the old nginx keeps serving. manual: the daemon cannot upgrade
+  // nginx itself; command, run as root, does. unknown: nginx -v failed.
+  string state = 1;
+  string minimum_version = 2;
+  // direct (the daemon runs as root), helper (the root helper the installer
+  // sets up for a daemon with its own user), manual.
+  string mode = 3;
+  string detail = 4;
+  string command = 5;
+  // Unix seconds of the last upgrade attempt and of the last success.
+  int64 last_attempt_at = 6;
+  int64 upgraded_at = 7;
+  // The nginx version the last successful upgrade replaced.
+  string previous_version = 8;
 }
 
 // Whether a node's Docker Engine can start containers. Running containers keep

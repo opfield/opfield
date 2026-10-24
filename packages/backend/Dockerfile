@@ -1,4 +1,4 @@
-FROM node:24-alpine AS base
+FROM docker.io/library/node:24.22.1-alpine@sha256:06d7adf3e0ef61a13f1d28682726366f97a15aa1888c934d3ecec86c33918b53 AS base
 
 RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
 
@@ -16,7 +16,7 @@ COPY packages/backend/ packages/backend/
 WORKDIR /app/packages/backend
 RUN pnpm build
 
-FROM node:24-alpine AS production
+FROM docker.io/library/node:24.22.1-alpine@sha256:06d7adf3e0ef61a13f1d28682726366f97a15aa1888c934d3ecec86c33918b53 AS production
 
 RUN apk add --no-cache openssl && corepack enable && corepack prepare pnpm@9.15.0 --activate
 

@@ -483,6 +483,18 @@ export function NodeMonitoringTab({
           <span className="break-words">{health.nginxServiceProblem}</span>
         </Notice>
       )}
+      {nodeType === "nginx" && health?.nginxVersionNotice && (
+        <Notice
+          tone={
+            health.nginxUpgrade?.state === "failed" || health.nginxUpgrade?.state === "manual"
+              ? "destructive"
+              : "warning"
+          }
+          title="nginx is older than Opfield supports"
+        >
+          <span className="break-words">{health.nginxVersionNotice}</span>
+        </Notice>
+      )}
 
       {/* System Resources */}
       <div>

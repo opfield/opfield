@@ -127,6 +127,19 @@ export interface NodeHealthReport {
   updateConnections?: NodeUpdateConnections;
   /** Nginx daemons: a problem of the host's nginx service only root can fix, ending with the command that fixes it. */
   nginxServiceProblem?: string;
+  /** Nginx daemons that upgrade the host's nginx themselves: where that upgrade stands. */
+  nginxUpgrade?: {
+    state: string;
+    minimumVersion: string;
+    mode: string;
+    detail: string;
+    command: string;
+    lastAttemptAt: number;
+    upgradedAt: number;
+    previousVersion: string;
+  };
+  /** Nginx nodes whose nginx is older than the minimum Opfield supports: one sentence ending with what to do. */
+  nginxVersionNotice?: string;
   /** Daemons of 2.12.1 and later: objects on the node still under their previous names, by kind. */
   legacyNames?: Record<string, number>;
   /** Docker daemons that report it: the version of the node's lease watchdog, which updates on its own schedule. */

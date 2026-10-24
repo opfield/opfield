@@ -31,6 +31,7 @@ import (
 	"github.com/opfield/opfield/nginx-daemon/internal/config"
 	"github.com/opfield/opfield/nginx-daemon/internal/naming"
 	"github.com/opfield/opfield/nginx-daemon/internal/nginx"
+	"github.com/opfield/opfield/nginx-daemon/internal/nginxupgrade"
 	"github.com/opfield/opfield/nginx-daemon/internal/pages"
 	"google.golang.org/grpc"
 )
@@ -46,6 +47,8 @@ type NginxPlugin struct {
 	cfg                         *config.Config
 	baseCfg                     *lifecycle.BaseConfig
 	mgr                         *nginx.Manager
+	nginxUpgrade                *nginxupgrade.Upgrader
+	nginxUpgradeCancel          context.CancelFunc
 	handler                     *Handler
 	reporter                    *Reporter
 	state                       *sharedstate.State
@@ -390,11 +393,12 @@ func (p *NginxPlugin) Init(baseCfg *lifecycle.BaseConfig, logger *slog.Logger) e
 	}
 
 	// Pages preview hostnames can exceed nginx's platform-default server-name
-	// hash bucket. Keep the managed minimum in the global http block.
-	if modified, err := nginx.EnsureServerNamesHashBucketSize(p.cfg.Nginx.GlobalConfig); err != nil {
-		logger.Warn("failed to configure server names hash bucket size", "error", err)
+	// hash bucket, and many routes its default maximum size. Keep the managed
+	// minimums in the global http block.
+	if modified, err := nginx.EnsureServerNamesHash(p.cfg.Nginx.GlobalConfig); err != nil {
+		logger.Warn("failed to configure the server names hash", "error", err)
 	} else if modified {
-		logger.Info("configured server names hash bucket size for Opfield Pages")
+		logger.Info("configured the server names hash for Opfield Pages and routes")
 		globalConfigModified = true
 	}
 
@@ -412,6 +416,8 @@ func (p *NginxPlugin) Init(baseCfg *lifecycle.BaseConfig, logger *slog.Logger) e
 	if valid, output := mgr.TestConfig(); !valid {
 		logger.Warn("nginx configuration is invalid", "output", output)
 	}
+
+	p.startNginxUpgrade()
 
 	if p.namesMigrationDue {
 		// The move to the Opfield names waits until the launcher can no longer roll back to a daemon that knows only
@@ -595,6 +601,7 @@ func (p *NginxPlugin) CollectHealth(base *pb.HealthReport) *pb.HealthReport {
 	if report != nil {
 		report.UpdateConnections = p.updateConnections()
 		report.NginxLogs = p.logUsageReport()
+		report.NginxUpgrade = p.nginxUpgrade.Report()
 	}
 	return report
 }
@@ -607,6 +614,9 @@ func (p *NginxPlugin) Shutdown() {
 			p.availabilityLease.close()
 		}
 		p.ingressHealth.close()
+		if p.nginxUpgradeCancel != nil {
+			p.nginxUpgradeCancel()
+		}
 		p.leaveStreamTotals()
 	})
 }

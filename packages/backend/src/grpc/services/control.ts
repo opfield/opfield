@@ -14,6 +14,7 @@ import { DockerBuildService } from '@/modules/docker/docker-build.service.js';
 import { DomainsService } from '@/modules/domains/domain.service.js';
 import { ingressHealthFromProto } from '@/modules/ingress-groups/ingress-health.js';
 import { daemonLogRelay } from '@/modules/monitoring/log-relay.service.js';
+import { nginxUpgradeHealth, nginxVersionNotice } from '@/modules/nodes/nginx-minimum-version.js';
 import { validateRegisteredDaemonProfile } from '@/modules/nodes/node-daemon-profile.js';
 import { installerRelease, secureRuntimeLocalCommand } from '@/modules/nodes/node-installer.js';
 import { nodeReportHealthy } from '@/modules/nodes/node-service-helpers.js';
@@ -1299,6 +1300,8 @@ export function createControlHandlers(deps: GrpcServerDeps) {
                 ...leaseWatchdogVersion(msg.healthReport),
                 ...dockerEngineHealth(msg.healthReport),
                 ...nginxLogUsageHealth(msg.healthReport),
+                ...nginxUpgradeHealth(msg.healthReport),
+                ...nginxVersionNoticeHealth(msg.healthReport),
                 // Docker-specific fields
                 ...(msg.healthReport.dockerVersion ? { dockerVersion: msg.healthReport.dockerVersion } : {}),
                 ...(msg.healthReport.containersRunning != null
@@ -1596,4 +1599,12 @@ export function createControlHandlers(deps: GrpcServerDeps) {
       stream.on('close', () => setImmediate(releaseShutdownSource));
     },
   };
+}
+
+/** The stored notice about an nginx older than NGINX_MINIMUM_VERSION, from the version and upgrade the daemon reports. */
+function nginxVersionNoticeHealth(report: { nginxVersion?: unknown; nginxUpgrade?: unknown }): {
+  nginxVersionNotice?: string;
+} {
+  const notice = nginxVersionNotice({ nginxVersion: report.nginxVersion, ...nginxUpgradeHealth(report) });
+  return notice ? { nginxVersionNotice: notice } : {};
 }

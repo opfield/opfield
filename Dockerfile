@@ -1,4 +1,5 @@
-ARG NODE_IMAGE=docker.io/library/node:24-alpine@sha256:d1b3b4da11eefd5941e7f0b9cf17783fc99d9c6fc34884a665f40a06dbdfc94f
+# Node 24.22.1 or newer: earlier 24.x builds carry the Brotli flaw of CVE-2026-111497 (Node2Shell).
+ARG NODE_IMAGE=docker.io/library/node:24.22.1-alpine@sha256:06d7adf3e0ef61a13f1d28682726366f97a15aa1888c934d3ecec86c33918b53
 ARG GO_IMAGE=docker.io/library/golang:1.24@sha256:d2d2bc1c84f7e60d7d2438a3836ae7d0c847f4888464e7ec9ba3a1339a1ee804
 ARG APP_VERSION=dev
 

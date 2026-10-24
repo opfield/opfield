@@ -268,6 +268,19 @@ export interface HealthReport {
   nginxLogs?: NginxLogUsage | null;
   /** Docker daemons of 2.12.3 and later (not build workers): whether Docker can start containers (field 215). */
   dockerEngineHealth?: DockerEngineHealth | null;
+  /** Nginx daemons that upgrade the host's nginx themselves: where that upgrade stands (field 220). */
+  nginxUpgrade?: NginxUpgradeReport | null;
+}
+
+export interface NginxUpgradeReport {
+  state: string;
+  minimumVersion: string;
+  mode: string;
+  detail: string;
+  command: string;
+  lastAttemptAt: string;
+  upgradedAt: string;
+  previousVersion: string;
 }
 
 /** Whether a node's Docker Engine can start containers. int64 fields arrive as strings. */
