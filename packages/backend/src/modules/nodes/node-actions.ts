@@ -21,7 +21,10 @@ export async function createNodeForActor(actor: NodeActor, input: CreateNodeInpu
     throw new AppError(403, 'FORBIDDEN', 'Missing nodes:create permission for the selected destination');
   }
   if (input.folderId) await container.resolve(NodeFolderService).assertFolderExists(input.folderId);
-  return (nodesService ?? container.resolve(NodesService)).create(input, actor.id);
+  const result = await (nodesService ?? container.resolve(NodesService)).create(input, actor.id);
+  // The caller gets the token itself once; the stored selector and hash stay server-side, as on every other read.
+  const { enrollmentTokenHash: _hash, enrollmentTokenSelector: _selector, ...node } = result.node;
+  return { ...result, node };
 }
 
 /**
