@@ -1061,7 +1061,15 @@ fi
 TAG="${VERSION}-relay"
 
 PACKAGE_BASE="${ARTIFACT_BASE_URL%/}/relay-supervisor/${TAG}"
-TEMP_DIR=$(mktemp -d)
+# The relay binaries are staged on disk, not in /tmp: on Fedora and other systemd distributions /tmp is a tmpfs sized
+# from RAM. /var/tmp is on disk on every supported OS.
+TEMP_DIR=""
+for temp_base in /var/tmp /var/lib; do
+  [[ -d "$temp_base" && -w "$temp_base" ]] || continue
+  TEMP_DIR=$(mktemp -d "${temp_base}/opfield-relay-setup.XXXXXX" 2>/dev/null) && break
+done
+[[ -n "$TEMP_DIR" ]] || TEMP_DIR=$(mktemp -d)
+unset temp_base
 trap 'rm -rf "$TEMP_DIR"; close_setup_log' EXIT
 
 cat >"${TEMP_DIR}/update-public-key.pem" <<'KEY'

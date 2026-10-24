@@ -203,7 +203,11 @@ describe('DaemonUpdateService.installVersion', () => {
   afterEach(() => vi.unstubAllGlobals());
 
   function service(appVersion: string) {
-    const env = { APP_VERSION: appVersion, RELEASES_API_URL: 'https://updates.example.test/opfield/releases' } as Env;
+    const env = {
+      APP_VERSION: appVersion,
+      RELEASES_API_URL: 'https://updates.example.test/opfield/releases',
+      ARTIFACT_BASE_URL: 'https://updates.example.test/opfield',
+    } as Env;
     const settings = { getConfig: async () => ({ updateChannel: 'preview' }) } as unknown as GeneralSettingsService;
     return new DaemonUpdateService({} as never, env, settings);
   }
@@ -216,7 +220,7 @@ describe('DaemonUpdateService.installVersion', () => {
     return fetchMock;
   }
 
-  it("pins the newest daemon release of Opfield's minor line on its update channel", async () => {
+  it("pins the newest stable daemon release of a stable Opfield's minor line, even on the preview channel", async () => {
     const fetchMock = resolverAnswers('v2.11.3-docker');
 
     await expect(service('v2.11.2').installVersion('docker')).resolves.toBe('v2.11.3');
@@ -224,8 +228,30 @@ describe('DaemonUpdateService.installVersion', () => {
     expect(Object.fromEntries(url.searchParams)).toEqual({
       component: 'docker-daemon',
       current: 'v2.11.0-rc.0',
-      channel: 'preview',
+      channel: 'stable',
     });
+  });
+
+  it('takes candidates of the line for a release candidate of Opfield', async () => {
+    const fetchMock = resolverAnswers('v2.11.3-rc.1-docker');
+    await expect(service('v2.11.3-rc.2').installVersion('docker')).resolves.toBe('v2.11.3-rc.1');
+    const url = new URL(String((fetchMock.mock.calls[0] as unknown[])[0]));
+    expect(url.searchParams.get('channel')).toBe('preview');
+  });
+
+  it('never pins a release whose binary the update host no longer serves', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: unknown, init?: RequestInit) => {
+        const url = new URL(String(input));
+        if (init?.method === 'HEAD') return new Response(null, { status: url.pathname.includes('-rc.') ? 404 : 200 });
+        if (url.pathname.endsWith('.update.json')) return new Response('{}');
+        const tag = url.searchParams.get('channel') === 'preview' ? 'v2.11.4-rc.1-docker' : 'v2.11.3-docker';
+        return new Response(JSON.stringify({ target: { tag_name: tag } }));
+      })
+    );
+    // The candidate's manifest is still served but its binary is gone: the stable release of the line instead.
+    await expect(service('v2.11.4-rc.2').installVersion('docker')).resolves.toBe('v2.11.3');
   });
 
   it("does not pin a later line's daemon, a missing release or an unreleased Opfield", async () => {
@@ -266,7 +292,7 @@ describe('DaemonUpdateService.relayInstallVersion', () => {
   function feed(published: string[], lines: Record<string, string>) {
     const fetchMock = vi.fn(async (input: unknown) => {
       const url = new URL(String(input));
-      if (url.pathname.endsWith('.update.json')) {
+      if (url.pathname.includes('/relay-supervisor/')) {
         const tag = url.pathname.split('/').at(-2) ?? '';
         return new Response(published.includes(tag) ? '{}' : 'not found', {
           status: published.includes(tag) ? 200 : 404,
@@ -301,6 +327,19 @@ describe('DaemonUpdateService.relayInstallVersion', () => {
     feed([], {});
     await expect(service('v2.12.1').relayInstallVersion('v2.10.9-rc.1')).resolves.toBeNull();
     await expect(service('dev').relayInstallVersion(null)).resolves.toBeNull();
+  });
+
+  it('replaces a pool release whose manifest is still served but whose binary is gone', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: unknown, init?: RequestInit) => {
+        const url = new URL(String(input));
+        if (url.pathname.endsWith('.update.json')) return new Response('{}');
+        if (init?.method === 'HEAD') return new Response(null, { status: url.pathname.includes('-rc.') ? 404 : 200 });
+        return new Response(JSON.stringify({ target: { tag_name: 'v2.12.6-relay' } }));
+      })
+    );
+    await expect(service('v2.12.8-rc.2').relayInstallVersion('v2.12.6-rc.2')).resolves.toBe('v2.12.6');
   });
 
   it("keeps the pool's release when the feed cannot be reached", async () => {

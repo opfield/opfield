@@ -633,17 +633,29 @@ export class DaemonUpdateService {
   }
 
   /**
-   * The daemon release a new node of this type installs: the newest one on Opfield's own minor line and update
-   * channel, so a node set up from an older Opfield never gets a later line's daemon. Daemons are released only when
-   * they change, so Opfield's own version usually has no daemon release of that name. Null for an unreleased
-   * Opfield, a line without a daemon release yet, or an unreachable release resolver: the installer then picks the
-   * latest stable daemon itself.
+   * The daemon release a new node of this type installs: the newest one on Opfield's own minor line, so a node set up
+   * from an older Opfield never gets a later line's daemon. A stable Opfield takes the line's newest stable release
+   * (a candidate only when the line has no stable release yet and the update channel is preview); a release candidate
+   * of Opfield takes the line's candidates too. Only a release whose binary the update host actually serves is
+   * chosen: candidates are deleted after their stable release, and a feed entry or signed manifest can outlive them.
+   * Daemons are released only when they change, so Opfield's own version usually has no daemon release of that name.
+   * Null for an unreleased Opfield, a line without a downloadable release, or an unreachable release resolver: the
+   * installer then picks the latest stable daemon itself.
    */
   async installVersion(daemonType: DaemonType): Promise<string | null> {
     const appVersion = RELEASE_VERSION_PATTERN.test(this.env.APP_VERSION) ? parseSemver(this.env.APP_VERSION) : null;
     if (!appVersion) return null;
-    const channel = (await this.generalSettings?.getConfig())?.updateChannel ?? 'stable';
-    return this.lineRelease(daemonType, appVersion.major, appVersion.minor, channel);
+    const configured = (await this.generalSettings?.getConfig())?.updateChannel ?? 'stable';
+    const channels: UpdateChannel[] = isReleaseCandidateVersion(this.env.APP_VERSION)
+      ? ['preview', 'stable']
+      : configured === 'preview'
+        ? ['stable', 'preview']
+        : ['stable'];
+    for (const channel of channels) {
+      const version = await this.lineRelease(daemonType, appVersion.major, appVersion.minor, channel);
+      if (version && (await this.releasePublished(daemonType, version)) !== false) return version;
+    }
+    return null;
   }
 
   /**
@@ -681,23 +693,29 @@ export class DaemonUpdateService {
 
   /**
    * The relay release a new or re-enrolled relay of a pool on poolVersion installs. The pool's own release when the
-   * release feed publishes it. A pool can run a release the feed does not have (a deleted or never published build);
-   * its relay command would download nothing (404), so the relay then installs the newest published release of the
-   * pool's line, or else the relay release of Opfield's own line (installVersion), or null (the installer's own choice).
-   * When the feed cannot be reached nothing can be checked, so the pool's release stays.
+   * update host serves it. A pool can run a release that is gone (a deleted candidate or a never published build);
+   * its relay command would download nothing (404), so the relay then installs the newest downloadable release of the
+   * pool's line (stable first), or else the relay release of Opfield's own line (installVersion), or null (the
+   * installer's own choice). When the update host cannot be reached nothing can be checked, so the pool's release stays.
    */
   async relayInstallVersion(poolVersion: string | null): Promise<string | null> {
     const pool = poolVersion && RELEASE_VERSION_PATTERN.test(poolVersion) ? parseSemver(poolVersion) : null;
     if (!pool || !poolVersion) return this.installVersion('relay');
     const version = `v${poolVersion.replace(/^v/, '')}`;
-    const published = await this.relayReleasePublished(version);
+    const published = await this.releasePublished('relay', version);
     if (published !== false) return version;
-    const configured = (await this.generalSettings?.getConfig())?.updateChannel ?? 'stable';
-    // A pool on a release candidate takes candidates of its line too.
-    const channel: UpdateChannel = isReleaseCandidateVersion(version) ? 'preview' : configured;
-    const line = await this.lineRelease('relay', pool.major, pool.minor, channel);
-    const replacement = line ?? (await this.installVersion('relay'));
-    logger.warn('The relay pool runs a release the release feed does not publish; new relays install another one', {
+    // A pool on a release candidate takes candidates of its line too, after its stable releases.
+    const channels: UpdateChannel[] = isReleaseCandidateVersion(version) ? ['stable', 'preview'] : ['stable'];
+    let replacement: string | null = null;
+    for (const channel of channels) {
+      const line = await this.lineRelease('relay', pool.major, pool.minor, channel);
+      if (line && (await this.releasePublished('relay', line)) !== false) {
+        replacement = line;
+        break;
+      }
+    }
+    replacement ??= await this.installVersion('relay');
+    logger.warn('The relay pool runs a release the update host does not serve; new relays install another one', {
       poolVersion: version,
       installVersion: replacement,
     });
@@ -705,25 +723,36 @@ export class DaemonUpdateService {
   }
 
   /**
-   * Whether the release feed serves the relay release (its signed manifest): true or false from the feed, null when
-   * the feed cannot be reached or answers with an error of its own. Cached like installVersion.
+   * Whether the update host serves the daemon release for amd64: its signed manifest and its binary. False when
+   * either answers 404 or 410 (a deleted candidate keeps a cached manifest but loses its binary), null when the host
+   * cannot be reached or answers with an error of its own. Cached like installVersion.
    */
-  private async relayReleasePublished(version: string): Promise<boolean | null> {
-    const key = `relay-published:${version}`;
+  private async releasePublished(daemonType: DaemonType, version: string): Promise<boolean | null> {
+    const key = `published:${daemonType}:${version}`;
     const cached = this.installVersions.get(key);
     if (cached && cached.expiresAt > Date.now()) return cached.version === 'yes';
-    let published: boolean;
+    const tag = `${version}${TAG_SUFFIX_MAP[daemonType]}`;
+    let published = true;
     try {
-      const response = await fetch(this.getManifestUrl('relay', `${version}${TAG_SUFFIX_MAP.relay}`, 'amd64'), {
-        headers: { Accept: 'application/json' },
-        signal: AbortSignal.timeout(INSTALL_VERSION_TIMEOUT_MS),
-      });
-      await response.body?.cancel();
-      if (response.ok) published = true;
-      else if (response.status === 404 || response.status === 410) published = false;
-      else return null;
+      const source = this.getArtifactSource(daemonType, tag, 'amd64');
+      for (const [url, method] of [
+        [source.manifestUrl, 'GET'],
+        [source.artifactUrl, 'HEAD'],
+      ] as const) {
+        const response = await fetch(url, {
+          method,
+          headers: { Accept: method === 'GET' ? 'application/json' : '*/*' },
+          signal: AbortSignal.timeout(INSTALL_VERSION_TIMEOUT_MS),
+        });
+        await response.body?.cancel();
+        if (response.status === 404 || response.status === 410) {
+          published = false;
+          break;
+        }
+        if (!response.ok) return null;
+      }
     } catch (error) {
-      logger.warn('Could not check the relay release on the release feed', { version, error });
+      logger.warn('Could not check the daemon release on the update host', { daemonType, version, error });
       return null;
     }
     this.installVersions.set(key, {

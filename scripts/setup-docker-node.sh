@@ -292,7 +292,17 @@ cleanup_database_preflight() {
     return "$previous_status"
 }
 
-trap cleanup_database_preflight EXIT
+# Staging directories on disk (disk_temp_dir) go also when the installer stops early: /var/tmp is not emptied at boot.
+DISK_TEMP_DIRS=()
+cleanup_disk_temp_dirs() {
+    local status=$? dir
+    for dir in ${DISK_TEMP_DIRS[@]+"${DISK_TEMP_DIRS[@]}"}; do
+        [[ -n "$dir" ]] && rm -rf -- "$dir"
+    done
+    return "$status"
+}
+
+trap 'cleanup_disk_temp_dirs; cleanup_database_preflight' EXIT
 
 select_database_storage() {
     [[ "$DOCKER_MODE" == "databases" || "$DOCKER_MODE" == "storage" ]] || return 0
@@ -696,6 +706,23 @@ detect_arch() {
 
 command_exists() { command -v "$1" &>/dev/null; }
 
+# Large downloads are staged on disk, never in /tmp: on Fedora and other systemd distributions /tmp is a tmpfs sized
+# from RAM (about 1 GB on a 2 GB VM), too small for the Build Worker runtime. /var/tmp is on disk on every supported OS.
+disk_temp_dir() {
+    local base
+    for base in /var/tmp /var/lib; do
+        [[ -d "$base" && -w "$base" ]] || continue
+        mktemp -d "${base}/$1.XXXXXX" 2>/dev/null && return 0
+    done
+    mktemp -d "/tmp/$1.XXXXXX"
+}
+
+# Free space in MiB of the file system holding a directory.
+free_space_mib() {
+    df -Pk "$1" 2>/dev/null | awk 'NR == 2 { printf "%d", $4 / 1024 }'
+}
+
+
 # Keeps the backup just taken and removes the older ones of the same file, so repeated upgrades do not pile up copies.
 prune_older_backups() {
     local target="$1" keep="$2" old
@@ -819,7 +846,8 @@ prepare_root_daemon_binary() {
         return
     fi
     [[ -z "$ROOT_DAEMON_BINARY" ]] || return 0
-    ROOT_DAEMON_COPY=$(mktemp -d /tmp/opfield-docker-daemon-root.XXXXXX) || die "Could not stage the docker-daemon binary."
+    ROOT_DAEMON_COPY=$(disk_temp_dir opfield-docker-daemon-root) || die "Could not stage the docker-daemon binary."
+    DISK_TEMP_DIRS+=("$ROOT_DAEMON_COPY")
     curl -fsSL "$DOWNLOAD_URL" -o "${ROOT_DAEMON_COPY}/docker-daemon" >>"$LOG_FILE" 2>&1 \
         || die "Could not download docker-daemon ${RESOLVED_DAEMON_VERSION} for the root-only setup steps."
     verify_checksum "${ROOT_DAEMON_COPY}/docker-daemon" "docker-daemon-linux-${ARCH}"
@@ -2637,9 +2665,16 @@ install_builder_runtime() {
         fi
     fi
 
-    staging_dir=$(mktemp -d /tmp/opfield-builder-runtime.XXXXXX)
-    download_dir=$(mktemp -d /tmp/opfield-builder-downloads.XXXXXX)
+    staging_dir=$(disk_temp_dir opfield-builder-runtime) || die "Could not create a staging directory for the Build Worker runtime."
+    download_dir=$(disk_temp_dir opfield-builder-downloads) || { rm -rf "$staging_dir"; die "Could not create a download directory for the Build Worker runtime."; }
+    DISK_TEMP_DIRS+=("$staging_dir" "$download_dir")
     trap 'rm -rf "$staging_dir" "$download_dir"' RETURN
+    # The downloads and their unpacked copies need about 1 GiB next to the installed runtime.
+    local free_mib
+    free_mib=$(free_space_mib "$download_dir")
+    if [[ "$free_mib" =~ ^[0-9]+$ ]] && (( free_mib < 1536 )); then
+        die "The Build Worker runtime needs about 1.5 GiB free in $(dirname "$download_dir") to download and unpack; ${free_mib} MiB are free. Free some space or give the VM a larger disk."
+    fi
     install -d -m 0755 "$staging_dir/bin" "$staging_dir/cni/bin" \
         "$download_dir/containerd" "$download_dir/buildkit" "$download_dir/cni" \
         "$download_dir/syft" "$download_dir/grype"
@@ -3016,7 +3051,20 @@ install_lease_watchdog() {
     fi
     base="${ARTIFACT_BASE_URL}/lease-watchdog/${tag}"
     log "Downloading lease watchdog ${tag}..."
-    if ! download_with_progress "${base}/${artifact}" "${LEASE_WATCHDOG_BIN}.tmp"; then
+    local downloaded=0
+    download_with_progress "${base}/${artifact}" "${LEASE_WATCHDOG_BIN}.tmp" && downloaded=1
+    if [[ "$downloaded" -eq 0 && "$LEASE_WATCHDOG_VERSION" == "latest" && "$(lease_watchdog_channel)" == preview ]]; then
+        # A candidate's release can be gone (candidates are deleted after their stable release): take the stable one.
+        rm -f "${LEASE_WATCHDOG_BIN}.tmp"
+        tag=$(curl -fsSL "${RELEASES_API_URL}?component=lease-watchdog&channel=stable" 2>>"$LOG_FILE" \
+            | grep -o '"tag_name":"v[0-9]*\.[0-9]*\.[0-9]*-watchdog"' | head -1 | cut -d'"' -f4 || true)
+        if [[ -n "$tag" ]]; then
+            base="${ARTIFACT_BASE_URL}/lease-watchdog/${tag}"
+            log "Downloading lease watchdog ${tag}..."
+            download_with_progress "${base}/${artifact}" "${LEASE_WATCHDOG_BIN}.tmp" && downloaded=1
+        fi
+    fi
+    if [[ "$downloaded" -eq 0 ]]; then
         rm -f "${LEASE_WATCHDOG_BIN}.tmp"
         adopt_legacy_lease_watchdog_binary && return 0
         warn "Could not download the lease watchdog; lease mode (Availability, availability sets) stays unavailable on this node."
