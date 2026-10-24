@@ -521,7 +521,7 @@ export const DOCKER_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'list_docker_images',
     description:
-      "List Docker images with their tags, size, and creation date, on one Docker node (nodeId, type docker) or across every Docker node you can see when nodeId is omitted. Opfield's own images are not listed: Git build images (the internal registry's build repositories), Secure Link and database connectors and the Compose helper. prune_docker_images with dryRun lists those a node can drop and when (an unused build image, also one of a removed source or of a container removed outside Opfield, goes 12 hours after its last use); remove_docker_image removes one now by its image id.",
+      "List Docker images with their tags, size, and creation date, on one Docker node (nodeId, type docker) or across every Docker node you can see when nodeId is omitted. Opfield's own images are not listed: Git build images (the internal registry's build repositories), Secure Link and database connectors and the Compose helper. prune_docker_images with dryRun lists those a node can drop and when (an unused build image, also one of a removed source or of a container removed outside Opfield, goes 12 hours after its last use); remove_docker_image removes one now by its image id. Rows carry folderId (null: top level), folderIsSystem and folderSortOrder; list_resource_folders names the folders.",
     parameters: {
       type: 'object',
       properties: {
@@ -617,7 +617,7 @@ export const DOCKER_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'list_docker_volumes',
     description:
-      'List Opfield-managed volumes plus legacy volumes still attached to visible Opfield containers, on one Docker node (nodeId, type docker) or across every Docker node you can see when nodeId is omitted. Orphaned unmanaged volumes are hidden. usedBytes is the bytes the volume uses as the node last measured them in the background (the Size of the volume list; manage_docker_volume metrics has the details), null before the first measurement.',
+      'List Opfield-managed volumes plus legacy volumes still attached to visible Opfield containers, on one Docker node (nodeId, type docker) or across every Docker node you can see when nodeId is omitted. Orphaned unmanaged volumes are hidden. usedBytes is the bytes the volume uses as the node last measured them in the background (the Size of the volume list; manage_docker_volume metrics has the details), null before the first measurement. Rows carry folderId (null: top level), folderIsSystem and folderSortOrder; list_resource_folders names the folders.',
     parameters: {
       type: 'object',
       properties: {
@@ -637,7 +637,7 @@ export const DOCKER_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'list_docker_networks',
     description:
-      'List Docker networks on one Docker node (nodeId, type docker) or across every Docker node you can see when nodeId is omitted.',
+      'List Docker networks on one Docker node (nodeId, type docker) or across every Docker node you can see when nodeId is omitted. Rows carry folderId (null: top level), folderIsSystem and folderSortOrder; list_resource_folders names the folders.',
     parameters: {
       type: 'object',
       properties: {
@@ -1401,6 +1401,33 @@ export const DOCKER_AI_TOOLS: AIToolDefinition[] = [
     category: 'Docker',
     requiredScope: 'docker:containers:view',
     invalidateStores: ['containers', 'tasks'],
+  },
+  {
+    name: 'refresh_docker_snapshot',
+    description:
+      'Queue an immediate re-read of the cached Docker state that the Docker lists, volume usage and container and volume details come from, instead of waiting for the background cycle (POST /api/docker/snapshots/refresh). resource: containers, images, volumes, networks, container-detail, volume-detail or volume-metrics; key is the container or volume name for the detail kinds. With nodeId it refreshes that node and needs the view scope of that resource type there (docker:containers:view, docker:images:view, docker:volumes:view or docker:networks:view; a container or volume grant covers its detail); without nodeId it refreshes every Docker node you can see. Returns { accepted, nodeCount }; read the list or detail again a few seconds later.',
+    parameters: {
+      type: 'object',
+      properties: {
+        resource: {
+          type: 'string',
+          enum: ['containers', 'images', 'volumes', 'networks', 'container-detail', 'volume-detail', 'volume-metrics'],
+        },
+        nodeId: { type: 'string', description: 'Docker node ID; omit to refresh every Docker node you can see.' },
+        key: {
+          type: 'string',
+          description: 'container-detail, volume-detail, volume-metrics: container or volume name.',
+        },
+      },
+      required: ['resource'],
+      additionalProperties: false,
+    },
+    destructive: false,
+    category: 'Docker',
+    requiredScope: 'docker:containers:view',
+    invalidateStores: [],
+    effect: 'read',
+    approvalClass: 'read',
   },
   {
     name: 'manage_docker_availability',

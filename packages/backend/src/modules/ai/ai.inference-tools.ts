@@ -96,6 +96,11 @@ async function manageUsage(user: User, args: Record<string, unknown>) {
     requireScope(user, 'feat:ai:use');
     return operation === 'self' ? service.self(user) : service.selfOverview(user);
   }
+  if (operation === 'catalog') {
+    // GET /inference/catalog: the models the caller may call, as its inference keys see them.
+    requireScope(user, 'feat:ai:use');
+    return container.resolve(InferenceModelService).listForUser(user);
+  }
   requireScope(user, 'inference:usage:view');
   if (operation === 'system') return service.adminOverview();
   if (operation === 'users') return service.users();

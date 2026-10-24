@@ -303,7 +303,8 @@ const MCP_DISCOVER_TOOLS_DEFINITION = {
   },
 };
 
-function isEligibleMcpTool(tool: AIToolDefinition): boolean {
+/** Whether remote MCP serves the tool at all (scopes decide per caller). */
+export function isEligibleMcpTool(tool: AIToolDefinition): boolean {
   return !!tool.requiredScope && !MCP_EXCLUDED_CATEGORIES.has(tool.category) && !MCP_EXCLUDED_TOOLS.has(tool.name);
 }
 

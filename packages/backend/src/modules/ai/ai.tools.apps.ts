@@ -30,12 +30,22 @@ export const APP_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'manage_app',
     description:
-      'Create, update or delete an app. create (name, optional description, optional folderId of an Apps list folder from list_resource_folders resourceType apps; needs apps:create broadly or on that folder) makes the app with one environment, production, marked as Production. update (appId, name, description and/or maintenanceOverride): renaming and the description (one line under the name, up to 200 characters; empty string or null clears it) need apps:edit on the app; maintenanceOverride true shows the maintenance page on every proxy route of every environment (apps:operate on the app), false restores each route to its own setting; domainPatterns (apps:edit on the app) replaces the domains every environment may use. remove_logo (appId; apps:edit on the app) removes the uploaded logo so the app shows its default icon; a logo is uploaded in the console (Settings > General) or with PUT /api/apps/{id}/logo (multipart field logo, square PNG/JPEG/WebP up to 1 MiB). delete (appId; apps:delete on the app): members keep running and leave the app, environment variables, secrets and allowed nodes are deleted.',
+      'Create, update or delete an app. create (name, optional description, optional folderId of an Apps list folder from list_resource_folders resourceType apps; needs apps:create broadly or on that folder) makes the app with one environment, production, marked as Production. update (appId, name, description and/or maintenanceOverride): renaming and the description (one line under the name, up to 200 characters; empty string or null clears it) need apps:edit on the app; maintenanceOverride true shows the maintenance page on every proxy route of every environment (apps:operate on the app), false restores each route to its own setting; domainPatterns (apps:edit on the app) replaces the domains every environment may use. upload_logo (appId, contentBase64, optional mediaType; apps:edit on the app) sets the app logo: a square PNG, JPEG or WebP image of up to 1 MiB, base64-encoded (a data: URL is accepted too); the same as PUT /api/apps/{id}/logo. remove_logo (appId; apps:edit on the app) removes the uploaded logo so the app shows its default icon. delete (appId; apps:delete on the app): members keep running and leave the app, environment variables, secrets and allowed nodes are deleted.',
     parameters: {
       type: 'object',
       properties: {
-        operation: { type: 'string', enum: ['create', 'update', 'remove_logo', 'delete'] },
-        appId: { type: 'string', description: 'update, remove_logo, delete: app id or slug.' },
+        operation: { type: 'string', enum: ['create', 'update', 'upload_logo', 'remove_logo', 'delete'] },
+        appId: { type: 'string', description: 'update, upload_logo, remove_logo, delete: app id or slug.' },
+        contentBase64: {
+          type: 'string',
+          description:
+            'upload_logo: the image bytes, base64-encoded (or a data:image/...;base64, URL): square PNG, JPEG or WebP, up to 1 MiB decoded.',
+        },
+        mediaType: {
+          type: 'string',
+          enum: ['image/png', 'image/jpeg', 'image/webp'],
+          description: 'upload_logo: optional declared media type; it must match the image contents.',
+        },
         name: { type: 'string', description: 'create, update: app name (unique regardless of case).' },
         description: {
           type: ['string', 'null'],

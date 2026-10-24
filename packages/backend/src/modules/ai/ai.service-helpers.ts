@@ -387,6 +387,15 @@ function compactAgentList<T>(items: T[]) {
   };
 }
 
+/** The Docker folder a listed image, volume or network sits in, as the REST lists return it (folderId null: top level). */
+function dockerFolderPlacementForAgent(resource: Record<string, any>) {
+  return {
+    folderId: resource.folderId ?? null,
+    folderIsSystem: resource.folderIsSystem ?? false,
+    folderSortOrder: resource.folderSortOrder ?? 0,
+  };
+}
+
 function compactDockerImageForAgent(image: Record<string, any>) {
   const repoTags = image.repoTags ?? image.RepoTags;
   const repoDigests = image.repoDigests ?? image.RepoDigests;
@@ -404,6 +413,7 @@ function compactDockerImageForAgent(image: Record<string, any>) {
     virtualSize: image.virtualSize ?? image.VirtualSize,
     sharedSize: image.sharedSize ?? image.SharedSize,
     containers: image.containers ?? image.Containers,
+    ...dockerFolderPlacementForAgent(image),
   };
 }
 
@@ -425,6 +435,7 @@ function compactDockerVolumeForAgent(volume: Record<string, any>) {
     usedBy: Array.isArray(usedBy) ? usedBy.slice(0, AGENT_VOLUME_USED_BY_PREVIEW_MAX) : usedBy,
     usedByCount: Array.isArray(usedBy) ? usedBy.length : undefined,
     usedByTruncated: Array.isArray(usedBy) && usedBy.length > AGENT_VOLUME_USED_BY_PREVIEW_MAX,
+    ...dockerFolderPlacementForAgent(volume),
   };
 }
 
@@ -440,6 +451,7 @@ function compactDockerNetworkForAgent(network: Record<string, any>) {
     attachable: network.attachable ?? network.Attachable,
     ingress: network.ingress ?? network.Ingress,
     containersCount: containers && typeof containers === 'object' ? Object.keys(containers).length : undefined,
+    ...dockerFolderPlacementForAgent(network),
   };
 }
 

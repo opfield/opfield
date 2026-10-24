@@ -17,6 +17,7 @@ import {
   UpdateAppSchema,
 } from '@/modules/apps/apps.schemas.js';
 import { type AppActor, AppsService } from '@/modules/apps/apps.service.js';
+import { MAX_AVATAR_UPLOAD_BYTES } from '@/modules/auth/avatar-storage.service.js';
 import type { User } from '@/types.js';
 
 export const APP_TOOL_NAMES = new Set([
@@ -75,6 +76,29 @@ export async function executeAppTool(user: User, toolName: string, args: Record<
   }
 }
 
+const LOGO_MEDIA_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
+// Base64 of the largest logo PUT /api/apps/{id}/logo accepts, plus a data: URL prefix.
+const MAX_LOGO_BASE64_LENGTH = Math.ceil(MAX_AVATAR_UPLOAD_BYTES / 3) * 4 + 64;
+
+/** upload_logo: the base64 image as the File the REST multipart upload hands to AppsService.uploadLogo. */
+function decodeLogoArgument(args: Record<string, unknown>): File {
+  const raw = requiredString(args.contentBase64, 'contentBase64', 'upload_logo').trim();
+  if (raw.length > MAX_LOGO_BASE64_LENGTH) {
+    throw new AppError(413, 'AVATAR_TOO_LARGE', 'Logo image must be 1 MiB or smaller');
+  }
+  const dataUrl = /^data:([^;,]+);base64,(.*)$/s.exec(raw);
+  const declared = typeof args.mediaType === 'string' && args.mediaType ? args.mediaType : dataUrl?.[1];
+  if (declared !== undefined && !LOGO_MEDIA_TYPES.has(declared)) {
+    throw new AppError(400, 'AVATAR_FORMAT_INVALID', 'Logo must be a valid PNG, JPEG, or WebP image');
+  }
+  const encoded = (dataUrl ? dataUrl[2] : raw).replace(/\s+/g, '');
+  if (!/^[A-Za-z0-9+/]*={0,2}$/.test(encoded) || encoded.length % 4 !== 0) {
+    throw new AppError(400, 'VALIDATION_ERROR', 'contentBase64 must be base64-encoded image bytes');
+  }
+  // AvatarStorageService checks the size, the detected format and that it matches the declared type.
+  return new File([Buffer.from(encoded, 'base64')], 'logo', declared ? { type: declared } : {});
+}
+
 async function manageApp(service: AppsService, actor: AppActor, args: Record<string, unknown>) {
   const operation = String(args.operation ?? '');
   switch (operation) {
@@ -96,6 +120,8 @@ async function manageApp(service: AppsService, actor: AppActor, args: Record<str
       });
       return service.update(actor, requiredString(args.appId, 'appId', operation), input);
     }
+    case 'upload_logo':
+      return service.uploadLogo(actor, requiredString(args.appId, 'appId', operation), decodeLogoArgument(args));
     case 'remove_logo':
       return service.removeLogo(actor, requiredString(args.appId, 'appId', operation));
     case 'delete':

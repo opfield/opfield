@@ -1,6 +1,8 @@
 import 'reflect-metadata';
 import { describe, expect, it } from 'vitest';
+import { container } from '@/container.js';
 import { AppError } from '@/middleware/error-handler.js';
+import { DockerFolderService } from '@/modules/docker/docker-folder.service.js';
 import { executeDockerTool } from './ai.docker-tools.js';
 import {
   assertDockerToolNode,
@@ -167,6 +169,8 @@ describe('Docker lists without nodeId', () => {
     },
   };
   const context = { dockerService, ensureToolScope() {}, ensureToolScopeForResource() {} } as never;
+  // The volume list carries each volume's folder (none here), as GET /docker/nodes/{nodeId}/volumes does.
+  container.registerInstance(DockerFolderService, { getResourcePlacementsForRefs: async () => [] } as never);
 
   it('list every visible Docker node, tag each row with its node and report the nodes that cannot answer', async () => {
     const user = { id: 'u', scopes: ADMIN } as never;

@@ -30,7 +30,11 @@ function withArgumentPolicy(
 // Credential reveals and key or secret exports are `execute`, like manage_ca export_key, so every
 // approval mode except bypass-everything asks before secret material reaches the model.
 const OPERATION_POLICIES: Record<string, Record<string, AIToolOperationPolicy>> = {
-  manage_ca: operationPolicies({ update: ['update'], destructive: ['revoke'], execute: ['export_key'] }),
+  manage_ca: operationPolicies({
+    update: ['update', 'create_ocsp_responder'],
+    destructive: ['revoke'],
+    execute: ['export_key'],
+  }),
   manage_certificate: withArgumentPolicy(
     operationPolicies({ read: ['chain'], create: ['issue_from_csr'], execute: ['export'] }),
     'export',
@@ -86,7 +90,11 @@ const OPERATION_POLICIES: Record<string, Record<string, AIToolOperationPolicy>> 
     external: ['check_dns', 'issue_certificate', 'resolve_cloudflare_migration'],
     execute: ['migrate_ingress'],
   }),
-  manage_app: operationPolicies({ create: ['create'], update: ['update', 'remove_logo'], delete: ['delete'] }),
+  manage_app: operationPolicies({
+    create: ['create'],
+    update: ['update', 'upload_logo', 'remove_logo'],
+    delete: ['delete'],
+  }),
   manage_app_members: operationPolicies({ read: ['list'], update: ['place'] }),
   promote_app_environment: operationPolicies({ read: ['preview', 'status', 'list'], execute: ['execute'] }),
   manage_app_incident: operationPolicies({
@@ -469,16 +477,28 @@ const OPERATION_POLICIES: Record<string, Record<string, AIToolOperationPolicy>> 
     update: ['update'],
     delete: ['revoke'],
   }),
+  get_opfield_runtime: operationPolicies({ read: ['version', 'config', 'ai_status', 'sandbox_status'] }),
   manage_inference_usage: operationPolicies({
-    read: ['self', 'self_overview', 'system', 'users', 'activity_filters', 'activity'],
+    read: ['self', 'self_overview', 'catalog', 'system', 'users', 'activity_filters', 'activity'],
   }),
   manage_notifications: operationPolicies({
     read: ['alert_categories', 'alert_resources', 'webhook_get', 'webhook_presets', 'webhook_preview', 'delivery_get'],
   }),
   manage_integration_connector: operationPolicies({
-    read: ['get', 'capabilities', 'list_zones', 'allowlist_search', 'allowlist_options'],
+    read: [
+      'get',
+      'capabilities',
+      'list_zones',
+      'allowlist_search',
+      'allowlist_options',
+      'oauth_availability',
+      'scope_target_search',
+      'scope_target_resolve',
+    ],
+    // A poll that finds the device approved creates or re-authorizes the connector.
+    create: ['oauth_start', 'oauth_status'],
     update: ['update', 'rotate_token', 'allowlist_refresh'],
-    delete: ['delete'],
+    delete: ['delete', 'oauth_cancel'],
     external: ['test', 'preview_test', 'allowlist_preview_search', 'discover_host_key'],
   }),
   manage_hosting: operationPolicies({
@@ -610,6 +630,7 @@ const COMPOSITE_OPERATION_POLICIES: Record<
     operations: operationPolicies({
       read: [
         'settings.get',
+        'settings.get_upstream',
         'proxy_templates.list',
         'sources.list',
         'services.list',

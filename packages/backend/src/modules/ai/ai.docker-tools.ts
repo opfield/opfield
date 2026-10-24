@@ -78,6 +78,7 @@ import {
 } from '@/modules/docker/docker-deployment.schemas.js';
 import { DockerDeploymentService } from '@/modules/docker/docker-deployment.service.js';
 import { presentDeploymentForCaller } from '@/modules/docker/docker-deployment-redaction.js';
+import { DockerFolderService } from '@/modules/docker/docker-folder.service.js';
 import { withDockerImageSources } from '@/modules/docker/docker-image-source.js';
 import { inspectUserContainer } from '@/modules/docker/docker-internal-containers.js';
 import { withNodeLossAnswer } from '@/modules/docker/docker-node-loss.js';
@@ -114,7 +115,11 @@ import { manageContainerLinkForAgent } from './ai.container-link-tools.js';
 import { createDockerArchiveDownloadLink, createDockerArchiveUploadLink } from './ai.docker-archive-link.js';
 import { dockerArchiveTransferStore } from './ai.docker-archive-transfer.js';
 import { manageDockerAvailabilityTool } from './ai.docker-availability-tools.js';
-import { assertDockerContainerRecreateAccess, manageDockerContainerTool } from './ai.docker-container-tools.js';
+import {
+  assertDockerContainerRecreateAccess,
+  manageDockerContainerTool,
+  refreshDockerSnapshotTool,
+} from './ai.docker-container-tools.js';
 import { listDockerNetworksForAgent, manageDockerNetworkForAgent } from './ai.docker-network-tools.js';
 import {
   decodeFileContent,
@@ -182,6 +187,7 @@ export const DOCKER_TOOL_NAMES = new Set([
   'kill_docker_container',
   'force_cancel_docker_task',
   'manage_docker_container',
+  'refresh_docker_snapshot',
   'manage_docker_availability',
   'manage_docker_runtime',
   'upload_docker_container_archive',
@@ -669,7 +675,7 @@ export async function executeDockerTool(
       const { withVolumeUsedBytes } = await import('@/modules/docker/docker-volume-snapshot-reads.js');
       return Array.isArray(volumes)
         ? compactAgentList(
-            (await withVolumeUsedBytes(a.nodeId, volumes))
+            (await withVolumeFolderPlacements(a.nodeId, await withVolumeUsedBytes(a.nodeId, volumes)))
               .filter(
                 (volume: any) =>
                   hasDockerResourceScope(user.scopes, 'docker:volumes:view', a.nodeId, '') ||
@@ -711,6 +717,8 @@ export async function executeDockerTool(
       return forceCancelDockerTask(user, args);
     case 'manage_docker_container':
       return manageDockerContainerTool(context.dockerService, user, args);
+    case 'refresh_docker_snapshot':
+      return refreshDockerSnapshotTool(user, args);
     case 'manage_docker_availability':
       return manageDockerAvailabilityTool(user, args);
     case 'manage_docker_runtime':
@@ -1849,4 +1857,24 @@ async function manageDockerDeployment(context: DockerToolContext, user: User, ar
     default:
       throw new Error(`Unsupported Docker deployment operation: ${String(a.operation)}`);
   }
+}
+
+/** The Docker folder of each listed volume, as GET /docker/nodes/{nodeId}/volumes returns it. */
+async function withVolumeFolderPlacements(nodeId: string, volumes: Record<string, any>[]) {
+  const names = volumes.map((volume) => String(volume.name ?? volume.Name ?? '')).filter(Boolean);
+  if (names.length === 0) return volumes;
+  const placements = await container.resolve(DockerFolderService).getResourcePlacementsForRefs(
+    'volume',
+    names.map((resourceKey) => ({ nodeId, resourceKey }))
+  );
+  const byName = new Map(placements.map((placement) => [placement.resourceKey, placement]));
+  return volumes.map((volume) => {
+    const placement = byName.get(String(volume.name ?? volume.Name ?? ''));
+    return {
+      ...volume,
+      folderId: placement?.folderId ?? null,
+      folderIsSystem: placement?.folderIsSystem ?? false,
+      folderSortOrder: placement?.sortOrder ?? 0,
+    };
+  });
 }

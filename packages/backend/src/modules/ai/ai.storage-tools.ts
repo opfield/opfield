@@ -1,6 +1,7 @@
 import { container, TOKENS } from '@/container.js';
 import type { CommercialEditionRuntime } from '@/edition/runtime.js';
 import { commercialModuleUnavailable } from '@/edition/unavailable.js';
+import { ObjectStorageService } from '@/modules/object-storage/object-storage.service.js';
 import { storageToolRuntime } from '@/modules/object-storage/storage-tool-runtime.js';
 import type { User } from '@/types.js';
 import { createStorageObjectDownloadLink } from './ai.storage-object-link.js';
@@ -75,8 +76,12 @@ export const STORAGE_AI_TOOLS: AIToolDefinition[] = [
   },
   {
     name: 'get_storage_connection',
-    description: 'Read safe storage connection details without credentials.',
-    parameters: { type: 'object', properties: { storageId: id }, required: ['storageId'] },
+    description:
+      'Read safe storage connection details without credentials. Pass storageId, or slug (the connection slug from list_storage_connections or a console URL) instead.',
+    parameters: {
+      type: 'object',
+      properties: { storageId: id, slug: { type: 'string', description: 'Connection slug, instead of storageId.' } },
+    },
     destructive: false,
     category: 'Storage',
     requiredScope: 'storage:view',
@@ -238,5 +243,15 @@ export async function executeStorageTool(user: User, name: string, args: Record<
   if (name === 'download_storage_object') return createStorageObjectDownloadLink(user, args);
   return container
     .resolve<CommercialEditionRuntime>(TOKENS.CommercialEdition)
-    .executeStorageTool(user, name, args, storageToolRuntime);
+    .executeStorageTool(user, name, await withStorageIdForSlug(name, args), storageToolRuntime);
+}
+
+/**
+ * get_storage_connection by slug, like GET /object-storage/by-slug/{slug}: the slug names the connection, and the
+ * tool then reads it by id with the usual storage:view check on that id.
+ */
+async function withStorageIdForSlug(name: string, args: Record<string, unknown>) {
+  if (name !== 'get_storage_connection' || args.storageId || typeof args.slug !== 'string' || !args.slug) return args;
+  const { slug, ...rest } = args;
+  return { ...rest, storageId: (await container.resolve(ObjectStorageService).getBySlug(slug as string)).id };
 }

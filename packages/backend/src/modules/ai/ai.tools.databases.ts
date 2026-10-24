@@ -29,13 +29,14 @@ export const DATABASE_AI_TOOLS: AIToolDefinition[] = [
   },
   {
     name: 'get_database_connection',
-    description: 'Get a saved database connection by ID, including provider, host, status, and safe config fields.',
+    description:
+      'Get a saved database connection by ID, including provider, host, status, and safe config fields. Pass databaseId, or slug (the connection slug from list_databases or a console URL) instead.',
     parameters: {
       type: 'object',
       properties: {
         databaseId: { type: 'string', description: 'Database connection UUID' },
+        slug: { type: 'string', description: 'Database connection slug, instead of databaseId.' },
       },
-      required: ['databaseId'],
     },
     destructive: false,
     category: 'Databases',

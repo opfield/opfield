@@ -27,6 +27,7 @@ import { AIConversationService, isConversationMessageId } from './ai-conversatio
 import { AIConversationFolderService } from './ai-conversation-folder.service.js';
 import { AIProviderRuntimeService } from './ai-provider-runtime.service.js';
 import { AIRunService } from './ai-run.service.js';
+import { readAIStatusForUser } from './ai-status-view.js';
 
 export const aiRoutes = new OpenAPIHono<AppEnv>({ defaultHook: openApiValidationHook });
 
@@ -147,22 +148,7 @@ aiRoutes.use('*', sessionOnly);
 
 // GET /api/ai/status — check if AI features are enabled (any authenticated user)
 aiRoutes.openapi(aiStatusRoute, async (c) => {
-  if (container.isRegistered(AIProviderRuntimeService)) {
-    return c.json(await container.resolve(AIProviderRuntimeService).statusForUser(c.get('user')!));
-  }
-  const settingsService = container.resolve(AISettingsService);
-  const config = await settingsService.getConfig();
-  return c.json({
-    enabled: await settingsService.isEnabled(),
-    providerType: config.providerType,
-    defaultModel: config.model,
-    allowUserModelSelection: false,
-    allowUserReasoningEffortSelection: config.allowUserReasoningEffortSelection,
-    reasoningEfforts: ['default', 'low', 'medium', 'high'],
-    defaultReasoningEffort: 'default',
-    supportsImages: config.supportsImages,
-    models: [],
-  });
+  return c.json(await readAIStatusForUser(c.get('user')!));
 });
 
 aiRoutes.get('/conversations', requireScope('ai:workspace:use'), async (c) => {

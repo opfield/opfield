@@ -8,6 +8,7 @@ An app groups resources of several types into environments (production, staging,
 ## Model
 - A new app has one environment, production, marked as Production. Exactly one environment holds the marker (manage_app_environment mark_production moves it); the Production environment cannot be deleted.
 - Members sit in hidden folders of their own type: each environment has one folder per type, listed in get_app as placementFolderIds. Normal folder tools never show these folders, and Move to folder refuses a member (RESOURCE_IN_APP): use manage_app_members place instead.
+- manage_app upload_logo (contentBase64: a square PNG, JPEG or WebP of up to 1 MiB, base64; optional mediaType) sets the app logo shown in lists and on the app page; remove_logo goes back to the default icon. Both need apps:edit on the app.
 - Normal list tools return members with an \`app\` field ({id, slug, name, environmentId, environmentName, environmentSlug}); pass excludeAppMembers true to leave them out or appId to list one app's members.
 
 ## Creating inside an environment

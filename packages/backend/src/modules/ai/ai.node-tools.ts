@@ -190,7 +190,9 @@ export async function executeNodeTool(
       };
     }
     case 'get_node': {
-      const node = await context.nodesService.get(a.nodeId);
+      const node = a.nodeId
+        ? await context.nodesService.get(a.nodeId)
+        : await getNodeBySlugForUser(context, user, a.slug);
       return node && typeof node === 'object' ? { ...node, usedFor: nodeRole((node as { type?: string }).type) } : node;
     }
     case 'execute_node_console_command':
@@ -581,4 +583,14 @@ function detectNodeFileEncoding(buffer: Buffer): 'utf8' | 'base64' {
   const text = buffer.toString('utf8');
   const replacementCount = (text.match(/\uFFFD/g) ?? []).length;
   return replacementCount > Math.max(2, text.length * 0.02) ? 'base64' : 'utf8';
+}
+
+/** get_node by slug: the same lookup and per-node check as GET /nodes/by-slug/{slug}. */
+async function getNodeBySlugForUser(context: { nodesService: NodesService }, user: User, slug: unknown) {
+  if (typeof slug !== 'string' || !slug) throw new AppError(400, 'VALIDATION_ERROR', 'nodeId or slug is required');
+  const node = await context.nodesService.getBySlug(slug);
+  if (!hasScope(user.scopes, `nodes:details:${node.id}`)) {
+    throw new AppError(403, 'FORBIDDEN', `Missing required scope: nodes:details:${node.id}`);
+  }
+  return node;
 }

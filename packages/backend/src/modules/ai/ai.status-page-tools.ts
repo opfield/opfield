@@ -1,6 +1,10 @@
+import { getEnv } from '@/config/env.js';
 import { container } from '@/container.js';
 import { hasScope } from '@/lib/permissions.js';
-import { assertStatusPageUpstreamUnchanged } from '@/modules/cloud-link/cloud-link-status-page-upstream.js';
+import {
+  assertStatusPageUpstreamUnchanged,
+  readStatusPageUpstream,
+} from '@/modules/cloud-link/cloud-link-status-page-upstream.js';
 import {
   CreateStatusPageIncidentSchema,
   CreateStatusPageIncidentUpdateSchema,
@@ -24,6 +28,11 @@ export async function manageStatusPageTool(user: User, args: Record<string, unkn
     if (operation === 'get') {
       ensureToolScope(user, 'status-page:view');
       return service.getConfig();
+    }
+    if (operation === 'get_upstream') {
+      // GET /system/status-page-upstream: the upstream the public page uses now, and whether the cloud manages it.
+      ensureToolScope(user, 'status-page:view');
+      return readStatusPageUpstream(getEnv().OPFIELD_CONSOLE_DOMAIN);
     }
     if (operation === 'update') {
       ensureToolScope(user, 'status-page:manage');

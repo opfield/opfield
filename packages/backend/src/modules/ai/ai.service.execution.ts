@@ -42,6 +42,7 @@ import {
   NOTIFICATION_TOOL_NAMES,
   SIEM_NOTIFICATION_TOOL_NAMES,
 } from './ai.notification-tools.js';
+import { executeOpfieldRuntimeTool, OPFIELD_RUNTIME_TOOL_NAMES } from './ai.opfield-runtime-tool.js';
 import { executePkiCaTool, PKI_CA_TOOL_NAMES } from './ai.pki-ca-tools.js';
 import { executePkiCertificateTool, PKI_CERTIFICATE_TOOL_NAMES } from './ai.pki-certificate-tools.js';
 import { executePkiTemplateTool, PKI_TEMPLATE_TOOL_NAMES } from './ai.pki-template-tools.js';
@@ -517,6 +518,7 @@ export abstract class AIServiceExecution extends AIServiceRuntimeSupport {
       return executeIntegrationTool(user, toolName, args);
     }
     if (GIT_SCOPE_TARGET_TOOL_NAMES.has(toolName)) return executeGitScopeTargetTool(user, args);
+    if (OPFIELD_RUNTIME_TOOL_NAMES.has(toolName)) return executeOpfieldRuntimeTool(user, args);
     if (HOSTING_TOOL_NAMES.has(toolName)) {
       return executeHostingTool(user, toolName, args);
     }

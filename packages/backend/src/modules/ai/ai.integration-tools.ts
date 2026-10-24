@@ -2,6 +2,11 @@ import { container } from '@/container.js';
 import { AppError } from '@/middleware/error-handler.js';
 import { ExternalSshService } from '@/modules/integrations/external-ssh.service.js';
 import {
+  ScopeTargetResolveQuerySchema,
+  ScopeTargetSearchQuerySchema,
+  scopeTargetRateLimiter,
+} from '@/modules/integrations/git-scope-targets.js';
+import {
   assertConnectorOperationAccess,
   type ConnectorScopeTarget,
   gitConnectorVisibility,
@@ -19,6 +24,7 @@ import {
   GitConnectorUpdateSchema,
   GitHubConnectorCreateSchema,
   GitHubConnectorPreviewTestSchema,
+  GitHubOAuthStartSchema,
   GitLabAllowlistPreviewSearchSchema,
   GitLabAllowlistSearchQuerySchema,
   GitLabConnectorCreateSchema,
@@ -489,7 +495,20 @@ type ConnectorOperation =
   | 'allowlist_options'
   | 'allowlist_refresh'
   | 'allowlist_preview_search'
-  | 'discover_host_key';
+  | 'discover_host_key'
+  | 'oauth_availability'
+  | 'oauth_start'
+  | 'oauth_status'
+  | 'oauth_cancel'
+  | 'scope_target_search'
+  | 'scope_target_resolve';
+
+/** GET /:provider/:connectorId/scope-targets and /scope-targets/resolve: the Git scope picker. */
+const SCOPE_TARGET_ACCESS = (provider: 'gitlab' | 'github'): ConnectorRouteAccess => ({
+  operation: 'connector.scope_targets',
+  requiredScope: `integrations:${provider}:view`,
+  scopeTarget: 'within-connector',
+});
 
 /**
  * Route access for manage_integration_connector, per provider and operation,
@@ -518,6 +537,8 @@ const CONNECTOR_MANAGE_ACCESS: Record<ConnectorProvider, Partial<Record<Connecto
       operation: 'connector.allowlist.preview_search',
       requiredScope: 'integrations:gitlab:manage',
     },
+    scope_target_search: SCOPE_TARGET_ACCESS('gitlab'),
+    scope_target_resolve: SCOPE_TARGET_ACCESS('gitlab'),
   },
   cloudflare: {
     get: {
@@ -539,6 +560,16 @@ const CONNECTOR_MANAGE_ACCESS: Record<ConnectorProvider, Partial<Record<Connecto
     delete: { operation: 'connector.delete', requiredScope: 'integrations:github:manage' },
     test: { operation: 'connector.post', requiredScope: 'integrations:github:manage' },
     preview_test: { operation: 'connector.post', requiredScope: 'integrations:github:manage' },
+    // The GitHub OAuth (device flow) connector setup: /github/oauth and /github/oauth/sessions[/:id].
+    oauth_availability: {
+      operation: 'connector.get',
+      requiredScope: ['integrations:github:view', 'integrations:github:manage'],
+    },
+    oauth_start: { operation: 'connector.post', requiredScope: 'integrations:github:manage' },
+    oauth_status: { operation: 'connector.get', requiredScope: 'integrations:github:manage' },
+    oauth_cancel: { operation: 'connector.delete', requiredScope: 'integrations:github:manage' },
+    scope_target_search: SCOPE_TARGET_ACCESS('github'),
+    scope_target_resolve: SCOPE_TARGET_ACCESS('github'),
   },
   git: {
     update: { operation: 'connector.patch', requiredScope: 'integrations:git:manage' },
@@ -559,6 +590,11 @@ const CONNECTORLESS_OPERATIONS = new Set<ConnectorOperation>([
   'preview_test',
   'allowlist_preview_search',
   'discover_host_key',
+  // The OAuth routes carry no connector in the path; oauth_start may name one to re-authorize in its body.
+  'oauth_availability',
+  'oauth_start',
+  'oauth_status',
+  'oauth_cancel',
 ]);
 
 async function manageIntegrationConnector(service: IntegrationsService, user: User, args: Record<string, unknown>) {
@@ -576,6 +612,9 @@ async function manageIntegrationConnector(service: IntegrationsService, user: Us
   assertConnectorRouteAccess(user, provider, connectorId, access);
   const id = connectorId ?? '';
   const ssh = () => container.resolve(ExternalSshService);
+  // Searches and label lookups spend the connector's provider API budget: limited per account, like the picker.
+  if (operation === 'scope_target_search' || operation === 'scope_target_resolve')
+    scopeTargetRateLimiter.consume(user.id);
 
   switch (`${provider}.${operation}`) {
     case 'gitlab.get':
@@ -660,6 +699,25 @@ async function manageIntegrationConnector(service: IntegrationsService, user: Us
           token: args.token,
         })
       );
+    case 'github.oauth_availability':
+      return service.getGitHubOAuthAvailability();
+    case 'github.oauth_start':
+      return service.startGitHubOAuth(
+        GitHubOAuthStartSchema.parse({ connectorId: args.connectorId, name: args.name, enabled: args.enabled }),
+        user.id
+      );
+    case 'github.oauth_status':
+      return service.getGitHubOAuthStatus(requiredString(args.sessionId), user.id);
+    case 'github.oauth_cancel':
+      return service.cancelGitHubOAuth(requiredString(args.sessionId), user.id);
+    case 'gitlab.scope_target_search':
+      return service.listGitLabScopeTargets(user, id, scopeTargetSearchQuery(args));
+    case 'github.scope_target_search':
+      return service.listGitHubScopeTargets(user, id, scopeTargetSearchQuery(args));
+    case 'gitlab.scope_target_resolve':
+      return service.resolveGitLabScopeTargets(user, id, scopeTargetIds(args));
+    case 'github.scope_target_resolve':
+      return service.resolveGitHubScopeTargets(user, id, scopeTargetIds(args));
     case 'ssh.update':
       return ssh().updateName(user, id, ExternalSshConnectorUpdateSchema.parse({ name: args.name }).name);
     case 'ssh.delete':
@@ -678,6 +736,16 @@ async function manageIntegrationConnector(service: IntegrationsService, user: Us
         `Operation ${operation} is not available for ${provider} connectors`
       );
   }
+}
+
+function scopeTargetSearchQuery(args: Record<string, unknown>) {
+  return ScopeTargetSearchQuerySchema.parse({ search: args.query, limit: args.limit });
+}
+
+/** Stored qualifiers to label, as the resolve route takes them: comma-separated (group/123,project/456). */
+function scopeTargetIds(args: Record<string, unknown>) {
+  const ids = Array.isArray(args.ids) ? args.ids.map(String).join(',') : args.ids;
+  return ScopeTargetResolveQuerySchema.parse({ ids }).ids;
 }
 
 /** Connector update fields as the PATCH routes accept them; each provider schema keeps only its own fields. */

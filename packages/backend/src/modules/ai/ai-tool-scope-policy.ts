@@ -87,6 +87,8 @@ export const AI_TOOL_ANY_SCOPE_REQUIREMENTS: Readonly<Record<string, readonly st
   read_opfield_documentation: MCP_TOKEN_SCOPES,
   // Every caller may read its own access summary: MCP grants hold only delegable scopes, the assistant the workspace.
   get_my_access: ['ai:workspace:use', ...MCP_TOKEN_SCOPES],
+  // GET /system/version, /system/config and /ai/status answer any signed-in user; sandbox_status checks ai:sandbox:use.
+  get_opfield_runtime: ['ai:workspace:use', ...MCP_TOKEN_SCOPES],
   manage_docker_compose: [
     'docker:compose:view',
     'docker:compose:create',
@@ -230,6 +232,13 @@ export const AI_TOOL_ANY_SCOPE_REQUIREMENTS: Readonly<Record<string, readonly st
   // A pull for a workload (workload.folderId) is authorized by creating that container or deployment.
   pull_docker_image: ['docker:images:pull', 'docker:containers:create'],
   upload_docker_container_archive: ['docker:containers:create'],
+  // POST /docker/snapshots/refresh takes the view scope of the resource type it refreshes; the handler checks the node.
+  refresh_docker_snapshot: [
+    'docker:containers:view',
+    'docker:images:view',
+    'docker:volumes:view',
+    'docker:networks:view',
+  ],
   manage_docker_container: [
     'docker:containers:view',
     'docker:containers:edit',

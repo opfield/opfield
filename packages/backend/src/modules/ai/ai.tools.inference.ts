@@ -287,13 +287,13 @@ export const INFERENCE_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'manage_inference_usage',
     description:
-      'Read inference usage. Operations: self and self_overview (the current user usage and remaining budget; feat:ai:use), system (Opfield-wide overview), users (per-user usage), activity_filters, activity (request log filtered by search, status, userId, model; paginated). system, users, and activity need inference:usage:view. In self, a window with configured: false does not limit the caller and reports percentage 0. A request refused for an exhausted budget has status failed and errorCode subscription_budget_exhausted, api_budget_exhausted or provider_api_budget_exhausted. A request on an API source with no price has costUnknown: true (its apiMicrodollars is not its cost); system lists such models of the last 7 days under unpriced with a warning.',
+      'Read inference usage. Operations: self and self_overview (the current user usage and remaining budget; feat:ai:use), catalog (the models the current user may call through the inference API, as GET /api/inference/v1/models lists them for its keys; feat:ai:use), system (Opfield-wide overview), users (per-user usage), activity_filters, activity (request log filtered by search, status, userId, model; paginated). system, users, and activity need inference:usage:view. In self, a window with configured: false does not limit the caller and reports percentage 0. A request refused for an exhausted budget has status failed and errorCode subscription_budget_exhausted, api_budget_exhausted or provider_api_budget_exhausted. A request on an API source with no price has costUnknown: true (its apiMicrodollars is not its cost); system lists such models of the last 7 days under unpriced with a warning.',
     parameters: {
       type: 'object',
       properties: {
         operation: {
           type: 'string',
-          enum: ['self', 'self_overview', 'system', 'users', 'activity_filters', 'activity'],
+          enum: ['self', 'self_overview', 'catalog', 'system', 'users', 'activity_filters', 'activity'],
         },
         page: { type: 'number' },
         limit: { type: 'number', description: 'Items per page (max 100)' },

@@ -101,6 +101,11 @@ async function manageCa(context: PkiCaToolContext, user: User, a: Record<string,
     await context.caService.revokeCA(a.caId, reason, user.id);
     return { success: true, message: 'CA revoked' };
   }
+  if (a.operation === 'create_ocsp_responder') {
+    // POST /cas/{id}/ocsp-responder: same scope check and the same answer while OCSP responders are disabled.
+    requireCaScope(user, 'pki:ca:edit', String(a.caId ?? ''));
+    throw new AppError(501, 'OCSP_DISABLED', 'OCSP responder is currently disabled');
+  }
   if (a.operation === 'export_key') {
     // Mirrors POST /cas/{id}/export-key: PKCS#12 of the CA key and certificate, audited as ca.export_key.
     requireCaScope(user, 'pki:ca:export', String(a.caId ?? ''));

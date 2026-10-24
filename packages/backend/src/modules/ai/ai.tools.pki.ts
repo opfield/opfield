@@ -128,11 +128,11 @@ export const PKI_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'manage_ca',
     description:
-      'Manage Certificate Authorities beyond create/delete. Operations: update (CRL distribution URL, CA issuers URL, max issued validity; needs pki:ca:edit on the CA), revoke (revokes the CA and its subordinate CAs; needs pki:ca:revoke:<type>), export_key (PKCS#12 of the CA private key and certificate protected by passphrase, returned base64; needs pki:ca:export on the CA and is audited).',
+      'Manage Certificate Authorities beyond create/delete. Operations: update (CRL distribution URL, CA issuers URL, max issued validity; needs pki:ca:edit on the CA), revoke (revokes the CA and its subordinate CAs; needs pki:ca:revoke:<type>), export_key (PKCS#12 of the CA private key and certificate protected by passphrase, returned base64; needs pki:ca:export on the CA and is audited). create_ocsp_responder answers OCSP_DISABLED: OCSP responders are disabled in this release (certificates rely on CRLs), as in the API.',
     parameters: {
       type: 'object',
       properties: {
-        operation: { type: 'string', enum: ['update', 'revoke', 'export_key'] },
+        operation: { type: 'string', enum: ['update', 'revoke', 'export_key', 'create_ocsp_responder'] },
         caId: { type: 'string' },
         crlDistributionUrl: { type: ['string', 'null'] },
         caIssuersUrl: { type: ['string', 'null'] },

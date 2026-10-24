@@ -36,7 +36,25 @@ export async function executeDatabaseTool(
   if (!container.isRegistered(TOKENS.CommercialEdition)) return commercialModuleUnavailable();
   return container
     .resolve<CommercialEditionRuntime>(TOKENS.CommercialEdition)
-    .executeDatabaseTool(context, user, toolName, args, databaseToolRuntime);
+    .executeDatabaseTool(
+      context,
+      user,
+      toolName,
+      await withDatabaseIdForSlug(context, toolName, args),
+      databaseToolRuntime
+    );
+}
+
+/**
+ * get_database_connection by slug, like GET /databases/by-slug/{slug}: the slug names the connection, and the
+ * tool then reads it by id with the usual databases:view check on that id.
+ */
+async function withDatabaseIdForSlug(context: DatabaseToolContext, toolName: string, args: Record<string, unknown>) {
+  if (toolName !== 'get_database_connection' || args.databaseId || typeof args.slug !== 'string' || !args.slug) {
+    return args;
+  }
+  const { slug, ...rest } = args;
+  return { ...rest, databaseId: (await context.databaseService.getBySlug(slug as string)).id };
 }
 
 /** manage_managed_database operations for credentials, logs and binding runtime. */

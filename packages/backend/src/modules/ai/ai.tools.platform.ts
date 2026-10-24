@@ -29,13 +29,13 @@ export const PLATFORM_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'get_node',
     description:
-      'Get detailed information about a specific node including live health, stats, and system info; usedFor says which tools accept it (Docker tools take only type docker nodes).',
+      'Get detailed information about a specific node including live health, stats, and system info; usedFor says which tools accept it (Docker tools take only type docker nodes). Pass nodeId, or slug (the node slug from list_nodes or a console URL) instead.',
     parameters: {
       type: 'object',
       properties: {
         nodeId: { type: 'string', description: 'Node UUID' },
+        slug: { type: 'string', description: 'Node slug, instead of nodeId.' },
       },
-      required: ['nodeId'],
     },
     destructive: false,
     category: 'Nodes',
@@ -336,7 +336,7 @@ export const PLATFORM_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'delete_user',
     description:
-      'Soft-delete a user account and revoke access. Cannot target yourself, the system user, or users whose scopes exceed yours. Restoration is available only to system administrators through the Administration UI/API.',
+      'Soft-delete a user account and revoke access. Cannot target yourself, the system user, or users whose scopes exceed yours. A deleted user is restored with manage_user restore (system administrators only; list_deleted lists them).',
     parameters: {
       type: 'object',
       properties: {

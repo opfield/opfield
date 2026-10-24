@@ -567,7 +567,7 @@ export const INTEGRATION_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'manage_integration_connector',
     description:
-      'Manage one integration connector with the same permission checks as its REST route. Operations by provider: gitlab: get, update, delete, test, preview_test, rotate_token, capabilities, allowlist_search, allowlist_options, allowlist_refresh, allowlist_preview_search. cloudflare: get, update, delete, test, preview_test, rotate_token, list_zones. github and git: update, delete, test, preview_test. ssh: update (name only), delete, test, discover_host_key. preview_test, allowlist_preview_search, and discover_host_key take no connectorId. Update fields: name, baseUrl, enabled, token, username, allowlistMode, allowlistEntries, settings (each provider accepts its own subset). Credentials are never returned. Per-user Git credentials are not managed here.',
+      'Manage one integration connector with the same permission checks as its REST route. Operations by provider: gitlab: get, update, delete, test, preview_test, rotate_token, capabilities, allowlist_search, allowlist_options, allowlist_refresh, allowlist_preview_search. cloudflare: get, update, delete, test, preview_test, rotate_token, list_zones. github and git: update, delete, test, preview_test. github also sets a connector up through GitHub OAuth (device flow), as the console does: oauth_availability; oauth_start (name, optional enabled, optional connectorId to re-authorize an existing connector; integrations:github:manage) returns a session with userCode and verificationUri for the user to approve on GitHub; poll oauth_status (sessionId) until it reports the connector, or oauth_cancel (sessionId). gitlab and github: scope_target_search (connectorId, optional query, limit 1-100) searches GitLab groups/projects or GitHub owners/repositories for Git permission scopes, and scope_target_resolve (connectorId, ids: stored qualifiers such as group/123) labels qualifiers a scope already holds; both need integrations:<provider>:view on the connector or anything in it, and results are filtered to what you may view (find_git_scope_target resolves an exact path). ssh: update (name only), delete, test, discover_host_key. preview_test, allowlist_preview_search, discover_host_key and the oauth_* operations take no connectorId (oauth_start takes one only to re-authorize). Update fields: name, baseUrl, enabled, token, username, allowlistMode, allowlistEntries, settings (each provider accepts its own subset). Credentials are never returned. Per-user Git credentials (your own personal token for a connector) are set in the console only.',
     parameters: {
       type: 'object',
       properties: {
@@ -588,9 +588,23 @@ export const INTEGRATION_AI_TOOLS: AIToolDefinition[] = [
             'allowlist_refresh',
             'allowlist_preview_search',
             'discover_host_key',
+            'oauth_availability',
+            'oauth_start',
+            'oauth_status',
+            'oauth_cancel',
+            'scope_target_search',
+            'scope_target_resolve',
           ],
         },
         connectorId: { type: 'string', description: 'Connector UUID from list_integration_connectors.' },
+        sessionId: { type: 'string', description: 'oauth_status, oauth_cancel: the session id oauth_start returned.' },
+        ids: {
+          type: 'array',
+          items: { type: 'string' },
+          description:
+            'scope_target_resolve: stored qualifiers (group/123, project/456, owner/789, repo/1011), up to 100.',
+        },
+        limit: { type: 'number', description: 'scope_target_search: at most this many targets (1-100, default 50).' },
         name: { type: 'string' },
         baseUrl: { type: 'string' },
         enabled: { type: 'boolean' },
@@ -600,7 +614,10 @@ export const INTEGRATION_AI_TOOLS: AIToolDefinition[] = [
         allowlistMode: { type: 'string', enum: ['selected', 'all_visible'] },
         allowlistEntries: { type: 'array', items: allowlistEntrySchema },
         settings: { type: 'object', description: 'GitLab or Cloudflare connector settings.' },
-        query: { type: 'string', description: 'Search text for allowlist_search and allowlist_preview_search.' },
+        query: {
+          type: 'string',
+          description: 'Search text for allowlist_search, allowlist_preview_search and scope_target_search.',
+        },
         host: { type: 'string', description: 'SSH host for discover_host_key.' },
         port: { type: 'number', description: 'SSH port for discover_host_key (default 22).' },
         jumpConnectorId: { type: ['string', 'null'], description: 'Jump SSH connector for discover_host_key.' },

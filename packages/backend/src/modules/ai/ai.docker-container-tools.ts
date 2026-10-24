@@ -23,6 +23,7 @@ import { DockerDeploymentService } from '@/modules/docker/docker-deployment.serv
 import { ImageCleanupUpsertSchema } from '@/modules/docker/docker-image-cleanup.schemas.js';
 import { DockerImageCleanupService } from '@/modules/docker/docker-image-cleanup.service.js';
 import { withNodeLossAnswer } from '@/modules/docker/docker-node-loss.js';
+import { DockerSnapshotRefreshSchema, refreshDockerSnapshots } from '@/modules/docker/docker-snapshot.routes.js';
 import { LicensePolicyService } from '@/modules/license/license-policy.service.js';
 import type { User } from '@/types.js';
 import {
@@ -230,4 +231,16 @@ async function manageImageCleanup(
   return input
     ? cleanup.upsertForContainer(nodeId, containerName, input)
     : cleanup.getForContainer(nodeId, containerName);
+}
+
+/** refresh_docker_snapshot: the same input and checks as POST /docker/snapshots/refresh. */
+export function refreshDockerSnapshotTool(user: User, args: Record<string, unknown>) {
+  return refreshDockerSnapshots(
+    user.scopes,
+    DockerSnapshotRefreshSchema.parse({
+      nodeId: typeof args.nodeId === 'string' && args.nodeId ? args.nodeId : undefined,
+      resource: args.resource,
+      key: typeof args.key === 'string' && args.key ? args.key : undefined,
+    })
+  );
 }
