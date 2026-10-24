@@ -16,10 +16,10 @@ const INSTALLERS: Record<HostingRole, string> = {
 };
 // Published revision containing the Storage wrapper and self-sufficient Relay installation.
 // Update revision and hashes together after publishing installer changes.
-export const HOSTING_INSTALLER_REVISION = 'fcac1829c515643a0990fec4a6141da8354824b4';
+export const HOSTING_INSTALLER_REVISION = 'b4cbbb7c4ebe1f4904f90313d7a2bf8b0f7f18c6';
 export const HOSTING_INSTALLER_BASE = `https://raw.githubusercontent.com/opfield/opfield/${HOSTING_INSTALLER_REVISION}/scripts`;
 const INSTALLER_SHA256: Record<string, string> = {
-  'setup-node.sh': '71430885ef022766b70e0560e92d88af97751a81713fbbba750dd2e246c94442',
+  'setup-node.sh': 'e34bc09f0b5fc4394c8e3ed8f725bee7ba58d285d3a5a6674dc1bd60c2a36f9b',
   'setup-docker-node.sh': '707ab131f65bd2be7f8b858c01e1a44de8a2aa127a69835f7426a1dcbbed446e',
   'setup-database-node.sh': 'ebc4491d05f65cc13553f3de8d9b089f514c2e9a1b0f7fe3ac23966c3d1b4eba',
   'setup-storage-node.sh': 'b1fc4d0ac01a766b88a11698fc2b97f11351adfa6b9423b82ea9401fc4fb864d',
