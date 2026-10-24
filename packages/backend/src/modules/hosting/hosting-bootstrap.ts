@@ -16,15 +16,15 @@ const INSTALLERS: Record<HostingRole, string> = {
 };
 // Published revision containing the Storage wrapper and self-sufficient Relay installation.
 // Update revision and hashes together after publishing installer changes.
-export const HOSTING_INSTALLER_REVISION = 'edbef9760ecec5a942e0fbcb257f7dfbae1a4007';
+export const HOSTING_INSTALLER_REVISION = 'fcac1829c515643a0990fec4a6141da8354824b4';
 export const HOSTING_INSTALLER_BASE = `https://raw.githubusercontent.com/opfield/opfield/${HOSTING_INSTALLER_REVISION}/scripts`;
 const INSTALLER_SHA256: Record<string, string> = {
-  'setup-node.sh': '4fa8b6f4a123692f75d8ba0afb2bc889cd04f6253531d246b76d7a914f99bfa5',
-  'setup-docker-node.sh': '5b0a78c9f55af8e628342c620cfcac33ecb7ac9805ac55092348db6e84d8a60e',
-  'setup-database-node.sh': 'e723e6dbd0d479f1e0197461206722688a64a6b22a4e7b408d23e5aa588be984',
-  'setup-storage-node.sh': '9c6e8b709e494a35e41a976f1f96539fede89619530c552af3af01c23a3d74a8',
-  'setup-monitoring-node.sh': 'f256587500fa949c4d5360895b4dc9640a350d999d9f39e29956047aa38ca2b0',
-  'setup-relay-node.sh': '5b2c4505e01969489acee9b4e98966fc003b611460b0a29733833376d32d7ff5',
+  'setup-node.sh': '71430885ef022766b70e0560e92d88af97751a81713fbbba750dd2e246c94442',
+  'setup-docker-node.sh': '707ab131f65bd2be7f8b858c01e1a44de8a2aa127a69835f7426a1dcbbed446e',
+  'setup-database-node.sh': 'ebc4491d05f65cc13553f3de8d9b089f514c2e9a1b0f7fe3ac23966c3d1b4eba',
+  'setup-storage-node.sh': 'b1fc4d0ac01a766b88a11698fc2b97f11351adfa6b9423b82ea9401fc4fb864d',
+  'setup-monitoring-node.sh': '6c4d1f76ff001db05e3c18f2b5ed5cabfa6ea131ad5dd5ff34423d78780a1851',
+  'setup-relay-node.sh': '908df4d0bb81c655ef704306561de6b640ae2b8cde18fe70c8fcb95ea495e895',
 };
 
 /** Written by a reportResult bootstrap when it ends; read through the guest agent (root-only, 0600). */
