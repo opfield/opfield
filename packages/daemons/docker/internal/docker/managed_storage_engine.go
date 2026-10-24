@@ -397,7 +397,7 @@ func (m *managedStorageManager) ensureNetworkIsolation(ctx context.Context, reco
 			return errors.New("managed storage network identity is invalid")
 		}
 		for endpoint := range inspected.Network.Containers {
-			if _, err := m.client.cli.NetworkDisconnect(ctx, record.NetworkName, mobyclient.NetworkDisconnectOptions{Container: endpoint, Force: true}); err != nil && !isNotFoundErr(err) {
+			if _, err := m.client.cli.NetworkDisconnect(ctx, record.NetworkName, mobyclient.NetworkDisconnectOptions{Container: endpoint, Force: true}); err != nil && !isDetachedErr(err) {
 				return fmt.Errorf("detach managed storage network: %w", err)
 			}
 		}

@@ -89,6 +89,9 @@ const STALE_CONNECTOR_DETACH =
   /detach secure-link connector from ([^\s:]+): .*?container (\S+) is not connected to (?:the )?network/i;
 /** Networks re-attached for one secure-link set at most. */
 const STALE_CONNECTOR_DETACH_MAX = 16;
+const NETWORK_GONE = /network \S+ not found|no such network/i;
+/** Networks Opfield creates for managed links, the only ones created again for a connector to leave. */
+const OPFIELD_LINK_NETWORK = /^(?:opfield|gateway)-(?:db|storage|link)-[a-z0-9-]+$/i;
 const DOCKER_UPSTREAM_KINDS = ['docker_container', 'docker_deployment'] as const;
 
 /** One source (a single-node route) is passed as before; a group route passes every member. */
@@ -2569,42 +2572,80 @@ export class ProxySecureLinkService {
   }
 
   /**
-   * Sends a target node its secure-link set. The daemon detaches its connector from every network it no longer
-   * serves and refused the whole set when the connector had already left one ("container … is not connected to the
-   * network …": a link network whose endpoints a binding or link removal detached, managed-database-network-removal.ts),
-   * so a binding delete answered 500 and the node's links failed closed until its daemon restarted. Released daemons
-   * keep that bookkeeping: the connector is attached to the network again, which lets the daemon's own detach succeed,
-   * and the set is sent again (once per network).
+   * Sends a target node its secure-link set. A released Docker daemon detaches its connector from every network it no
+   * longer serves and refuses the whole set when the connector has already left one ("container … is not connected to
+   * the network …"): a link network whose endpoints a binding or link removal detached, or that was removed under the
+   * connector. A binding delete answered 500 and the node's links failed closed until the daemon restarted. Newer
+   * daemons treat such a detach as done; for older ones the connector is attached to the network again (a removed link
+   * network is created for it first and removed again afterwards), so the daemon's own detach succeeds, and the set is
+   * sent again, once per network.
    */
   private async sendTargetSecureLinks(
     nodeId: string,
     bindings: Parameters<NodeDispatchService['sendProxySecureLinks']>[1]
   ): Promise<Awaited<ReturnType<NodeDispatchService['sendProxySecureLinks']>>> {
     const reattached = new Set<string>();
-    for (;;) {
-      const result = await this.dispatch.sendProxySecureLinks(nodeId, bindings);
-      if (result.success) return result;
-      const stale = STALE_CONNECTOR_DETACH.exec(result.error ?? '');
-      if (!stale || reattached.has(stale[1]!) || reattached.size >= STALE_CONNECTOR_DETACH_MAX) return result;
-      const [, networkName, containerId] = stale as unknown as [string, string, string];
-      reattached.add(networkName);
-      const connected = await this.dispatch.sendDockerNetworkCommand(nodeId, 'connect', {
-        networkId: networkName,
-        containerId,
-      });
-      if (!connected.success && !/already exists|already connected/i.test(connected.error ?? '')) {
-        logger.warn('Secure-link connector could not be attached again to a network it had left', {
+    const recreated: string[] = [];
+    try {
+      for (;;) {
+        const result = await this.dispatch.sendProxySecureLinks(nodeId, bindings);
+        if (result.success) return result;
+        const stale = STALE_CONNECTOR_DETACH.exec(result.error ?? '');
+        if (!stale || reattached.has(stale[1]!) || reattached.size >= STALE_CONNECTOR_DETACH_MAX) return result;
+        const [, networkName, containerId] = stale as unknown as [string, string, string];
+        reattached.add(networkName);
+        if (!(await this.attachConnectorForDetach(nodeId, networkName, containerId, recreated))) return result;
+        logger.info('Secure-link connector had already left a network; attached it again for the daemon to detach', {
           nodeId,
           networkName,
-          error: connected.error,
         });
-        return result;
       }
-      logger.info('Secure-link connector had already left a network; attached it again for the daemon to detach', {
-        nodeId,
-        networkName,
-      });
+    } finally {
+      for (const networkName of recreated) {
+        const removed = await this.dispatch
+          .sendDockerNetworkCommand(nodeId, 'remove', { networkId: networkName })
+          .catch((error: unknown) => ({
+            success: false,
+            error: error instanceof Error ? error.message : String(error),
+          }));
+        if (!removed.success && !/not found|no such network/i.test(removed.error ?? '')) {
+          logger.warn('A link network created again for the connector to leave was not removed', {
+            nodeId,
+            networkName,
+            error: removed.error,
+          });
+        }
+      }
     }
+  }
+
+  /** Attaches the connector to `networkName` again; a removed Opfield link network is created for it (`recreated`). */
+  private async attachConnectorForDetach(
+    nodeId: string,
+    networkName: string,
+    containerId: string,
+    recreated: string[]
+  ): Promise<boolean> {
+    const connect = () =>
+      this.dispatch.sendDockerNetworkCommand(nodeId, 'connect', { networkId: networkName, containerId });
+    let connected = await connect();
+    if (!connected.success && NETWORK_GONE.test(connected.error ?? '') && OPFIELD_LINK_NETWORK.test(networkName)) {
+      const created = await this.dispatch.sendDockerNetworkCommand(nodeId, 'create', {
+        networkId: networkName,
+        driver: 'bridge',
+      });
+      if (created.success) {
+        recreated.push(networkName);
+        connected = await connect();
+      }
+    }
+    if (connected.success || /already exists|already connected/i.test(connected.error ?? '')) return true;
+    logger.warn('Secure-link connector could not be attached again to a network it had left', {
+      nodeId,
+      networkName,
+      error: connected.error,
+    });
+    return false;
   }
 
   private async syncTargetNodeLocked(nodeId: string, excludedNetwork?: string, requiredLinkId?: string): Promise<void> {

@@ -183,7 +183,7 @@ func (m *dockerSecureLinkManager) attachEgressLocked(ctx context.Context, desire
 		if info.userSubnet && endpoint.IPAddress.IsValid() {
 			restore.IPAMConfig = &network.EndpointIPAMConfig{IPv4Address: endpoint.IPAddress}
 		}
-		if _, err := m.plugin.client.cli.NetworkDisconnect(ctx, desired.networkName, mobyclient.NetworkDisconnectOptions{Container: m.networkHolder(), Force: true}); err != nil && !isNotFoundErr(err) {
+		if _, err := m.plugin.client.cli.NetworkDisconnect(ctx, desired.networkName, mobyclient.NetworkDisconnectOptions{Container: m.networkHolder(), Force: true}); err != nil && !isDetachedErr(err) {
 			return egressAttach{state: egressStateError, err: fmt.Errorf("detach the connector to rejoin the link network: %w", err)}
 		}
 	}
@@ -239,7 +239,7 @@ func (m *dockerSecureLinkManager) takeEgressAddressLocked(ctx context.Context, n
 		if !isSecureLinkConnectorName(strings.TrimPrefix(endpoint.Name, "/")) {
 			return true, nil
 		}
-		if _, err := m.plugin.client.cli.NetworkDisconnect(ctx, networkName, mobyclient.NetworkDisconnectOptions{Container: id, Force: true}); err != nil && !isNotFoundErr(err) {
+		if _, err := m.plugin.client.cli.NetworkDisconnect(ctx, networkName, mobyclient.NetworkDisconnectOptions{Container: id, Force: true}); err != nil && !isDetachedErr(err) {
 			return false, fmt.Errorf("take the connector address from the replaced connector: %w", err)
 		}
 	}

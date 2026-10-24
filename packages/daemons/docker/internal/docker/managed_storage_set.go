@@ -704,7 +704,7 @@ func (m *managedStorageManager) restoreSingleNodeNetwork(ctx context.Context, pr
 	}
 	// The container is stopped: a forced disconnect only drops its endpoint
 	// entry (the network it names may be gone).
-	if _, err := m.client.cli.NetworkDisconnect(ctx, previous.NetworkName, mobyclient.NetworkDisconnectOptions{Container: previous.ContainerID, Force: true}); err != nil && !isNotFoundErr(err) {
+	if _, err := m.client.cli.NetworkDisconnect(ctx, previous.NetworkName, mobyclient.NetworkDisconnectOptions{Container: previous.ContainerID, Force: true}); err != nil && !isDetachedErr(err) {
 		m.logger.Debug("the single-node storage container had no endpoint to drop", "id", previous.ID, "error", err)
 	}
 	if _, err := m.client.cli.NetworkConnect(ctx, previous.NetworkName, mobyclient.NetworkConnectOptions{
@@ -756,7 +756,7 @@ func (m *managedStorageManager) ensureSetStorageNetworkInternal(ctx context.Cont
 		return errors.New("managed storage network identity is invalid")
 	}
 	for endpoint := range inspected.Network.Containers {
-		if _, err := m.client.cli.NetworkDisconnect(ctx, record.NetworkName, mobyclient.NetworkDisconnectOptions{Container: endpoint, Force: true}); err != nil && !isNotFoundErr(err) {
+		if _, err := m.client.cli.NetworkDisconnect(ctx, record.NetworkName, mobyclient.NetworkDisconnectOptions{Container: endpoint, Force: true}); err != nil && !isDetachedErr(err) {
 			return err
 		}
 	}

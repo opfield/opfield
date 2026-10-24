@@ -456,7 +456,7 @@ func (m *dockerSecureLinkManager) apply(
 		if _, keep := desiredNetworks[networkName]; keep || m.egress.networkDesired(networkName) {
 			continue
 		}
-		if _, err := m.plugin.client.cli.NetworkDisconnect(ctx, networkName, mobyclient.NetworkDisconnectOptions{Container: m.networkHolder(), Force: true}); err != nil && !isNotFoundErr(err) {
+		if _, err := m.plugin.client.cli.NetworkDisconnect(ctx, networkName, mobyclient.NetworkDisconnectOptions{Container: m.networkHolder(), Force: true}); err != nil && !isDetachedErr(err) {
 			return nil, fail(fmt.Errorf("detach secure-link connector from %s: %w", networkName, err))
 		}
 		delete(m.attached, networkName)

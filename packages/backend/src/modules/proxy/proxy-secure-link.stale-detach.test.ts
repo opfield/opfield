@@ -42,4 +42,26 @@ describe('secure-link set for a connector that already left a network', () => {
     await service({ sendProxySecureLinks: other, sendDockerNetworkCommand: connect }).sendTargetSecureLinks('node', []);
     expect(connect).not.toHaveBeenCalled();
   });
+
+  it('creates a removed link network for the connector to leave, then removes it again', async () => {
+    const sendProxySecureLinks = vi
+      .fn()
+      .mockResolvedValueOnce({ success: false, error: STALE })
+      .mockResolvedValueOnce({ success: true, detail: '[]' });
+    let connects = 0;
+    const sendDockerNetworkCommand = vi.fn(async (_node: string, action: string) => {
+      if (action === 'connect' && ++connects === 1) {
+        return { success: false, error: `network connect: Error response from daemon: network ${NETWORK} not found` };
+      }
+      return { success: true };
+    });
+    const result = await service({ sendProxySecureLinks, sendDockerNetworkCommand }).sendTargetSecureLinks('node', []);
+    expect(result.success).toBe(true);
+    expect(sendDockerNetworkCommand.mock.calls.map(([, action]) => action)).toEqual([
+      'connect',
+      'create',
+      'connect',
+      'remove',
+    ]);
+  });
 });

@@ -282,7 +282,7 @@ func (c *Client) withLinkNetworks(ctx context.Context, networkNames []string) []
 // deletion when no container has the name.
 func (c *Client) deleteEndpoint(ctx context.Context, networkName string, name string) {
 	_, err := c.cli.NetworkDisconnect(ctx, networkName, client.NetworkDisconnectOptions{Container: name, Force: true})
-	if err != nil && !isNotFoundErr(err) && c.logger != nil {
+	if err != nil && !isDetachedErr(err) && c.logger != nil {
 		c.logger.Warn("cannot delete a stale network endpoint", "network", networkName, "endpoint", name, "error", err)
 	}
 }
@@ -360,7 +360,7 @@ func (c *Client) releaseSecureLinkConnector(ctx context.Context, network string,
 	}
 	for _, name := range attached {
 		_, err = c.cli.NetworkDisconnect(ctx, network, client.NetworkDisconnectOptions{Container: name, Force: true})
-		if err != nil && !isNotFoundErr(err) && c.logger != nil {
+		if err != nil && !isDetachedErr(err) && c.logger != nil {
 			c.logger.Warn("cannot detach the secure-link connector from a network being removed", "network", network, "error", err)
 		}
 	}

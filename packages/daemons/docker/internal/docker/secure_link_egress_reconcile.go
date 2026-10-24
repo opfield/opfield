@@ -118,7 +118,7 @@ func (m *dockerSecureLinkManager) releaseIngressLocked(ctx context.Context) erro
 			if m.egress.networkDesired(name) {
 				continue
 			}
-			if _, err := m.plugin.client.cli.NetworkDisconnect(ctx, name, mobyclient.NetworkDisconnectOptions{Container: m.networkHolder(), Force: true}); err != nil && !isNotFoundErr(err) {
+			if _, err := m.plugin.client.cli.NetworkDisconnect(ctx, name, mobyclient.NetworkDisconnectOptions{Container: m.networkHolder(), Force: true}); err != nil && !isDetachedErr(err) {
 				return fmt.Errorf("detach secure-link connector from %s: %w", name, err)
 			}
 			delete(m.attached, name)
@@ -524,7 +524,7 @@ func (m *dockerSecureLinkManager) detachStaleEgressNetworksLocked(ctx context.Co
 		if _, ingress := m.egress.ingressNetworks[name]; ingress {
 			continue
 		}
-		if _, err := m.plugin.client.cli.NetworkDisconnect(ctx, name, mobyclient.NetworkDisconnectOptions{Container: m.networkHolder(), Force: true}); err != nil && !isNotFoundErr(err) {
+		if _, err := m.plugin.client.cli.NetworkDisconnect(ctx, name, mobyclient.NetworkDisconnectOptions{Container: m.networkHolder(), Force: true}); err != nil && !isDetachedErr(err) {
 			if m.plugin.logger != nil {
 				m.plugin.logger.Warn("could not detach the secure-link connector from a link network it no longer serves", "network", name, "error", err)
 			}

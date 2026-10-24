@@ -371,6 +371,14 @@ func isNotConnectedErr(err error) bool {
 	return err != nil && strings.Contains(strings.ToLower(err.Error()), "is not connected to")
 }
 
+// isDetachedErr reports a disconnect that has nothing to do: the container is not on the network ("is not
+// connected to the network", which Docker also answers for a forced disconnect from a network that is gone), or the
+// network or container no longer exists. The detach is done then, so the bookkeeping that wanted it moves on: a link
+// network removed under the secure-link connector made every later secure-link sync of the node fail.
+func isDetachedErr(err error) bool {
+	return isNotFoundErr(err) || isNotConnectedErr(err)
+}
+
 func isAlreadyConnectedErr(err error) bool {
 	if err == nil {
 		return false
