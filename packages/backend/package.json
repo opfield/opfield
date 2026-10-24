@@ -11,6 +11,7 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "e2e:api": "tsx e2e-api/src/run.ts",
+    "e2e:matrix": "tsx e2e-api/src/matrix/run.ts",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
     "typecheck": "tsgo --noEmit -p tsconfig.json",
