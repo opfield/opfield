@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { isValidCidr, normalizeIp } from '@/lib/ip-cidr.js';
 import { hostingOrigin } from './hosting-http.js';
-import { HOSTING_PROVIDERS } from './hosting-provider.types.js';
+import { HOSTING_PROVIDERS, PROXMOX_CPU_TYPES } from './hosting-provider.types.js';
 import { parseIpv4Range, parseVmidRange } from './proxmox-pool.js';
 
 const identifier = z.string().trim().min(1).max(200);
@@ -65,6 +65,10 @@ const ProxmoxProfileSchema = z
       .optional(),
     mtu: z.number().int().min(576).max(9000).optional(),
     firewall: z.boolean().optional(),
+    cpuType: z
+      .enum(PROXMOX_CPU_TYPES)
+      .optional()
+      .describe('CPU type of the VMs this profile creates. Unset means host. Existing VMs keep theirs.'),
     defaultCpu: positiveInteger.optional(),
     defaultMemoryMb: positiveInteger.optional(),
     defaultDiskGb: positiveInteger.optional(),

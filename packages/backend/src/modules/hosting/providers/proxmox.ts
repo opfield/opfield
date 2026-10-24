@@ -16,6 +16,7 @@ import {
   legacyHostingImageFilename,
 } from '../hosting-images.js';
 import {
+  DEFAULT_PROXMOX_CPU_TYPE,
   type HostingAccount,
   type HostingActionRequest,
   type HostingAddress,
@@ -620,6 +621,7 @@ export class ProxmoxHostingAdapter implements HostingProviderAdapter {
             description: description(input.marker),
             ostype: 'l26',
             smbios1: `uuid=${input.marker.slice(3)}`,
+            cpu: settings.cpuType ?? DEFAULT_PROXMOX_CPU_TYPE,
             cores: input.cpu,
             memory: input.memoryMb,
             scsihw: 'virtio-scsi-pci',
@@ -788,6 +790,7 @@ export class ProxmoxHostingAdapter implements HostingProviderAdapter {
       await this.request<null>(`${base}/config`, {
         method: 'PUT',
         body: {
+          cpu: settings.cpuType ?? DEFAULT_PROXMOX_CPU_TYPE,
           cores: input.cpu ?? settings.defaultCpu ?? 2,
           memory: input.memoryMb ?? settings.defaultMemoryMb ?? 2048,
           ...Object.fromEntries(

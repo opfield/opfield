@@ -1,4 +1,17 @@
 export type HostingProvider = "hostkey" | "digitalocean" | "hetzner" | "cloudblast" | "proxmox";
+
+/** CPU types a Proxmox profile may give its VMs (backend PROXMOX_CPU_TYPES); host is the default. */
+export const PROXMOX_CPU_TYPES = [
+  "host",
+  "max",
+  "x86-64-v2",
+  "x86-64-v2-AES",
+  "x86-64-v3",
+  "x86-64-v4",
+  "kvm64",
+  "qemu64",
+] as const;
+export type ProxmoxCpuType = (typeof PROXMOX_CPU_TYPES)[number];
 export type HostingRole =
   | "nginx"
   | "docker"
@@ -126,6 +139,8 @@ export interface HostingSettings {
     searchDomain?: string;
     mtu?: number;
     firewall?: boolean;
+    /** CPU type of the VMs the profile creates; unset means host. */
+    cpuType?: ProxmoxCpuType;
     maxCpu?: number;
     maxMemoryMb?: number;
     maxDiskGb?: number;

@@ -459,9 +459,7 @@ monitoringRoutes.openapi(dashboardBootstrapRoute, async (c) => {
         .then(async (snapshot) => {
           const allowed = new Set(getResourceScopedIds(scopes, 'databases:view'));
           if (snapshot && snapshot.revision > 0)
-            return snapshot.data.filter(
-              (database) => hasScope(scopes, 'databases:view') || allowed.has(database.id)
-            );
+            return snapshot.data.filter((database) => hasScope(scopes, 'databases:view') || allowed.has(database.id));
           const options = hasScope(scopes, 'databases:view') ? undefined : { allowedIds: [...allowed] };
           return listAllPages((page) =>
             container.resolve(DatabaseConnectionService).list({ page, limit: 100 } as any, options)

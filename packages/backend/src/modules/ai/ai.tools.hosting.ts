@@ -162,7 +162,7 @@ const inputSchema = {
     settings: {
       type: 'object',
       description:
-        'connector_*: autoSyncEnabled, autoSyncIntervalSeconds (60-86400), adoptionEnabled, adoptionNodeIds, resourceIds, defaultLocation, defaultSize, defaultImage. Proxmox: tokenId (user@realm!name), proxmoxHost (required on create), caCertificate or certificateFingerprint, and for VM creation proxmox { nodes: [proxmoxHost], storage, imageStorage, seedStorage, bridge, vmidRange, network dhcp|static (static: subnet, gateway, ipRange), pool, vlan, dnsServers, searchDomain, mtu, firewall, maxCpu, maxMemoryMb, maxDiskGb }.',
+        'connector_*: autoSyncEnabled, autoSyncIntervalSeconds (60-86400), adoptionEnabled, adoptionNodeIds, resourceIds, defaultLocation, defaultSize, defaultImage. Proxmox: tokenId (user@realm!name), proxmoxHost (required on create), caCertificate or certificateFingerprint, and for VM creation proxmox { nodes: [proxmoxHost], storage, imageStorage, seedStorage, bridge, vmidRange, network dhcp|static (static: subnet, gateway, ipRange), pool, vlan, dnsServers, searchDomain, mtu, firewall, cpuType (host default; max, x86-64-v2, x86-64-v2-AES, x86-64-v3, x86-64-v4, kvm64, qemu64; applies to VMs created afterwards), maxCpu, maxMemoryMb, maxDiskGb }.',
     },
   },
 };

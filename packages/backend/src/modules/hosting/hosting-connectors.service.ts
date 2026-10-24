@@ -455,13 +455,13 @@ export class HostingConnectorsService {
         .where(and(eq(hostingOperations.connectorId, id), notInArray(hostingOperations.phase, ['ready', 'failed'])))
         .limit(1);
       // Running operations hold this connection: their next steps go to its endpoint with its token, into its pool,
-      // network and storage, and a destroy verifies the account it was ordered from. Resource limits and the name are
-      // not part of that and are saved at any time (onlyLimitsChange).
+      // network and storage, and a destroy verifies the account it was ordered from. Resource limits, the CPU type of
+      // new VMs and the name are not part of that and are saved at any time (onlyLimitsChange).
       if (active.length)
         throw new AppError(
           409,
           'HOSTING_OPERATION_ACTIVE',
-          'Wait for the current hosting operations before changing the endpoint, token, TLS trust, placement or network. Resource limits and the name can be changed at any time.',
+          'Wait for the current hosting operations before changing the endpoint, token, TLS trust, placement or network. Resource limits, the CPU type of new VMs and the name can be changed at any time.',
           { operationId: active[0]!.id }
         );
       const duplicate = await tx
@@ -557,6 +557,7 @@ export class HostingConnectorsService {
       maxCpu: settings.proxmox?.maxCpu,
       maxMemoryMb: settings.proxmox?.maxMemoryMb,
       maxDiskGb: settings.proxmox?.maxDiskGb,
+      cpuType: settings.proxmox?.cpuType,
     };
     await this.db.transaction(async (tx) => {
       const [locked] = await tx

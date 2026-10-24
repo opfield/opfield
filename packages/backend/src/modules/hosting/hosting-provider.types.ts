@@ -3,6 +3,24 @@ import type { HostingSnapshotAction, HostingSnapshotAdapter } from './hosting-sn
 /** Hosting adapters contain provider IO only; authorization and durable intents live in services. */
 export const HOSTING_PROVIDERS = ['hostkey', 'digitalocean', 'hetzner', 'cloudblast', 'proxmox'] as const;
 export type HostingProvider = (typeof HOSTING_PROVIDERS)[number];
+
+/**
+ * CPU types a Proxmox profile may give the VMs it creates. A connector is one physical host and Opfield never migrates
+ * its VMs, so `host` (every feature of the host CPU) is the default; QEMU's own default (x86-64-v1) cannot run builds
+ * that need x86-64-v2 or newer, such as the nginx.org packages for RHEL 9 and 10.
+ */
+export const PROXMOX_CPU_TYPES = [
+  'host',
+  'max',
+  'x86-64-v2',
+  'x86-64-v2-AES',
+  'x86-64-v3',
+  'x86-64-v4',
+  'kvm64',
+  'qemu64',
+] as const;
+export type ProxmoxCpuType = (typeof PROXMOX_CPU_TYPES)[number];
+export const DEFAULT_PROXMOX_CPU_TYPE: ProxmoxCpuType = 'host';
 export type HostingResourceKind = 'vm' | 'ct';
 export type HostingRole = 'nginx' | 'docker' | 'builder' | 'databases' | 'storage' | 'monitoring' | 'relay';
 export type HostingPowerState = 'running' | 'stopped' | 'starting' | 'stopping' | 'unknown';
@@ -66,6 +84,8 @@ export interface HostingProxmoxProfile {
   searchDomain?: string;
   mtu?: number;
   firewall?: boolean;
+  /** CPU type of the VMs this profile creates (Proxmox `cpu`); unset means DEFAULT_PROXMOX_CPU_TYPE. */
+  cpuType?: ProxmoxCpuType;
   defaultCpu?: number;
   defaultMemoryMb?: number;
   defaultDiskGb?: number;

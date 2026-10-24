@@ -17,6 +17,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { toastApiError } from "@/lib/api-error-toast";
@@ -31,6 +38,8 @@ import {
   type HostingDiscovery,
   type HostingProvider,
   type HostingSettings,
+  PROXMOX_CPU_TYPES,
+  type ProxmoxCpuType,
 } from "@/types/hosting";
 import { previewHostingPool } from "./hosting-pool-preview";
 
@@ -93,6 +102,7 @@ export function hostingSettingsInput(
             searchDomain: optional(p.searchDomain),
             mtu: p.mtu,
             firewall: p.firewall,
+            cpuType: p.cpuType ?? "host",
             ...(p.maxCpu == null ? {} : { maxCpu: p.maxCpu }),
             ...(p.maxMemoryMb == null ? {} : { maxMemoryMb: p.maxMemoryMb }),
             ...(p.maxDiskGb == null ? {} : { maxDiskGb: p.maxDiskGb }),
@@ -745,6 +755,30 @@ export function HostingConnectorDialog({
                     />
                   </SettingsControlRow>
                   <SettingsControlRow
+                    title="VM CPU type"
+                    description="CPU model of the VMs this connector creates. Existing VMs keep theirs."
+                    help="Host gives VMs every feature of this host's CPU; Opfield never moves them to another host. QEMU's default (x86-64-v1) cannot run nginx.org builds for RHEL 9 and 10."
+                  >
+                    <Select
+                      value={placement.cpuType ?? "host"}
+                      disabled={locked}
+                      onValueChange={(value) =>
+                        updatePlacement({ cpuType: value as ProxmoxCpuType })
+                      }
+                    >
+                      <SelectTrigger aria-label="VM CPU type">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {PROXMOX_CPU_TYPES.map((type) => (
+                          <SelectItem key={type} value={type}>
+                            {type === "host" ? "host (recommended)" : type}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </SettingsControlRow>
+                  <SettingsControlRow
                     title="Allowed VMIDs"
                     description={
                       vmidError ??
@@ -1020,6 +1054,11 @@ export function HostingConnectorDialog({
                       <SettingsControlRow title="Seed storage">
                         <span className="text-sm text-muted-foreground">
                           {placement.seedStorage}
+                        </span>
+                      </SettingsControlRow>
+                      <SettingsControlRow title="VM CPU type">
+                        <span className="text-sm text-muted-foreground">
+                          {placement.cpuType ?? "host"}
                         </span>
                       </SettingsControlRow>
                       <SettingsControlRow title="VMIDs">

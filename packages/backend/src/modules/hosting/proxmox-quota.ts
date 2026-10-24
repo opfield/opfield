@@ -27,13 +27,17 @@ const dimensions = [
   ['diskGb', 'maxDiskGb'],
 ] as const;
 
-const LIMIT_KEYS = dimensions.map(([, key]) => key);
+// The CPU type only applies to VMs created afterwards, so it is policy like the limits.
+const POLICY_KEYS: readonly string[] = [...dimensions.map(([, key]) => key), 'cpuType'];
 
-/** Settings without the Proxmox resource limits: limits are policy read at reservation, not connection identity. */
+/**
+ * Settings without the Proxmox resource limits and the CPU type of new VMs: both are policy read when a VM is
+ * reserved or created, not connection identity.
+ */
 export function withoutProxmoxLimits<T extends { proxmox?: HostingProxmoxProfile | null }>(settings: T): T {
   if (!settings.proxmox) return settings;
   const proxmox = Object.fromEntries(
-    Object.entries(settings.proxmox).filter(([key]) => !(LIMIT_KEYS as readonly string[]).includes(key))
+    Object.entries(settings.proxmox).filter(([key]) => !POLICY_KEYS.includes(key))
   ) as HostingProxmoxProfile;
   return { ...settings, proxmox };
 }
