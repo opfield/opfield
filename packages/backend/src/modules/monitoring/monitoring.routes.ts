@@ -452,6 +452,36 @@ monitoringRoutes.openapi(dashboardBootstrapRoute, async (c) => {
           // Optional indicator: a failing read must not take the dashboard down.
           .catch(() => [])
       : Promise.resolve([]);
+  // Health of every visible database and storage connection for their sidebar dots (offline red, degraded yellow).
+  const databaseNavigationHealthPromise: Promise<Array<{ healthStatus?: unknown }>> = canViewDatabases
+    ? dashboardReadModels
+        .get<any[]>('databases')
+        .then(async (snapshot) => {
+          const allowed = new Set(getResourceScopedIds(scopes, 'databases:view'));
+          if (snapshot && snapshot.revision > 0)
+            return snapshot.data.filter(
+              (database) => hasScope(scopes, 'databases:view') || allowed.has(database.id)
+            );
+          const options = hasScope(scopes, 'databases:view') ? undefined : { allowedIds: [...allowed] };
+          return listAllPages((page) =>
+            container.resolve(DatabaseConnectionService).list({ page, limit: 100 } as any, options)
+          );
+        })
+        .catch(() => [])
+    : Promise.resolve([]);
+  const storageNavigationHealthPromise: Promise<Array<{ healthStatus?: unknown }>> = hasScopeBase(
+    scopes,
+    'storage:view'
+  )
+    ? listAllPages((page) =>
+        container
+          .resolve(ObjectStorageService)
+          .list(
+            { page, limit: 100 } as any,
+            hasScope(scopes, 'storage:view') ? undefined : { allowedIds: getResourceScopedIds(scopes, 'storage:view') }
+          )
+      ).catch(() => [])
+    : Promise.resolve([]);
   // The Apps list badge of each visible app (its production environment); the list applies the caller's visibility.
   const appNavigationHealthPromise = container
     .resolve(AppsService)
@@ -718,6 +748,8 @@ monitoringRoutes.openapi(dashboardBootstrapRoute, async (c) => {
     statusPageIncidents,
     unpricedInference,
     appNavigationHealth,
+    databaseNavigationHealth,
+    storageNavigationHealth,
   ] = await Promise.all([
     statsPromise,
     healthPromise,
@@ -745,6 +777,8 @@ monitoringRoutes.openapi(dashboardBootstrapRoute, async (c) => {
     statusPageIncidentsPromise,
     unpricedInferencePromise,
     appNavigationHealthPromise,
+    databaseNavigationHealthPromise,
+    storageNavigationHealthPromise,
   ]);
   const now = Date.now();
   const nodeCardIds = nodeResponse.data
@@ -974,6 +1008,8 @@ monitoringRoutes.openapi(dashboardBootstrapRoute, async (c) => {
         docker: healthNavigationAttention(dockerNavigationHealth),
         'status-page': statusPageNavigationAttention(statusPageIncidents),
         apps: appNavigationAttention(appNavigationHealth),
+        databases: healthNavigationAttention(databaseNavigationHealth),
+        storage: healthNavigationAttention(storageNavigationHealth),
       },
     },
   });

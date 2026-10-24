@@ -9,7 +9,9 @@ export function navigationAttentionForItem(
     itemId !== "proxy-hosts" &&
     itemId !== "docker" &&
     itemId !== "status-page" &&
-    itemId !== "apps"
+    itemId !== "apps" &&
+    itemId !== "databases" &&
+    itemId !== "storage"
   ) {
     return null;
   }
@@ -27,6 +29,12 @@ export function navigationAttentionLabel(
     return severity === "critical"
       ? "The status page has a critical incident"
       : "The status page has an active incident";
+  }
+  if (itemId === "databases") {
+    return severity === "critical" ? "Some databases are offline" : "Some databases are degraded";
+  }
+  if (itemId === "storage") {
+    return severity === "critical" ? "Some storage is offline" : "Some storage is degraded";
   }
   if (itemId === "apps") {
     return severity === "critical" ? "Some apps are failing" : "Some apps are degraded";

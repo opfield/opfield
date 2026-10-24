@@ -365,6 +365,8 @@ export interface DashboardBootstrap {
     docker: NavigationAttentionSeverity | null;
     "status-page": NavigationAttentionSeverity | null;
     apps?: NavigationAttentionSeverity | null;
+    databases?: NavigationAttentionSeverity | null;
+    storage?: NavigationAttentionSeverity | null;
   };
 }
 
