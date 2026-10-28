@@ -1793,7 +1793,7 @@ test('the node installers verify a daemon against its signed release manifest be
     readFileSync(path.join(scriptsDir, 'install.sh'), 'utf8').includes(`\nUPDATE_TRUST_PRIMARY='${releaseKey}'\n`),
     'install.sh trusts the release signing key'
   );
-  const verifier = ['ensure_artifact_verifier', 'artifact_json_field', 'artifact_base64url_decode', 'artifact_signed_by_trusted_key', 'verify_release_artifact'];
+  const verifier = ['ensure_artifact_verifier', 'artifact_signatures_verifiable', 'artifact_json_field', 'artifact_base64url_decode', 'artifact_signed_by_trusted_key', 'verify_release_artifact'];
   for (const script of ['setup-docker-node.sh', 'setup-monitoring-node.sh']) {
     for (const name of verifier) {
       assert.equal(shellFunction(sources[script], name), shellFunction(sources['setup-node.sh'], name), `${script} ${name}`);
@@ -1853,6 +1853,12 @@ test('the node installers verify a daemon against its signed release manifest be
     // No signed manifest: refused, unless the operator allows a development build (checksums.txt only, with a warning).
     assert.match(run({}), /DIE: Could not download the signed release manifest/);
     assert.match(run({ env: 'OPFIELD_ALLOW_UNSIGNED_ARTIFACTS=1' }), /WARN: .*no signed release manifest[\s\S]*CHECKSUMS_ONLY[\s\S]*VERIFIED/);
+    // OpenSSL 1.1.1 (Debian 11, Ubuntu 20.04, RHEL 8) has no pkeyutl -rawin: the checksum check of before, with a warning that names it.
+    const openssl111 =
+      'openssl() { case "$1 ${2:-}" in "pkeyutl -help") echo "Usage: pkeyutl [options]" >&2 ;; "version ") echo "OpenSSL 1.1.1w  11 Sep 2023" ;; *) command openssl "$@" ;; esac; }';
+    const old = run({ signed: manifest('release'), env: openssl111 });
+    assert.match(old, /WARN: OpenSSL 1\.1\.1w {2}11 Sep 2023 cannot verify the signed release manifest[\s\S]*CHECKSUMS_ONLY[\s\S]*VERIFIED/);
+    assert.doesNotMatch(old, /Signed release verified/);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
@@ -1901,7 +1907,7 @@ test('the relay installer downloads its binaries from the mirror and checks them
           `TAG=${tag}; VERSION=v2.11.1; ARCH=amd64; LOG_FILE=/dev/null; TEMP_DIR='${dir}/tmp'`,
           'PACKAGE_BASE="${ARTIFACT_BASE_URL%/}/relay-supervisor/${TAG}"',
           // The signature check is the real openssl call in the installer; here every signature verifies.
-          'openssl() { case "$1" in pkeyutl) return 0 ;; base64) base64 -d ;; esac; }',
+          'openssl() { case "$1" in pkeyutl) [[ "$2" != -help ]] || echo " -rawin"; return 0 ;; base64) base64 -d ;; esac; }',
           `curl() { local url="" out=""; while [[ $# -gt 0 ]]; do case "$1" in -o) out="$2"; shift 2 ;; -*) shift ;; *) url="$1"; shift ;; esac; done; echo "$url" >> '${dir}/requests'; case "$url" in *.update.json) printf '%s' "$MANIFEST" > "$out" ;; *) printf '%s' "$SERVED" > "$out" ;; esac; }`,
           `MANIFEST='${manifest(digest)}'; SERVED='${served}'`,
           ...source.match(/^UPDATE_TRUST_\w+=.*$/gm),

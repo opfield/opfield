@@ -512,6 +512,15 @@ decode_base64url() {
   printf '%s' "$value" | openssl base64 -d -A >"$output"
 }
 
+# The release manifests are verified with pkeyutl -rawin, which OpenSSL 3.0 added (1.1.1 has no -rawin): say so before
+# anything is changed instead of failing on the first signature.
+require_signature_verifier() {
+  local help
+  help="$(openssl pkeyutl -help 2>&1 || true)"
+  [[ "$help" == *-rawin* ]] ||
+    die "OpenSSL 3 or later is required to verify the signed release; this host has $(openssl version 2>/dev/null || echo 'an older openssl'). Install OpenSSL 3 and run the installer again."
+}
+
 # signed_by_trusted_key <payload file> <signature file> <work dir>: whether one of the trusted, unrevoked keys signed it.
 signed_by_trusted_key() {
   local payload="$1" signature="$2" work="$3" slot id
@@ -1149,6 +1158,7 @@ if [[ "$DRY_RUN" -eq 0 ]]; then
   ensure_docker_available
   command_exists curl || die "curl is required"
   command_exists openssl || die "openssl is required"
+  require_signature_verifier
   "${DOCKER[@]}" compose version >/dev/null 2>&1 || die "Docker Compose v2 is required"
 
   if [[ ! -d "$INSTALL_DIR" ]]; then
@@ -1173,6 +1183,7 @@ RESUME=0
 if [[ "$DRY_RUN" -eq 1 ]]; then
   command -v curl >/dev/null || die "curl is required to inspect the release in dry-run mode"
   command -v openssl >/dev/null || die "openssl is required to verify the release in dry-run mode"
+  require_signature_verifier
   DRY_RUN_LOG="$(mktemp)"
   LOG_FILE="$DRY_RUN_LOG"
 else

@@ -1122,7 +1122,10 @@ fetch_verified() {
   local manifest="${TEMP_DIR}/${name}.update.json"
   local payload="${TEMP_DIR}/${name}.payload"
   local signature="${TEMP_DIR}/${name}.sig"
-  local binary="${TEMP_DIR}/${name}" url
+  local binary="${TEMP_DIR}/${name}" url help
+  # The relay installer has always verified its binaries with pkeyutl -rawin, which OpenSSL 1.1.1 lacks.
+  help=$(openssl pkeyutl -help 2>&1 || true)
+  [[ "$help" == *-rawin* ]] || { echo "OpenSSL 3 or later is required to verify the signed relay release; this host has $(openssl version 2>/dev/null || echo 'an older openssl'). Install OpenSSL 3 and run the installer again." >&2; exit 1; }
   curl -fsSL "${PACKAGE_BASE}/${name}.update.json" -o "$manifest"
   [[ "$(jq -r '.schemaVersion' "$manifest")" == "1" && "$(jq -r '.keyId' "$manifest")" == "$LEGACY_UPDATE_KEY_ID" ]] || { echo "Untrusted manifest envelope for ${name}" >&2; exit 1; }
   decode_base64url "$(jq -r '.payload' "$manifest")" >"$payload"

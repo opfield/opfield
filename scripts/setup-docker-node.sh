@@ -2627,12 +2627,26 @@ artifact_signed_by_trusted_key() {
     return 1
 }
 
+# Whether this host's openssl verifies a raw Ed25519 signature (pkeyutl -rawin): OpenSSL 3.0 and later. OpenSSL 1.1.1
+# (Debian 11, Ubuntu 20.04, RHEL 8 and its rebuilds) has no -rawin and cannot verify the release manifests.
+artifact_signatures_verifiable() {
+    local help
+    help=$(openssl pkeyutl -help 2>&1 || true)
+    [[ "$help" == *-rawin* ]]
+}
+
 # verify_release_artifact <file> <artifact name> <daemon type> <release tag> <release base URL>: dies unless file is
 # the artifact the release's signed manifest names.
 verify_release_artifact() {
     local file="$1" artifact="$2" daemon_type="$3" tag="$4" base="$5"
     local version="${tag%-"${daemon_type}"}" work manifest field expected actual
     ensure_artifact_verifier
+    if ! artifact_signatures_verifiable; then
+        # Signed verification where the host can do it; elsewhere the check every install had before it, said loudly.
+        warn "$(openssl version 2>/dev/null || echo 'This openssl') cannot verify the signed release manifest of ${artifact} (OpenSSL 3 or later is needed): it is checked against checksums.txt only. Install OpenSSL 3 to verify signed releases."
+        verify_checksum "$file" "$artifact"
+        return 0
+    fi
     work=$(mktemp -d) || die "Could not create a directory to verify ${artifact}."
     manifest="${work}/manifest.json"
     log "Verifying the signed release manifest of ${artifact}..."
