@@ -216,13 +216,14 @@ Every release trusts a list of key slots plus a list of revoked keys. A manifest
 
 A key's id is the SHA-256 of its SubjectPublicKeyInfo DER, in hex (`openssl pkey -pubin -in key.pem -outform DER | sha256sum`, the fingerprint [Verifying releases](verify-releases.md#signed-update-manifests) lists). Revocation names keys by this id, never by the envelope's `keyId`, which whoever holds a key can write freely.
 
-The same slots and revocation list are kept in three places, one line each (the installers carry the primary key too, as `UPDATE_TRUST_PRIMARY`):
+The same slots and revocation list are kept in four places, one line each (the installers carry the primary key too, as `UPDATE_TRUST_PRIMARY`):
 
 | Where | Secondary slot | Revoked ids |
 |-------|----------------|-------------|
 | Backend (`packages/backend/src/lib/update-signing-trust.ts`) | `SECONDARY_UPDATE_SIGNING_PUBLIC_KEY` | `REVOKED_UPDATE_SIGNING_KEY_IDS` |
 | Daemons (`packages/daemons/shared/updateauth/trust.go`) | `secondaryPublicKey` | `revokedKeyIDs` |
 | Node installers (`scripts/setup-node.sh`, `setup-docker-node.sh`, `setup-monitoring-node.sh`, `setup-relay-node.sh`) | `UPDATE_TRUST_SECONDARY` | `UPDATE_TRUST_REVOKED` |
+| Server installer (`scripts/install.sh`, app and relay images) | `UPDATE_TRUST_SECONDARY` | `UPDATE_TRUST_REVOKED` |
 
 A slot holds the base64 body of the key's PEM block on one line: `openssl pkey -pubin -in standby.pem -outform DER | base64 -w0`.
 
@@ -232,7 +233,7 @@ Retiring the primary key (lost or leaked):
 
 1. Make sure the release that carries the standby key in its secondary slot is installed everywhere that must keep updating automatically. An installation or node on an older release trusts only the old key and must be updated by hand.
 2. Switch CI's `UPDATE_SIGNING_PRIVATE_KEY_PEM_B64` to the standby private key.
-3. In the same release, add the old key's id to the revoked list in each place and make the standby key the primary (`config/update-trust/update-signing-public-key.pem`, the installers' `UPDATE_TRUST_PRIMARY`, and `UPDATE_SIGNING_PUBLIC_KEY` in the server installer `scripts/install.sh`, which checks the app image with the primary key alone); empty the secondary slot or fill it with a new standby key.
+3. In the same release, add the old key's id to the revoked list in each place and make the standby key the primary (`config/update-trust/update-signing-public-key.pem`, and the `UPDATE_TRUST_PRIMARY` of every installer, `scripts/install.sh` included); empty the secondary slot or fill it with a new standby key.
 4. Release. Installations and nodes that take this release refuse everything the old key signs, whatever `keyId` its envelope names.
 
 `scripts/sync-update-trust-anchor.sh` copies the primary key into the daemon and backend packages; run it after changing `config/update-trust/update-signing-public-key.pem`.

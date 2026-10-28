@@ -1788,6 +1788,11 @@ test('the node installers verify a daemon against its signed release manifest be
   for (const [script, text] of Object.entries(sources)) {
     assert.ok(text.includes(`\nUPDATE_TRUST_PRIMARY='${releaseKey}'\n`), `${script} trusts the release signing key`);
   }
+  // The server installer checks the app and relay images with the same slots.
+  assert.ok(
+    readFileSync(path.join(scriptsDir, 'install.sh'), 'utf8').includes(`\nUPDATE_TRUST_PRIMARY='${releaseKey}'\n`),
+    'install.sh trusts the release signing key'
+  );
   const verifier = ['ensure_artifact_verifier', 'artifact_json_field', 'artifact_base64url_decode', 'artifact_signed_by_trusted_key', 'verify_release_artifact'];
   for (const script of ['setup-docker-node.sh', 'setup-monitoring-node.sh']) {
     for (const name of verifier) {

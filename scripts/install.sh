@@ -61,9 +61,13 @@ RESTORE_VERSION=""
 PIN_VERSION="${OPFIELD_INSTALL_VERSION:-}"
 CONSOLE_DOMAIN=""
 ACME_EMAIL=""
-UPDATE_SIGNING_PUBLIC_KEY='-----BEGIN PUBLIC KEY-----
-MCowBQYDK2VwAyEAxLXGD8vCYQCYboK301miZXyAaoOLc43zFVnMlH3FeWg=
------END PUBLIC KEY-----'
+# Update signing trust, the same as the backend's (update-signing-trust.ts), the daemons' (updateauth/trust.go) and the
+# node installers': key slots hold the base64 body of an Ed25519 PEM PUBLIC KEY block; primary is the release signing
+# key, secondary the owner's standby key (empty until it is added). A key whose id (SHA-256 of its SubjectPublicKeyInfo
+# DER, hex) is listed in UPDATE_TRUST_REVOKED verifies nothing. docs/operations.md describes a key rotation.
+UPDATE_TRUST_PRIMARY='MCowBQYDK2VwAyEAxLXGD8vCYQCYboK301miZXyAaoOLc43zFVnMlH3FeWg='
+UPDATE_TRUST_SECONDARY=''
+UPDATE_TRUST_REVOKED='' # key ids, separated by spaces
 
 # ── Colors ────────────────────────────────────────────────────────────
 BRAND_MINT='\033[38;2;140;176;132m'
@@ -508,16 +512,30 @@ decode_base64url() {
   printf '%s' "$value" | openssl base64 -d -A >"$output"
 }
 
+# signed_by_trusted_key <payload file> <signature file> <work dir>: whether one of the trusted, unrevoked keys signed it.
+signed_by_trusted_key() {
+  local payload="$1" signature="$2" work="$3" slot id
+  for slot in "$UPDATE_TRUST_PRIMARY" "$UPDATE_TRUST_SECONDARY"; do
+    [[ -n "$slot" ]] || continue
+    id="$(printf '%s' "$slot" | openssl base64 -d -A | openssl dgst -sha256 -r | awk '{print $1}')"
+    [[ " ${UPDATE_TRUST_REVOKED} " == *" ${id} "* ]] && continue
+    printf -- '-----BEGIN PUBLIC KEY-----\n%s\n-----END PUBLIC KEY-----\n' "$slot" >"${work}/update-signing-public-key.pem"
+    if openssl pkeyutl -verify -rawin -pubin -inkey "${work}/update-signing-public-key.pem" -in "$payload" -sigfile "$signature" >>"$LOG_FILE" 2>&1; then
+      return 0
+    fi
+  done
+  return 1
+}
+
 verify_signed_release() {
   local version="$1"
-  local tmp_dir manifest_file payload_file signature_file key_file
+  local tmp_dir manifest_file payload_file signature_file
   local payload signature kind manifest_version tag image digest image_ref secure_connector_image_ref secure_connector_image secure_connector_digest
 
   tmp_dir="$(mktemp -d)"
   manifest_file="${tmp_dir}/opfield-image.update.json"
   payload_file="${tmp_dir}/payload.json"
   signature_file="${tmp_dir}/signature.bin"
-  key_file="${tmp_dir}/update-signing-public-key.pem"
 
   info "Verifying signed release manifest for ${version}"
   # legacy-name: LEGACY_APP_IMAGE_MANIFEST_ASSET, the only name of the manifest of releases before 2.12.6 (a pinned
@@ -539,8 +557,7 @@ verify_signed_release() {
     rm -rf "$tmp_dir"
     die "Signed release manifest contains invalid base64 data."
   fi
-  printf '%s\n' "$UPDATE_SIGNING_PUBLIC_KEY" >"$key_file"
-  if ! openssl pkeyutl -verify -rawin -pubin -inkey "$key_file" -in "$payload_file" -sigfile "$signature_file" >>"$LOG_FILE" 2>&1; then
+  if ! signed_by_trusted_key "$payload_file" "$signature_file" "$tmp_dir"; then
     rm -rf "$tmp_dir"
     die "Signed release manifest signature verification failed."
   fi
@@ -577,7 +594,7 @@ verify_signed_release() {
 
 verify_signed_relay() {
   local relay_tag="$1"
-  local tmp_dir manifest_file payload_file signature_file key_file
+  local tmp_dir manifest_file payload_file signature_file
   local payload signature kind manifest_version tag image digest image_ref protocol_major min_opfield_version
   local secure_connector_image_ref secure_connector_image secure_connector_digest
 
@@ -585,7 +602,6 @@ verify_signed_relay() {
   manifest_file="${tmp_dir}/relay-image.update.json"
   payload_file="${tmp_dir}/payload.json"
   signature_file="${tmp_dir}/signature.bin"
-  key_file="${tmp_dir}/update-signing-public-key.pem"
 
   info "Verifying signed relay manifest for ${relay_tag}"
   if ! download_release_artifact relay "$relay_tag" relay-image.update.json "$manifest_file"; then
@@ -601,8 +617,7 @@ verify_signed_relay() {
     rm -rf "$tmp_dir"
     die "Signed relay manifest is malformed."
   fi
-  printf '%s\n' "$UPDATE_SIGNING_PUBLIC_KEY" >"$key_file"
-  if ! openssl pkeyutl -verify -rawin -pubin -inkey "$key_file" -in "$payload_file" -sigfile "$signature_file" >>"$LOG_FILE" 2>&1; then
+  if ! signed_by_trusted_key "$payload_file" "$signature_file" "$tmp_dir"; then
     rm -rf "$tmp_dir"
     die "Signed relay manifest signature verification failed."
   fi
