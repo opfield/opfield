@@ -336,7 +336,8 @@ export class DockerDeploymentService {
     deploymentId: string | null;
     containerName: string;
     targetType: 'container' | 'deployment';
-    token: string;
+    token: string | null;
+    tokenHash: string | null;
     enabled: boolean;
     createdById: string | null;
     updatedById: string | null;
@@ -358,7 +359,8 @@ export class DockerDeploymentService {
     deploymentId: string | null;
     containerName: string;
     targetType: 'container' | 'deployment';
-    token: string;
+    token: string | null;
+    tokenHash: string | null;
     enabled: boolean;
     createdById: string | null;
     updatedById: string | null;
@@ -378,7 +380,8 @@ export class DockerDeploymentService {
     containerName: string;
     targetType: 'container' | 'deployment';
     deploymentId: string | null;
-    token: string;
+    token: string | null;
+    tokenHash: string | null;
     enabled: boolean;
     createdById: string | null;
     updatedById: string | null;

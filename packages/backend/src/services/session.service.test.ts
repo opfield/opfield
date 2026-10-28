@@ -134,7 +134,7 @@ describe('SessionService', () => {
       refreshToken: 'refresh-token',
       createdAt: Date.now() - 60_000,
       expiresAt: Date.now() + 60_000,
-    } as SessionData;
+    } as unknown as SessionData;
     cache.values.set(`session:${sessionId}`, legacySession);
     cache.sets.set(`user_sessions:${user.id}`, new Set([sessionId]));
 

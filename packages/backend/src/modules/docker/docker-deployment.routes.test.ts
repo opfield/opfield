@@ -112,13 +112,19 @@ describe('deployment webhook token storage', () => {
         },
       }),
     };
-    container.registerInstance(DockerWebhookService, new DockerWebhookService(db as never, ...Array(6).fill({})));
+    container.registerInstance(
+      DockerWebhookService,
+      new (DockerWebhookService as unknown as new (...args: unknown[]) => DockerWebhookService)(
+        db,
+        ...Array(6).fill({})
+      )
+    );
     const router = app([`docker:containers:webhooks:${NODE}/${DEPLOYMENT}`]);
 
-    const read = await (await send(router, 'GET', '/webhook')).json();
+    const read = (await (await send(router, 'GET', '/webhook')).json()) as { data: unknown };
     expect(read.data).toEqual({ id: 'webhook-1', token: null });
 
-    const rotated = await (await send(router, 'POST', '/webhook/regenerate')).json();
+    const rotated = (await (await send(router, 'POST', '/webhook/regenerate')).json()) as { data: unknown };
     expect(rotated.data).toEqual({ id: 'webhook-1', token: 'new-token' });
     expect(patches).toEqual([{ tokenHash: hashWebhookToken('new-token'), token: null }]);
   });

@@ -107,7 +107,11 @@ describe('token create route registry access', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: 'ci', scopes: [], registryAccess }),
     });
-    return { status: response.status, body: await response.json(), createToken };
+    return {
+      status: response.status,
+      body: (await response.json()) as { code?: string; message?: string },
+      createToken,
+    };
   }
 
   it('gives every repository only to the broad workload or image scope', async () => {
