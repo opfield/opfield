@@ -16,11 +16,28 @@ describe('browser WebSocket credentials', () => {
     ).toEqual({ type: 'session', value: 'session-1' });
   });
 
-  it('continues to accept legacy browser session cookies', () => {
-    expect(getSessionWebSocketCredential('session_id=legacy-session', 'https://opfield.test', allowedOrigin)).toEqual({
+  it('accepts the plain session_id cookie only from an HTTP or loopback origin (R1-10)', () => {
+    expect(getSessionWebSocketCredential('session_id=legacy-session', 'http://opfield.test', allowedOrigin)).toEqual({
       type: 'session',
       value: 'legacy-session',
     });
+    expect(getSessionWebSocketCredential('session_id=legacy-session', 'https://localhost:3000', allowedOrigin)).toEqual(
+      { type: 'session', value: 'legacy-session' }
+    );
+    expect(getSessionWebSocketCredential('session_id=planted', 'https://opfield.test', allowedOrigin)).toBeNull();
+  });
+
+  it('reads only the __Host- cookie from an HTTPS origin while the browser has one (R1-10)', () => {
+    const unprefixed = getSessionCookieName('https').replace('__Host-', '');
+    const cookieHeader = `${unprefixed}=planted; ${getSessionCookieName('https')}=own-session`;
+
+    expect(getSessionWebSocketCredential(cookieHeader, 'https://opfield.test', allowedOrigin)).toEqual({
+      type: 'session',
+      value: 'own-session',
+    });
+    expect(getSessionWebSocketCredential(`${unprefixed}=before-upgrade`, 'https://opfield.test', allowedOrigin)).toEqual(
+      { type: 'session', value: 'before-upgrade' }
+    );
   });
 
   it('prefers the cookie matching the WebSocket origin transport', () => {

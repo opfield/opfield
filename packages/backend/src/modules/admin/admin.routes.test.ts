@@ -55,7 +55,6 @@ const USER: User = {
 const SESSION: SessionData = {
   userId: USER.id,
   user: USER,
-  accessToken: 'oidc-access-token',
   createdAt: Date.now(),
   expiresAt: Date.now() + 60_000,
   csrfToken: 'csrf-token',

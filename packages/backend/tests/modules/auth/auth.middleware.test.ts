@@ -6,6 +6,7 @@ import type { DrizzleClient } from '@/db/client.js';
 import { runWithAuditRequestContext } from '@/modules/audit/audit-request-context.js';
 import { authMiddleware, optionalAuthMiddleware } from '@/modules/auth/auth.middleware.js';
 import { getSessionCookieName } from '@/modules/auth/session-cookie.js';
+import { GeneralSettingsService } from '@/modules/settings/general-settings.service.js';
 import { SetupAccessService } from '@/modules/setup/setup-access.service.js';
 import { TokensService } from '@/modules/tokens/tokens.service.js';
 import { SessionService } from '@/services/session.service.js';
@@ -31,7 +32,6 @@ const USER: User = {
 const SESSION: SessionData = {
   userId: USER.id,
   user: USER,
-  accessToken: 'oidc-access-token',
   createdAt: Date.now(),
   expiresAt: Date.now() + 60_000,
   csrfToken: 'csrf-token',
@@ -481,5 +481,60 @@ describe('authMiddleware browser session credentials', () => {
     expect(await meResponse.json()).toEqual({ userId: USER.id, isBlocked: true });
     expect(logoutResponse.status).toBe(200);
     expect(await logoutResponse.json()).toEqual({ userId: USER.id, isBlocked: true });
+  });
+});
+
+describe('authMiddleware session cookies of an HTTPS console (R1-10)', () => {
+  const unprefixedHttpsCookie = () => getSessionCookieName('https').replace('__Host-', '');
+
+  function useHttpsPublicUrl(publicUrl = 'https://opfield.example.com') {
+    container.registerInstance(GeneralSettingsService, {
+      getPublicUrl: vi.fn().mockResolvedValue(publicUrl),
+    } as unknown as GeneralSettingsService);
+  }
+
+  it('uses the __Host- cookie and ignores another one planted next to it', async () => {
+    const sessionService = registerSession();
+    useHttpsPublicUrl();
+
+    const response = await createApp().request('/read', {
+      headers: {
+        Cookie: `${unprefixedHttpsCookie()}=planted-session; session_id=planted-session; ${getSessionCookieName('https')}=own-session`,
+      },
+    });
+
+    expect(response.status).toBe(200);
+    expect(sessionService.getSession).toHaveBeenCalledWith('own-session');
+    expect(sessionService.getSession).not.toHaveBeenCalledWith('planted-session');
+    expect(response.headers.get('set-cookie')).toBeNull();
+  });
+
+  it('moves a session signed in before the __Host- cookie to it and clears the old cookie', async () => {
+    const sessionService = registerSession();
+    useHttpsPublicUrl();
+
+    const response = await createApp().request('/read', {
+      headers: { Cookie: `${unprefixedHttpsCookie()}=session-1` },
+    });
+
+    expect(response.status).toBe(200);
+    expect(sessionService.getSession).toHaveBeenCalledWith('session-1');
+    const setCookies = response.headers.getSetCookie();
+    const reissued = setCookies.find((cookie) => cookie.startsWith(`${getSessionCookieName('https')}=session-1`));
+    expect(reissued).toMatch(/; Path=\//);
+    expect(reissued).toMatch(/; Secure/);
+    expect(reissued).toMatch(/; HttpOnly/);
+    expect(reissued).not.toMatch(/Domain=/i);
+    expect(setCookies.some((cookie) => cookie.startsWith(`${unprefixedHttpsCookie()}=;`))).toBe(true);
+  });
+
+  it('refuses the plain session_id cookie for a non-loopback HTTPS console', async () => {
+    const sessionService = registerSession();
+    useHttpsPublicUrl();
+
+    const response = await createApp().request('/read', { headers: { Cookie: 'session_id=session-1' } });
+
+    expect(response.status).toBe(401);
+    expect(sessionService.getSession).not.toHaveBeenCalled();
   });
 });

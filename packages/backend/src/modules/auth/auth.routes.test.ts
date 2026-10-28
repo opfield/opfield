@@ -37,7 +37,6 @@ const USER: User = {
 const SESSION: SessionData = {
   userId: USER.id,
   user: USER,
-  accessToken: 'oidc-access-token',
   createdAt: Date.now(),
   expiresAt: Date.now() + 60_000,
   csrfToken: 'csrf-token',
@@ -274,6 +273,7 @@ describe('browser-session routes', () => {
 
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ csrfToken: 'recovery-csrf-token' });
+    expect(response.headers.get('cache-control')).toBe('no-store');
   });
 });
 
@@ -481,6 +481,8 @@ describe('logout', () => {
     expect(await response.json()).toEqual({ message: 'Logged out successfully' });
     expect(logout).toHaveBeenCalledWith('current-session-id');
     expect(response.headers.get('set-cookie')).toContain('session_id=;');
+    // The __Host- cookie can only be cleared with Secure set (R1-10).
+    expect(response.headers.getSetCookie().find((cookie) => cookie.startsWith('__Host-'))).toMatch(/; Secure/);
   });
 });
 

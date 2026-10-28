@@ -4,12 +4,7 @@ import { authenticateBearerToken } from '@/modules/auth/auth.middleware.js';
 import { requiresSessionMfaReauthentication, resolveLiveSessionUser } from '@/modules/auth/live-session-user.js';
 import { isDemoRealtimeCapabilityAllowed } from '@/modules/demo/demo-mode.js';
 import type { User } from '@/types.js';
-import {
-  getAcceptedSessionCookieNames,
-  getSessionCookieNameForUrl,
-  hasInstallationSessionCookie,
-  LEGACY_SESSION_COOKIE_NAME,
-} from './session-cookie.js';
+import { selectSessionCookie } from './session-cookie.js';
 
 export type WebSocketCredential =
   | {
@@ -47,31 +42,29 @@ export function getBearerToken(authorizationHeader: string | undefined): string 
   return hasTokenPrefix(token, 'api') || hasTokenPrefix(token, 'oauthAccess') ? token : '';
 }
 
+/**
+ * The browser session of a WebSocket upgrade from an allowed origin. The origin is the console the page was loaded
+ * from, so it decides the cookie names that count, the same way the public URL does for HTTP requests. A cookie under a
+ * legacy name is accepted here and moved to the current name by the next HTTP request.
+ */
 export function getSessionWebSocketCredential(
   cookieHeader: string | undefined,
   origin: string | undefined,
   isAllowedOrigin: (origin: string | undefined) => boolean
 ): WebSocketCredential | null {
   if (!isAllowedOrigin(origin)) return null;
-  if (hasInstallationSessionCookie(cookieHeader)) {
-    const preferredCookieName = origin ? getSessionCookieNameForUrl(origin) : null;
-    if (preferredCookieName) {
-      const preferredSessionId = getCookieValue(cookieHeader, preferredCookieName);
-      if (preferredSessionId) return { type: 'session', value: preferredSessionId };
-    }
-
-    const legacySessionId = getCookieValue(cookieHeader, LEGACY_SESSION_COOKIE_NAME);
-    if (legacySessionId) return { type: 'session', value: legacySessionId };
-
-    for (const cookieName of getAcceptedSessionCookieNames()) {
-      if (cookieName === preferredCookieName || cookieName === LEGACY_SESSION_COOKIE_NAME) continue;
-      const sessionId = getCookieValue(cookieHeader, cookieName);
-      if (sessionId) return { type: 'session', value: sessionId };
-    }
+  let consoleUrl = 'http://localhost';
+  try {
+    if (origin) consoleUrl = new URL(origin).origin;
+  } catch {
+    return null;
   }
-  const legacySessionId = getCookieValue(cookieHeader, LEGACY_SESSION_COOKIE_NAME);
-  if (legacySessionId) return { type: 'session', value: legacySessionId };
-  return null;
+  const cookie = selectSessionCookie(
+    (name) => getCookieValue(cookieHeader, name) || undefined,
+    consoleUrl,
+    cookieHeader ?? ''
+  );
+  return cookie ? { type: 'session', value: cookie.value } : null;
 }
 
 export function getProgrammaticWebSocketCredential(

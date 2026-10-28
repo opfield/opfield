@@ -729,6 +729,20 @@ export function EnvironmentSettingsSection({ canEdit }: { canEdit: boolean }) {
           disabled={disabled}
           onChange={(value) => setValue("sessions", "expirySeconds", value)}
         />
+        <NumberSetting
+          title="Absolute session lifetime"
+          description="Maximum session age from sign-in in days. 0 turns the limit off."
+          help="Ends a browser session this long after sign-in even while it is in use, so renewals cannot keep it alive forever. Applies to existing sessions too."
+          value={draft.sessions.absoluteLifetimeSeconds ?? 0}
+          divisor={86400}
+          unit="days"
+          min={0}
+          max={365}
+          disabled={disabled}
+          onChange={(value) =>
+            setValue("sessions", "absoluteLifetimeSeconds", value > 0 ? value : null)
+          }
+        />
       </EnvironmentPanel>
 
       <EnvironmentPanel

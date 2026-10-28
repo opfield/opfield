@@ -1,8 +1,13 @@
 import 'reflect-metadata';
-import { describe, expect, it, vi } from 'vitest';
+import bcrypt from 'bcryptjs';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AppError } from '@/middleware/error-handler.js';
 import type { CacheService } from '@/services/cache.service.js';
 import { LocalAuthService } from './local-auth.service.js';
+
+vi.mock('@/modules/auth/live-session-user.js', () => ({
+  resolveLiveUser: vi.fn(async (_db: unknown, userId: string) => ({ id: userId })),
+}));
 
 describe('LocalAuthService challenge consumption', () => {
   it('allows only one concurrent claimant for a one-time challenge', async () => {
@@ -172,5 +177,182 @@ describe('LocalAuthService.requestPasswordLink', () => {
       throttled.service.requestPasswordLink(USER.email, 'password_setup', { wait: true })
     ).rejects.toMatchObject({ message: expect.stringContaining('sent when the account was created') });
     expect(throttled.sendSecurityEmail).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * The Redis scripts of the per-account sign-in throttle and the per-user email windows, kept in memory. The throttle
+ * scripts are told apart by their text; anything else is answered by `other`.
+ */
+function memoryRedis(other: (script: string, args: unknown[]) => unknown = () => [1, 0]) {
+  const counters = new Map<string, number>();
+  const locks = new Set<string>();
+  const evalScript = vi.fn(async (script: string, _keys: number, ...args: unknown[]) => {
+    if (script.includes("redis.call('PTTL', KEYS[2])")) {
+      const [attemptsKey, lockKey, limit] = args as [string, string, number];
+      if (locks.has(lockKey)) return 600_000;
+      const attempts = (counters.get(attemptsKey) ?? 0) + 1;
+      counters.set(attemptsKey, attempts);
+      if (attempts > Number(limit)) {
+        counters.delete(attemptsKey);
+        locks.add(lockKey);
+        return -900_000;
+      }
+      return 0;
+    }
+    if (script.includes("redis.call('DECR', KEYS[1])")) {
+      const key = args[0] as string;
+      const attempts = counters.get(key) ?? 0;
+      if (attempts > 0) counters.set(key, attempts - 1);
+      return 0;
+    }
+    return other(script, args);
+  });
+  return { evalScript, counters, locks };
+}
+
+describe('LocalAuthService password sign-in (R1-04, R1-08)', () => {
+  const PASSWORD_USER = {
+    id: 'user-1',
+    email: 'user@example.com',
+    isBlocked: false,
+    authMethod: 'password',
+  };
+
+  function setup(options: { user?: unknown; passwordHash?: string | null } = {}) {
+    const redis = memoryRedis();
+    const cache = { getClient: () => ({ eval: redis.evalScript }) } as unknown as CacheService;
+    const db = {
+      query: {
+        users: { findFirst: vi.fn().mockResolvedValue(options.user === undefined ? PASSWORD_USER : options.user) },
+        userPasswordCredentials: {
+          findFirst: vi
+            .fn()
+            .mockResolvedValue(options.passwordHash === null ? null : { passwordHash: options.passwordHash ?? 'hash' }),
+        },
+      },
+    };
+    const service = new LocalAuthService(
+      db as never,
+      cache,
+      {} as never,
+      { getConfig: vi.fn().mockResolvedValue({ methods: { password: true, emailOtp: false } }) } as never,
+      {} as never,
+      {} as never
+    );
+    return { service, redis, db };
+  }
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('spends a bcrypt comparison when the account or its password does not exist', async () => {
+    const compare = vi.spyOn(bcrypt, 'compare').mockResolvedValue(false as never);
+
+    await expect(setup({ user: null }).service.authenticatePassword('nobody@example.com', 'guess')).resolves.toBeNull();
+    await expect(
+      setup({ passwordHash: null }).service.authenticatePassword('user@example.com', 'guess')
+    ).resolves.toBeNull();
+    await expect(
+      setup({ user: { ...PASSWORD_USER, authMethod: 'email_otp' } }).service.authenticatePassword(
+        'user@example.com',
+        'guess'
+      )
+    ).resolves.toBeNull();
+
+    expect(compare).toHaveBeenCalledTimes(3);
+    for (const call of compare.mock.calls) expect(call[1]).toMatch(/^\$2[aby]\$12\$/);
+  });
+
+  it('locks an account after 10 wrong passwords, also for the right one, wherever they come from', async () => {
+    vi.spyOn(bcrypt, 'compare').mockImplementation((async (password: string) => password === 'right') as never);
+    const { service, redis } = setup();
+
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      await expect(service.authenticatePassword('user@example.com', 'wrong')).resolves.toBeNull();
+    }
+    await expect(service.authenticatePassword('User@Example.com ', 'right')).rejects.toMatchObject({
+      statusCode: 429,
+      code: 'SIGN_IN_LOCKED',
+    });
+    expect([...redis.locks]).toEqual(['auth:sign-in:locked:user:user-1']);
+  });
+
+  it('does not count a correct password as a failure', async () => {
+    vi.spyOn(bcrypt, 'compare').mockImplementation((async (password: string) => password === 'right') as never);
+    const { service, redis } = setup();
+
+    for (let attempt = 0; attempt < 9; attempt += 1) await service.authenticatePassword('user@example.com', 'wrong');
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      await expect(service.authenticatePassword('user@example.com', 'right')).resolves.toMatchObject({ id: 'user-1' });
+    }
+    expect(redis.counters.get('auth:sign-in:attempts:user:user-1')).toBe(9);
+  });
+
+  it('counts guesses for an unknown email under that email', async () => {
+    vi.spyOn(bcrypt, 'compare').mockResolvedValue(false as never);
+    const { service, redis } = setup({ user: null });
+
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      await service.authenticatePassword('nobody@example.com', 'guess');
+    }
+    await expect(service.authenticatePassword('NOBODY@example.com', 'guess')).rejects.toMatchObject({
+      statusCode: 429,
+    });
+    expect([...redis.locks][0]).toMatch(/^auth:sign-in:locked:email:[a-f0-9]{64}$/);
+  });
+});
+
+describe('LocalAuthService email codes (R1-04)', () => {
+  const OTP_USER = { id: 'user-2', email: 'otp@example.com', isBlocked: false, authMethod: 'email_otp' };
+
+  function setup(options: { reserved?: unknown[] } = {}) {
+    const reserve = vi.fn().mockResolvedValue(options.reserved ?? [1, 0]);
+    const redis = memoryRedis((script, args) => reserve(script, ...args));
+    const store = new Map<string, unknown>();
+    const cache = {
+      getClient: () => ({ eval: redis.evalScript }),
+      get: vi.fn(async (key: string) => store.get(key) ?? null),
+      set: vi.fn(async (key: string, value: unknown) => void store.set(key, value)),
+    } as unknown as CacheService;
+    const sendSecurityEmail = vi.fn().mockResolvedValue('sent');
+    const service = new LocalAuthService(
+      { query: { users: { findFirst: vi.fn().mockResolvedValue(OTP_USER) } } } as never,
+      cache,
+      {} as never,
+      { getConfig: vi.fn().mockResolvedValue({ methods: { password: false, emailOtp: true } }) } as never,
+      { sendSecurityEmail } as never,
+      {} as never
+    );
+    return { service, reserve, redis, store, sendSecurityEmail };
+  }
+
+  it('sends at most five codes per account and hour', async () => {
+    const allowed = setup();
+    await expect(allowed.service.requestEmailOtp(OTP_USER.email)).resolves.toEqual(expect.any(String));
+    expect(allowed.reserve).toHaveBeenCalledWith(
+      expect.any(String),
+      'local_auth:email_otp:user-2',
+      expect.any(Number),
+      expect.any(Number),
+      expect.any(String),
+      5,
+      3600
+    );
+
+    const throttled = setup({ reserved: [0, 60_000] });
+    await expect(throttled.service.requestEmailOtp(OTP_USER.email)).resolves.toBeNull();
+    expect(throttled.sendSecurityEmail).not.toHaveBeenCalled();
+  });
+
+  it('takes an account attempt before a code is checked and refuses codes while the account is locked', async () => {
+    const { service, redis, store } = setup();
+    store.set('local_auth:challenge:c1', { userId: OTP_USER.id, purpose: 'email_otp', secretHash: 'x', attempts: 0 });
+    redis.locks.add('auth:sign-in:locked:user:user-2');
+
+    await expect(service.verifyEmailOtp('c1', '123456')).rejects.toMatchObject({ statusCode: 429 });
+    // The challenge itself was not touched: the code was never compared.
+    expect(redis.evalScript.mock.calls.some(([script]) => String(script).includes('cjson'))).toBe(false);
   });
 });

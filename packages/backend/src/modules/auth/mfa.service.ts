@@ -9,9 +9,14 @@ import { permissionGroups, userPasskeys, userRecoveryCodes, users, userTotpFacto
 import { AppError } from '@/middleware/error-handler.js';
 import type { CacheService } from '@/services/cache.service.js';
 import type { CryptoService } from '@/services/crypto.service.js';
+import { AccountSignInThrottle } from './account-sign-in-throttle.js';
 
 const TOTP_SETUP_TTL_SECONDS = 10 * 60;
 const MAX_MFA_LOGIN_ATTEMPTS = 5;
+const TOTP_PERIOD_SECONDS = 30;
+const TOTP_WINDOW = 1;
+// Longer than any accepted code stays valid (the current step and one on either side).
+const TOTP_LAST_STEP_TTL_SECONDS = (2 * TOTP_WINDOW + 2) * TOTP_PERIOD_SECONDS;
 
 const CONSUME_MFA_LOGIN_CHALLENGE_SCRIPT = `
 local raw = redis.call('GET', KEYS[1])
@@ -20,23 +25,33 @@ redis.call('DEL', KEYS[1])
 return raw
 `;
 
-const RECORD_MFA_LOGIN_FAILURE_SCRIPT = `
+// Takes one of the challenge's attempts before its code is checked (parallel guesses cannot exceed the limit) and
+// returns the challenge, or '' when it is gone or used up.
+const TAKE_MFA_LOGIN_ATTEMPT_SCRIPT = `
 local raw = redis.call('GET', KEYS[1])
-if not raw then return 0 end
+if not raw then return '' end
 local ttl = redis.call('PTTL', KEYS[1])
 if ttl <= 0 then
   redis.call('DEL', KEYS[1])
-  return 0
+  return ''
 end
 local challenge = cjson.decode(raw)
 local attempts = (tonumber(challenge.attempts) or 0) + 1
-if attempts >= tonumber(ARGV[1]) then
+if attempts > tonumber(ARGV[1]) then
   redis.call('DEL', KEYS[1])
-else
-  challenge.attempts = attempts
-  redis.call('SET', KEYS[1], cjson.encode(challenge), 'PX', ttl)
+  return ''
 end
-return attempts
+challenge.attempts = attempts
+redis.call('SET', KEYS[1], cjson.encode(challenge), 'PX', ttl)
+return raw
+`;
+
+// Accepts a TOTP time step only when it is newer than the last one accepted for the user: a code is used once.
+const CLAIM_TOTP_STEP_SCRIPT = `
+local last = tonumber(redis.call('GET', KEYS[1]) or '-1')
+if tonumber(ARGV[1]) <= last then return 0 end
+redis.call('SET', KEYS[1], ARGV[1], 'EX', ARGV[2])
+return 1
 `;
 
 interface PendingTotpSetup {
@@ -76,18 +91,22 @@ function createTotp(secret?: string, label?: string) {
     label,
     algorithm: 'SHA1',
     digits: 6,
-    period: 30,
+    period: TOTP_PERIOD_SECONDS,
     ...(secret ? { secret } : { secret: new OTPAuth.Secret({ size: 20 }) }),
   });
 }
 
 @injectable()
 export class MfaService {
+  private readonly signInThrottle: AccountSignInThrottle;
+
   constructor(
     @inject(TOKENS.DrizzleClient) private readonly db: DrizzleClient,
     private readonly cacheService: CacheService,
     private readonly cryptoService: CryptoService
-  ) {}
+  ) {
+    this.signInThrottle = new AccountSignInThrottle(cacheService);
+  }
 
   async isOpfieldMfaRequired(userId: string): Promise<boolean> {
     const [row] = await this.db
@@ -168,16 +187,23 @@ export class MfaService {
     return this.regenerateRecoveryCodes(userId);
   }
 
+  /** Checks a code of the user's authenticator; each time step is accepted once (a seen code is refused). */
   async verifyTotp(userId: string, code: string): Promise<boolean> {
     const factor = await this.db.query.userTotpFactors.findFirst({ where: eq(userTotpFactors.userId, userId) });
     if (!factor) return false;
+    let step: number | null = null;
     try {
       const encryptedSecret = JSON.parse(factor.encryptedSecret) as PendingTotpSetup['encryptedSecret'];
       if (!encryptedSecret.encryptedKey || !encryptedSecret.encryptedDek) return false;
-      return this.isValidTotp(this.cryptoService.decryptString(encryptedSecret), code);
+      step = this.matchingTotpStep(this.cryptoService.decryptString(encryptedSecret), code);
     } catch {
       return false;
     }
+    if (step === null) return false;
+    const claimed = await this.cacheService
+      .getClient()
+      .eval(CLAIM_TOTP_STEP_SCRIPT, 1, `mfa:totp:last-step:${userId}`, step, TOTP_LAST_STEP_TTL_SECONDS);
+    return Number(claimed) === 1;
   }
 
   async beginLoginChallenge(userId: string, authMethod: 'password' | 'email_otp'): Promise<string> {
@@ -216,17 +242,18 @@ export class MfaService {
     input: { totpCode?: string; recoveryCode?: string }
   ): Promise<{ userId: string; authMethod: 'password' | 'email_otp' } | null> {
     const key = `mfa:login:${challengeId}`;
-    const pending = await this.cacheService.get<PendingMfaLogin>(key);
-    if (!pending || pending.attempts >= MAX_MFA_LOGIN_ATTEMPTS) return null;
+    const raw = await this.cacheService.getClient().eval(TAKE_MFA_LOGIN_ATTEMPT_SCRIPT, 1, key, MAX_MFA_LOGIN_ATTEMPTS);
+    if (typeof raw !== 'string' || raw.length === 0) return null;
+    const pending = JSON.parse(raw) as PendingMfaLogin;
+    const subject = { userId: pending.userId };
+    await this.signInThrottle.beginAttempt(subject, 'mfa');
     const valid = input.totpCode
       ? await this.verifyTotp(pending.userId, input.totpCode)
       : input.recoveryCode
         ? await this.useRecoveryCode(pending.userId, input.recoveryCode)
         : false;
-    if (!valid) {
-      await this.cacheService.getClient().eval(RECORD_MFA_LOGIN_FAILURE_SCRIPT, 1, key, MAX_MFA_LOGIN_ATTEMPTS);
-      return null;
-    }
+    if (!valid) return null;
+    await this.signInThrottle.attemptSucceeded(subject);
     return this.consumeLoginChallenge(key);
   }
 
@@ -339,7 +366,14 @@ export class MfaService {
   }
 
   private isValidTotp(secret: string, code: string): boolean {
-    const delta = createTotp(secret).validate({ token: code, window: 1 });
-    return delta !== null;
+    return this.matchingTotpStep(secret, code) !== null;
+  }
+
+  /** The time step `code` belongs to (the current one or a neighbour), or null when it matches none. */
+  private matchingTotpStep(secret: string, code: string): number | null {
+    const timestamp = Date.now();
+    const delta = createTotp(secret).validate({ token: code, window: TOTP_WINDOW, timestamp });
+    if (delta === null) return null;
+    return Math.floor(timestamp / 1000 / TOTP_PERIOD_SECONDS) + delta;
   }
 }

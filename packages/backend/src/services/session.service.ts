@@ -8,14 +8,31 @@ import type { CacheService } from './cache.service.js';
 const SESSION_PREFIX = 'session:';
 const USER_SESSIONS_PREFIX = 'user_sessions:';
 
+/** When a session created at `createdAt` must end under the absolute lifetime setting (null: no such limit). */
+function absoluteDeadline(createdAt: number, absoluteLifetimeSeconds: number | null): number {
+  return absoluteLifetimeSeconds ? createdAt + absoluteLifetimeSeconds * 1000 : Number.POSITIVE_INFINITY;
+}
+
+function remainingSeconds(expiresAt: number): number {
+  return Math.max(1, Math.ceil((expiresAt - Date.now()) / 1000));
+}
+
+/** Sessions stored by earlier releases may still carry the IdP tokens of the sign-in; they are not written back. */
+function withoutLegacyIdpTokens(session: SessionData): SessionData {
+  const {
+    accessToken: _accessToken,
+    refreshToken: _refreshToken,
+    ...stored
+  } = session as SessionData & { accessToken?: unknown; refreshToken?: unknown };
+  return stored;
+}
+
 @injectable()
 export class SessionService {
   constructor(private readonly cache: CacheService) {}
 
   async createSession(
     user: User,
-    accessToken?: string,
-    refreshToken?: string,
     metadata: {
       authMethod?: AuthMethod;
       ipAddress?: string;
@@ -27,19 +44,22 @@ export class SessionService {
       expiresAt?: number;
     } = {}
   ): Promise<{ sessionId: string; expiresAt: number }> {
-    const expirySeconds = getEnvironmentSettingsSnapshot().sessions.expirySeconds;
+    const settings = getEnvironmentSettingsSnapshot().sessions;
     const sessionId = nanoid(32);
-    const expiresAt = Math.min(metadata.expiresAt ?? Number.POSITIVE_INFINITY, Date.now() + expirySeconds * 1000);
+    const createdAt = Date.now();
+    const expiresAt = Math.min(
+      metadata.expiresAt ?? Number.POSITIVE_INFINITY,
+      createdAt + settings.expirySeconds * 1000,
+      absoluteDeadline(createdAt, settings.absoluteLifetimeSeconds)
+    );
 
     const sessionData: SessionData = {
       userId: user.id,
       user,
       publicId: nanoid(18),
       authMethod: metadata.authMethod ?? user.authMethod ?? 'oidc',
-      accessToken,
-      refreshToken,
-      createdAt: Date.now(),
-      lastSeenAt: Date.now(),
+      createdAt,
+      lastSeenAt: createdAt,
       ipAddress: metadata.ipAddress,
       userAgent: metadata.userAgent,
       mfaSatisfiedAt: metadata.mfaSatisfiedAt,
@@ -49,11 +69,11 @@ export class SessionService {
       expiresAt,
     };
 
-    await this.cache.set(`${SESSION_PREFIX}${sessionId}`, sessionData, expirySeconds);
+    await this.cache.set(`${SESSION_PREFIX}${sessionId}`, sessionData, remainingSeconds(expiresAt));
 
     if (sessionData.purpose !== 'impersonation') {
       await this.cache.sadd(`${USER_SESSIONS_PREFIX}${user.id}`, sessionId);
-      await this.cache.expire(`${USER_SESSIONS_PREFIX}${user.id}`, expirySeconds + 86400);
+      await this.cache.expire(`${USER_SESSIONS_PREFIX}${user.id}`, settings.expirySeconds + 86400);
     }
 
     return { sessionId, expiresAt };
@@ -75,7 +95,7 @@ export class SessionService {
       throw new Error('Original administrator session is invalid');
     }
 
-    return this.createSession(subject, undefined, undefined, {
+    return this.createSession(subject, {
       authMethod: originalSession.authMethod ?? actor.authMethod,
       ipAddress: metadata.ipAddress,
       userAgent: metadata.userAgent,
@@ -112,7 +132,10 @@ export class SessionService {
 
     if (!session) return null;
 
-    if (session.expiresAt < Date.now()) {
+    // The absolute lifetime counts from sign-in and also ends sessions created before it was set.
+    const now = Date.now();
+    const absoluteLifetimeSeconds = getEnvironmentSettingsSnapshot().sessions.absoluteLifetimeSeconds;
+    if (session.expiresAt < now || absoluteDeadline(session.createdAt, absoluteLifetimeSeconds) <= now) {
       await this.destroySession(sessionId);
       return null;
     }
@@ -123,8 +146,7 @@ export class SessionService {
     if (!session.publicId) {
       session.publicId = nanoid(18);
       session.authMethod ??= session.user?.authMethod ?? 'oidc';
-      const remainingTtl = Math.max(1, Math.floor((session.expiresAt - Date.now()) / 1000));
-      await this.cache.set(`${SESSION_PREFIX}${sessionId}`, session, remainingTtl);
+      await this.writeSession(sessionId, session);
     }
 
     return session;
@@ -134,14 +156,15 @@ export class SessionService {
     const session = await this.getSession(sessionId);
     if (!session) return;
 
-    const updatedSession: SessionData = {
-      ...session,
-      ...updates,
-    };
+    await this.writeSession(sessionId, { ...session, ...updates });
+  }
 
-    const remainingTtl = Math.max(1, Math.floor((session.expiresAt - Date.now()) / 1000));
-
-    await this.cache.set(`${SESSION_PREFIX}${sessionId}`, updatedSession, remainingTtl);
+  /**
+   * Rewrites a session only while it still exists (one atomic Redis step): a request that read the session before a
+   * logout or revocation deleted it cannot bring it back. Without `ttlSeconds` the stored key keeps its TTL.
+   */
+  private async writeSession(sessionId: string, session: SessionData, ttlSeconds?: number): Promise<boolean> {
+    return this.cache.setIfExists(`${SESSION_PREFIX}${sessionId}`, withoutLegacyIdpTokens(session), ttlSeconds);
   }
 
   async setUserSessionsMfaGraceExpiresAt(userId: string, mfaGraceExpiresAt: number): Promise<void> {
@@ -185,16 +208,30 @@ export class SessionService {
     const resolved = session ?? (await this.getSession(sessionId));
     if (!resolved || (resolved.purpose !== undefined && resolved.purpose !== 'user')) return false;
 
-    const expirySeconds = getEnvironmentSettingsSnapshot().sessions.expirySeconds;
-    const halfTtl = (expirySeconds * 1000) / 2;
+    const settings = getEnvironmentSettingsSnapshot().sessions;
+    const halfTtl = (settings.expirySeconds * 1000) / 2;
     const remaining = resolved.expiresAt - Date.now();
 
     if (remaining > halfTtl) return false;
 
-    const newExpiresAt = Date.now() + expirySeconds * 1000;
-    resolved.expiresAt = newExpiresAt;
+    // Never past the absolute lifetime counted from sign-in, when one is set.
+    const newExpiresAt = Math.min(
+      Date.now() + settings.expirySeconds * 1000,
+      absoluteDeadline(resolved.createdAt, settings.absoluteLifetimeSeconds)
+    );
+    if (newExpiresAt <= resolved.expiresAt) return false;
 
-    await this.cache.set(`${SESSION_PREFIX}${sessionId}`, resolved, expirySeconds);
+    // Re-read so a concurrent change (a new CSRF token) is not overwritten by the snapshot the request started with.
+    const current = await this.getSession(sessionId);
+    if (!current) return false;
+    const refreshed = await this.writeSession(
+      sessionId,
+      { ...current, expiresAt: newExpiresAt },
+      remainingSeconds(newExpiresAt)
+    );
+    if (!refreshed) return false;
+    // The id set must outlive every session it lists, or "revoke all" could no longer find a renewed session.
+    await this.cache.expire(`${USER_SESSIONS_PREFIX}${current.userId}`, settings.expirySeconds + 86400);
 
     return true;
   }

@@ -89,3 +89,34 @@ describe('stored environment settings of other releases', () => {
     expect(settings.pkiDefaults).toEqual(DEFAULT_ENVIRONMENT_SETTINGS.pkiDefaults);
   });
 });
+
+describe('absolute session lifetime setting', () => {
+  it('is off for a row stored before the setting existed (v2.11.3 and later)', () => {
+    const settings = normalizeEnvironmentSettings({ sessions: { expirySeconds: 86_400 } });
+    expect(settings.sessions).toEqual({ expirySeconds: 86_400, absoluteLifetimeSeconds: null });
+    expect(DEFAULT_ENVIRONMENT_SETTINGS.sessions.absoluteLifetimeSeconds).toBeNull();
+  });
+
+  it('keeps a stored limit and falls back to off for a value this release does not accept', () => {
+    expect(
+      normalizeEnvironmentSettings({ sessions: { expirySeconds: 86_400, absoluteLifetimeSeconds: 604_800 } }).sessions
+    ).toEqual({ expirySeconds: 86_400, absoluteLifetimeSeconds: 604_800 });
+    expect(
+      normalizeEnvironmentSettings({ sessions: { absoluteLifetimeSeconds: 10 } }).sessions.absoluteLifetimeSeconds
+    ).toBeNull();
+  });
+
+  it('is set and turned off again through an update', async () => {
+    const { db, writes } = fakeDb();
+    const service = new EnvironmentSettingsService(db);
+
+    await expect(service.update({ sessions: { absoluteLifetimeSeconds: 7 * 86_400 } })).resolves.toMatchObject({
+      sessions: { expirySeconds: 2_592_000, absoluteLifetimeSeconds: 604_800 },
+    });
+    await expect(service.update({ sessions: { absoluteLifetimeSeconds: null } })).resolves.toMatchObject({
+      sessions: { absoluteLifetimeSeconds: null },
+    });
+    await expect(service.update({ sessions: { absoluteLifetimeSeconds: 60 } })).rejects.toThrow();
+    expect(writes).toHaveLength(2);
+  });
+});

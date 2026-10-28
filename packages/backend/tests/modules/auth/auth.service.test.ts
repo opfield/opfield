@@ -3,7 +3,13 @@ import type { SQL } from 'drizzle-orm';
 import { PgDialect } from 'drizzle-orm/pg-core';
 import { describe, expect, it, vi } from 'vitest';
 import { createFakeAdvisoryLockDb } from '@/db/advisory-lock.test-helpers.js';
-import { inferenceProviderConnections, users } from '@/db/schema/index.js';
+import {
+  inferenceProviderConnections,
+  userPasskeys,
+  userRecoveryCodes,
+  users,
+  userTotpFactors,
+} from '@/db/schema/index.js';
 import {
   AuthService,
   type NormalizedOidcClaims,
@@ -877,8 +883,6 @@ describe('AuthService OIDC identity binding', () => {
 
     expect(harness.sessionService.createSession).toHaveBeenCalledWith(
       expect.objectContaining({ id: existingUser.id }),
-      'access-token',
-      'refresh-token',
       {
         authMethod: 'oidc',
         ipAddress: '203.0.113.10',
@@ -1359,3 +1363,92 @@ function createAuthServiceHarness(options: {
     },
   };
 }
+
+describe('AuthService.updateUserAuthMethod second factors (R1-07)', () => {
+  function setup(existing: { totp: number; recoveryCodes: number; passkeys: number }) {
+    const target = {
+      id: '22222222-2222-4222-8222-222222222222',
+      email: 'user@example.com',
+      authMethod: 'password',
+      oidcSubject: null,
+      deletedAt: null,
+      groupId: 'group-1',
+    };
+    const deleted: unknown[] = [];
+    const rows = (count: number) => Array.from({ length: count }, (_, index) => ({ id: `row-${index}` }));
+    const db = {
+      query: { users: { findFirst: vi.fn().mockResolvedValue(target) } },
+      update: vi.fn(() => ({
+        set: vi.fn((values: Record<string, unknown>) => ({
+          where: vi.fn(() => ({ returning: vi.fn().mockResolvedValue([{ ...target, ...values }]) })),
+        })),
+      })),
+      delete: vi.fn((table: unknown) => ({
+        where: vi.fn(() => {
+          deleted.push(table);
+          const returning = vi
+            .fn()
+            .mockResolvedValue(
+              table === userTotpFactors
+                ? rows(existing.totp)
+                : table === userRecoveryCodes
+                  ? rows(existing.recoveryCodes)
+                  : table === userPasskeys
+                    ? rows(existing.passkeys)
+                    : []
+            );
+          return Object.assign(Promise.resolve(), { returning });
+        }),
+      })),
+    };
+    const sessionService = { destroyAllUserSessions: vi.fn() };
+    const cacheService = { delete: vi.fn().mockResolvedValue(undefined) };
+    const authSettings = { getConfig: vi.fn().mockResolvedValue({ methods: { oidc: true, password: true, emailOtp: true } }) };
+    const auditService = { log: vi.fn().mockResolvedValue(true) };
+    const service = new AuthService(
+      db as any,
+      sessionService as any,
+      cacheService as any,
+      authSettings as any,
+      auditService as any
+    );
+    vi.spyOn(service as any, 'mapDbUserToUser').mockImplementation(async (row: any) => ({ ...row, scopes: [] }));
+    return { service, target, deleted, sessionService, cacheService, auditService };
+  }
+
+  it('removes the TOTP factor, recovery codes and passkeys with the old method, and audits it', async () => {
+    const { service, target, deleted, sessionService, cacheService, auditService } = setup({
+      totp: 1,
+      recoveryCodes: 8,
+      passkeys: 2,
+    });
+
+    await service.updateUserAuthMethod(target.id, 'email_otp');
+
+    expect(deleted).toEqual(expect.arrayContaining([userTotpFactors, userRecoveryCodes, userPasskeys]));
+    expect(cacheService.delete).toHaveBeenCalledWith(`mfa:totp:setup:${target.id}`);
+    expect(sessionService.destroyAllUserSessions).toHaveBeenCalledWith(target.id);
+    expect(auditService.log).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'user.mfa_reset',
+        resourceId: target.id,
+        details: expect.objectContaining({
+          reason: 'auth_method_change',
+          previousAuthMethod: 'password',
+          authMethod: 'email_otp',
+          totpRemoved: true,
+          recoveryCodesRemoved: 8,
+          passkeysRemoved: 2,
+        }),
+      })
+    );
+  });
+
+  it('writes no MFA audit entry when the user had no second factor', async () => {
+    const { service, target, auditService } = setup({ totp: 0, recoveryCodes: 0, passkeys: 0 });
+
+    await service.updateUserAuthMethod(target.id, 'oidc');
+
+    expect(auditService.log).not.toHaveBeenCalled();
+  });
+});

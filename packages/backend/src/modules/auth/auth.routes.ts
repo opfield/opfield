@@ -69,10 +69,12 @@ import { OidcSettingsService } from './oidc-settings.service.js';
 import { PasskeyService } from './passkey.service.js';
 import { getPublicAuthMethods } from './public-auth-methods.js';
 import {
-  getAcceptedSessionCookieNames,
+  clearSessionCookies,
   getSessionCookieNameForUrl,
-  hasInstallationSessionCookie,
+  getSessionCookiePublicUrl,
+  isLoopbackUrl,
   LEGACY_SESSION_COOKIE_NAME,
+  selectSessionCookie,
 } from './session-cookie.js';
 
 export const authRoutes = new OpenAPIHono<AppEnv>({ defaultHook: openApiValidationHook });
@@ -98,7 +100,7 @@ authRoutes.use('/passkeys/*', standardOnlyPublicAuthRoute);
 async function setLocalSession(c: any, user: import('@/types.js').User, authMethod: AuthMethod, mfaSatisfied = false) {
   setAuditSubjectUser(user.id);
   const sessionService = container.resolve(SessionService);
-  const { sessionId } = await sessionService.createSession(user, undefined, undefined, {
+  const { sessionId } = await sessionService.createSession(user, {
     authMethod,
     ipAddress: await getClientIpForContext(c),
     userAgent: c.req.header('user-agent'),
@@ -116,7 +118,7 @@ async function setLocalSession(c: any, user: import('@/types.js').User, authMeth
   };
   setCookie(c, getSessionCookieNameForUrl(publicUrl), sessionId, cookieOptions);
 
-  if (['localhost', '127.0.0.1', '::1'].includes(publicUrlObject.hostname)) {
+  if (isLoopbackUrl(publicUrl)) {
     setCookie(c, LEGACY_SESSION_COOKIE_NAME, sessionId, cookieOptions);
   }
 }
@@ -130,18 +132,9 @@ async function getPublicUrl(): Promise<string> {
   }
 }
 
-function getRequestSessionId(c: any): string | null {
-  for (const cookieName of getAcceptedSessionCookieNames()) {
-    const sessionId = getCookie(c, cookieName);
-    if (sessionId) return sessionId;
-  }
-  return null;
-}
-
-function clearSessionCookies(c: any): void {
-  for (const cookieName of getAcceptedSessionCookieNames()) {
-    deleteCookie(c, cookieName, { path: '/' });
-  }
+async function getRequestSessionId(c: any): Promise<string | null> {
+  const publicUrl = await getSessionCookiePublicUrl();
+  return selectSessionCookie((name) => getCookie(c, name), publicUrl, c.req.header('Cookie') ?? '')?.value ?? null;
 }
 
 async function finishLocalPrimaryAuth(c: any, user: import('@/types.js').User, authMethod: 'password' | 'email_otp') {
@@ -600,7 +593,7 @@ authRoutes.post('/password/reset/complete', async (c) => {
 
 // CSRF token for cookie-authenticated browser mutations
 authRoutes.use('/csrf', async (c, next) => {
-  const sessionId = getRequestSessionId(c);
+  const sessionId = await getRequestSessionId(c);
   const session = sessionId ? await container.resolve(SessionService).getSession(sessionId) : null;
   if (sessionId && session?.purpose === 'impersonation') {
     c.set('sessionId', sessionId);
@@ -621,12 +614,13 @@ authRoutes.openapi(csrfTokenRoute, async (c) => {
   if (!csrfToken) {
     return c.json({ code: 'AUTH_ERROR', message: 'Invalid or expired session' }, 401);
   }
+  c.header('Cache-Control', 'no-store');
   return c.json({ csrfToken });
 });
 
 authRoutes.openapi(stopImpersonationRoute, async (c) => {
   const sessionService = container.resolve(SessionService);
-  const impersonationSessionId = getRequestSessionId(c);
+  const impersonationSessionId = await getRequestSessionId(c);
   const impersonationSession = impersonationSessionId ? await sessionService.getSession(impersonationSessionId) : null;
 
   if (!impersonationSessionId || impersonationSession?.purpose !== 'impersonation') {
@@ -709,14 +703,7 @@ authRoutes.openapi(logoutRoute, async (c) => {
   } finally {
     // Always drop the browser cookie, even if the IdP logout URL could not
     // be computed, so a signed-out browser never keeps a session reference.
-    const cookieHeader = c.req.header('Cookie') ?? '';
-    if (hasInstallationSessionCookie(cookieHeader)) {
-      for (const cookieName of getAcceptedSessionCookieNames()) {
-        deleteCookie(c, cookieName, { path: '/' });
-      }
-    } else {
-      deleteCookie(c, 'session_id', { path: '/' });
-    }
+    clearSessionCookies(c);
   }
   return c.json({ message: 'Logged out successfully', ...(logoutUrl ? { logoutUrl } : {}) });
 });
