@@ -61,6 +61,7 @@ import {
   requiredString,
   requiredValue,
 } from './ai.resource-setup-args.js';
+import { resolveSlugVisibleTo } from './ai.slug-lookup.js';
 
 /**
  * A base64 chunk plus its JSON-RPC envelope must stay under the default 2 MiB
@@ -303,11 +304,13 @@ async function runManagePages(user: User, args: Record<string, unknown>) {
         });
   }
   if (operation === 'project_get_by_slug') {
-    const project = await projects.getBySlug(requiredString(args.slug, 'slug'));
-    if (!canAccessPageProject(user.scopes, 'pages:view', project.id)) {
-      throw new AppError(403, 'PAGE_PROJECT_FORBIDDEN', 'Missing pages:view for this Project');
-    }
-    return project;
+    const slug = requiredString(args.slug, 'slug');
+    // A Project the caller may not view answers like a missing slug.
+    return resolveSlugVisibleTo(
+      'Page Project',
+      () => projects.getBySlug(slug),
+      (id) => canAccessPageProject(user.scopes, 'pages:view', id)
+    );
   }
 
   const projectId = requiredString(args.projectId, PROJECT_ID_FIELD);

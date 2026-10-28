@@ -1,9 +1,11 @@
 import { container, TOKENS } from '@/container.js';
 import type { CommercialEditionRuntime } from '@/edition/runtime.js';
 import { commercialModuleUnavailable } from '@/edition/unavailable.js';
+import { hasScope } from '@/lib/permissions.js';
 import { ObjectStorageService } from '@/modules/object-storage/object-storage.service.js';
 import { storageToolRuntime } from '@/modules/object-storage/storage-tool-runtime.js';
 import type { User } from '@/types.js';
+import { resolveSlugVisibleTo } from './ai.slug-lookup.js';
 import { createStorageObjectDownloadLink } from './ai.storage-object-link.js';
 import type { AIToolDefinition } from './ai.types.js';
 
@@ -243,15 +245,21 @@ export async function executeStorageTool(user: User, name: string, args: Record<
   if (name === 'download_storage_object') return createStorageObjectDownloadLink(user, args);
   return container
     .resolve<CommercialEditionRuntime>(TOKENS.CommercialEdition)
-    .executeStorageTool(user, name, await withStorageIdForSlug(name, args), storageToolRuntime);
+    .executeStorageTool(user, name, await withStorageIdForSlug(user, name, args), storageToolRuntime);
 }
 
 /**
  * get_storage_connection by slug, like GET /object-storage/by-slug/{slug}: the slug names the connection, and the
- * tool then reads it by id with the usual storage:view check on that id.
+ * tool then reads it by id with the usual storage:view check on that id. A connection the caller may not view
+ * answers like a missing slug.
  */
-async function withStorageIdForSlug(name: string, args: Record<string, unknown>) {
+async function withStorageIdForSlug(user: User, name: string, args: Record<string, unknown>) {
   if (name !== 'get_storage_connection' || args.storageId || typeof args.slug !== 'string' || !args.slug) return args;
   const { slug, ...rest } = args;
-  return { ...rest, storageId: (await container.resolve(ObjectStorageService).getBySlug(slug as string)).id };
+  const connection = await resolveSlugVisibleTo(
+    'Storage connection',
+    () => container.resolve(ObjectStorageService).getBySlug(slug as string),
+    (id) => hasScope(user.scopes, `storage:view:${id}`)
+  );
+  return { ...rest, storageId: connection.id };
 }

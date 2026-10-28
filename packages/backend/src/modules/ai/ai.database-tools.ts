@@ -8,6 +8,7 @@ import type { DatabaseConnectionService } from '@/modules/databases/databases.se
 import { ManagedDatabaseBindingService } from '@/modules/databases/managed-database-bindings.service.js';
 import { ManagedDatabaseService } from '@/modules/databases/managed-databases.service.js';
 import type { User } from '@/types.js';
+import { resolveSlugVisibleTo } from './ai.slug-lookup.js';
 
 export const DATABASE_TOOL_NAMES = new Set([
   'list_databases',
@@ -40,21 +41,32 @@ export async function executeDatabaseTool(
       context,
       user,
       toolName,
-      await withDatabaseIdForSlug(context, toolName, args),
+      await withDatabaseIdForSlug(context, user, toolName, args),
       databaseToolRuntime
     );
 }
 
 /**
  * get_database_connection by slug, like GET /databases/by-slug/{slug}: the slug names the connection, and the
- * tool then reads it by id with the usual databases:view check on that id.
+ * tool then reads it by id with the usual databases:view check on that id. A connection the caller may not view
+ * answers like a missing slug.
  */
-async function withDatabaseIdForSlug(context: DatabaseToolContext, toolName: string, args: Record<string, unknown>) {
+async function withDatabaseIdForSlug(
+  context: DatabaseToolContext,
+  user: User,
+  toolName: string,
+  args: Record<string, unknown>
+) {
   if (toolName !== 'get_database_connection' || args.databaseId || typeof args.slug !== 'string' || !args.slug) {
     return args;
   }
   const { slug, ...rest } = args;
-  return { ...rest, databaseId: (await context.databaseService.getBySlug(slug as string)).id };
+  const connection = await resolveSlugVisibleTo(
+    'Database connection',
+    () => context.databaseService.getBySlug(slug as string),
+    (id) => hasScope(user.scopes, `databases:view:${id}`)
+  );
+  return { ...rest, databaseId: connection.id };
 }
 
 /** manage_managed_database operations for credentials, logs and binding runtime. */

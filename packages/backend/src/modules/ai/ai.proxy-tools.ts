@@ -41,6 +41,7 @@ import {
   compactProxyHostForAgent,
   PROXY_HOST_UPDATE_FIELDS,
 } from './ai.service-helpers.js';
+import { resolveSlugVisibleTo } from './ai.slug-lookup.js';
 
 const logger = createChildLogger('AIProxyTools');
 
@@ -428,8 +429,12 @@ async function manageRoute(context: ProxyToolContext, user: User, a: Record<stri
   if (a.operation === 'get_by_slug') {
     const slug = typeof a.slug === 'string' ? a.slug : '';
     if (!slug) throw new AppError(400, 'SLUG_REQUIRED', 'slug is required for get_by_slug');
-    const host = await context.proxyService.getProxyHostBySlug(slug);
-    requireRouteView(user, host.id);
+    // A Route the caller may not view answers like a missing slug.
+    const host = await resolveSlugVisibleTo(
+      'Route',
+      () => context.proxyService.getProxyHostBySlug(slug),
+      (id) => hasScopeForResource(user.scopes, 'proxy:view', id)
+    );
     return routeConfigForAgent(user, host);
   }
 
