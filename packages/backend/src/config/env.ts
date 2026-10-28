@@ -101,6 +101,8 @@ const envSchema = z.object({
   // Opfield's own image; the override exists for development/lab installs
   // where the Opfield image is a local build without the production repo name.
   INFERENCE_CORE_DISTRIBUTION_IMAGE: z.string().trim().optional(),
+  /** Pins the address of the core callback listener (default: the container's own network addresses). */
+  INFERENCE_CORE_INTERNAL_HOST: z.string().trim().optional(),
 
   // PKI Master Key — 32 bytes as 64-char hex string for envelope encryption
   PKI_MASTER_KEY: z

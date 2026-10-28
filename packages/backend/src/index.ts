@@ -43,6 +43,7 @@ import { DockerMigrationService } from '@/modules/docker/docker-migration.servic
 import { DockerSnapshotReconciler } from '@/modules/docker/docker-snapshot-reconciler.service.js';
 import { InferenceReservationReconciler } from '@/modules/inference/accounting/inference-reservation-reconciler.js';
 import { inferenceCoreInternalRoutes } from '@/modules/inference/core/inference-core-internal.routes.js';
+import { inferenceCoreListenHostsFromEnvironment } from '@/modules/inference/core/inference-core-internal-listener.js';
 import { INFERENCE_CORE_INTERNAL_PORT } from '@/modules/inference/core/inference-core-runtime.service.js';
 import { InferenceProviderService } from '@/modules/inference/providers/inference-provider.service.js';
 import { LoggingClickHouseService } from '@/modules/logging/logging-clickhouse.service.js';
@@ -146,21 +147,26 @@ function closeHttpServer(server: ReturnType<typeof serve>, deadline: number): Pr
   });
 }
 
-function startInferenceCoreInternalServer(): Promise<ReturnType<typeof serve>> {
-  return new Promise((resolvePromise, reject) => {
-    const server = serve(
-      {
-        fetch: inferenceCoreInternalRoutes.fetch,
-        port: INFERENCE_CORE_INTERNAL_PORT,
-        hostname: '0.0.0.0',
-      },
-      () => {
-        server.off('error', reject);
-        resolvePromise(server);
-      }
-    );
-    server.once('error', reject);
-  });
+function startInferenceCoreInternalServers(hosts: string[]): Promise<Array<ReturnType<typeof serve>>> {
+  return Promise.all(
+    hosts.map(
+      (hostname) =>
+        new Promise<ReturnType<typeof serve>>((resolvePromise, reject) => {
+          const server = serve(
+            {
+              fetch: inferenceCoreInternalRoutes.fetch,
+              port: INFERENCE_CORE_INTERNAL_PORT,
+              hostname,
+            },
+            () => {
+              server.off('error', reject);
+              resolvePromise(server);
+            }
+          );
+          server.once('error', reject);
+        })
+    )
+  );
 }
 
 async function main() {
@@ -225,10 +231,14 @@ async function main() {
     injectWebSocket(server);
 
     // Internal core → Opfield callback listener (admission/settlement). Bound
-    // inside the container only; the port is never published to the host, so
-    // just the installer-managed Compose network can reach it.
-    const coreInternalServer = await startInferenceCoreInternalServer();
-    logger.info(`Inference core internal listener on 0.0.0.0:${INFERENCE_CORE_INTERNAL_PORT}`);
+    // to the container's own network addresses, never the wildcard; the port is
+    // never published to the host, so just the installer-managed Compose network
+    // can reach it.
+    const coreListenHosts = inferenceCoreListenHostsFromEnvironment(env.INFERENCE_CORE_INTERNAL_HOST);
+    const coreInternalServers = await startInferenceCoreInternalServers(coreListenHosts);
+    logger.info(
+      `Inference core internal listener on ${coreListenHosts.join(', ')} port ${INFERENCE_CORE_INTERNAL_PORT}`
+    );
     const lifecycle = container.resolve(OpfieldLifecycleService);
     server.prependListener('request', (request, response) =>
       lifecycle.trackHttpRequest(request, response, statusPageService.isCachedStatusHost(request.headers.host))
@@ -416,7 +426,7 @@ async function main() {
               closeHttpServer(consoleServer as ReturnType<typeof serve>, deadline)
             ),
           ]);
-          if (coreInternalServer) await closeHttpServer(coreInternalServer, deadline);
+          await Promise.all(coreInternalServers.map((coreServer) => closeHttpServer(coreServer, deadline)));
           logger.info('HTTP server closed');
         },
         finalize: async (deadline) => {
