@@ -41,16 +41,15 @@ Opfield daemons have a small resource footprint compared with the services they 
 5. Copy the setup command from the dialog.
 6. Run it on the target host.
 
-The command in the dialog belongs to the Opfield installation that shows it. It downloads the installer from that Opfield version's GitHub release, runs it only after `sha256sum` matches the release's `opfield-node-installers.sha256`, and pins with `--version` the newest daemon release of the same minor version (a relay gets the release its Relay Pool runs). A development build without a release version runs the installer from the `main` branch instead. The AI assistant and MCP tools return the same commands as `installCommands`. The command exports the enrollment token as `OPFIELD_NODE_TOKEN` and passes it through `sudo --preserve-env=OPFIELD_NODE_TOKEN`, so it never appears on a command line that other local users could read; `--token` still works. The installer installs a daemon binary only after it verified the binary against its signed release manifest (see [Security Model](security.md#threat-model-notes)).
+The command in the dialog belongs to the Opfield installation that shows it. It downloads the installer from that Opfield version's GitHub release, runs it only after `sha256sum` matches the release's `opfield-node-installers.sha256`, and pins with `--version` the newest daemon release of the same minor version (a relay gets the release its Relay Pool runs). A development build without a release version runs the installer from the `main` branch instead. The AI assistant and MCP tools return the same commands as `installCommands`. The command sets the enrollment token as `OPFIELD_NODE_TOKEN` for the `sudo` command alone and passes it through `sudo --preserve-env=OPFIELD_NODE_TOKEN`, so it never appears on a command line that other local users could read; `--token` still works. The installer installs a daemon binary only after it verified the binary against its signed release manifest (see [Security Model](security.md#threat-model-notes)).
 
 The commands below install from the latest stable release. To match an older Opfield version, replace `latest/download` with `download/<opfield-version>`, for example `download/v2.11.0`.
 
 Universal setup command:
 
 ```bash
-export OPFIELD_NODE_TOKEN=<TOKEN>
 curl -sSL https://get.opfield.dev/opfield/releases/latest/download/setup-daemon.sh | \
-  sudo --preserve-env=OPFIELD_NODE_TOKEN bash -s -- --type nginx --opfield opfield.example.com:9443 --opfield-cert-sha256 sha256:<FINGERPRINT>
+  OPFIELD_NODE_TOKEN=<TOKEN> sudo --preserve-env=OPFIELD_NODE_TOKEN bash -s -- --type nginx --opfield opfield.example.com:9443 --opfield-cert-sha256 sha256:<FINGERPRINT>
 ```
 
 > [!IMPORTANT]
@@ -63,17 +62,15 @@ The wrapper downloads the daemon-specific installer from the same release, check
 Nginx node:
 
 ```bash
-export OPFIELD_NODE_TOKEN=<TOKEN>
 curl -sSL https://get.opfield.dev/opfield/releases/latest/download/setup-node.sh | \
-  sudo --preserve-env=OPFIELD_NODE_TOKEN bash -s -- --opfield opfield.example.com:9443 --opfield-cert-sha256 sha256:<FINGERPRINT>
+  OPFIELD_NODE_TOKEN=<TOKEN> sudo --preserve-env=OPFIELD_NODE_TOKEN bash -s -- --opfield opfield.example.com:9443 --opfield-cert-sha256 sha256:<FINGERPRINT>
 ```
 
 Docker node:
 
 ```bash
-export OPFIELD_NODE_TOKEN=<TOKEN>
 curl -sSL https://get.opfield.dev/opfield/releases/latest/download/setup-docker-node.sh | \
-  sudo --preserve-env=OPFIELD_NODE_TOKEN bash -s -- --opfield opfield.example.com:9443 --opfield-cert-sha256 sha256:<FINGERPRINT>
+  OPFIELD_NODE_TOKEN=<TOKEN> sudo --preserve-env=OPFIELD_NODE_TOKEN bash -s -- --opfield opfield.example.com:9443 --opfield-cert-sha256 sha256:<FINGERPRINT>
 ```
 
 **Alpine, OpenRC and LXC requirements.** Docker nodes need Docker to be able to give its containers the `memory`, `pids` and `cpu` cgroup controllers, because the Secure Link connector and managed workloads run with memory, CPU and pids limits. The installer checks this after Docker is present and refuses to enroll the node when a controller is missing. On an LXC guest running Alpine with OpenRC the root cgroup can have no controllers enabled: `cat /sys/fs/cgroup/cgroup.subtree_control` is empty, and OpenRC's `cgroups` service reports `Resource busy` because every process sits in the root cgroup. Docker and plain containers still start there, but a container with limits fails with `pids.max: no such file or directory`. The host cgroup setup has to enable the controllers before the node is installed; verify with `cat /sys/fs/cgroup/cgroup.subtree_control /sys/fs/cgroup/docker/cgroup.controllers`, which must list `memory`, `pids` and `cpu`. The installer does not change the host's cgroup setup. On an Alpine LXC guest, let OpenRC's `cgroups` service move the processes out of the root cgroup before it enables the controllers: run `rc-update add cgroups boot`, put the following into `/etc/conf.d/cgroups`, and reboot the guest:
@@ -104,9 +101,8 @@ A worker only takes builds for its platform (architecture).
 Storage node:
 
 ```bash
-export OPFIELD_NODE_TOKEN=<TOKEN>
 curl -sSL https://get.opfield.dev/opfield/releases/latest/download/setup-storage-node.sh | \
-  sudo --preserve-env=OPFIELD_NODE_TOKEN bash -s -- --opfield opfield.example.com:9443 --opfield-cert-sha256 sha256:<FINGERPRINT>
+  OPFIELD_NODE_TOKEN=<TOKEN> sudo --preserve-env=OPFIELD_NODE_TOKEN bash -s -- --opfield opfield.example.com:9443 --opfield-cert-sha256 sha256:<FINGERPRINT>
 ```
 
 See [Storage nodes, external storage and database backups](storage-and-backups.md) for what runs on a Storage node.
@@ -114,9 +110,8 @@ See [Storage nodes, external storage and database backups](storage-and-backups.m
 Monitoring node:
 
 ```bash
-export OPFIELD_NODE_TOKEN=<TOKEN>
 curl -sSL https://get.opfield.dev/opfield/releases/latest/download/setup-monitoring-node.sh | \
-  sudo --preserve-env=OPFIELD_NODE_TOKEN bash -s -- --opfield opfield.example.com:9443 --opfield-cert-sha256 sha256:<FINGERPRINT>
+  OPFIELD_NODE_TOKEN=<TOKEN> sudo --preserve-env=OPFIELD_NODE_TOKEN bash -s -- --opfield opfield.example.com:9443 --opfield-cert-sha256 sha256:<FINGERPRINT>
 ```
 
 ## Docker Secure Runtime
@@ -269,9 +264,8 @@ The nginx installer supports:
 Example:
 
 ```bash
-export OPFIELD_NODE_TOKEN=<TOKEN>
 curl -sSL https://get.opfield.dev/opfield/releases/latest/download/setup-daemon.sh | \
-  sudo --preserve-env=OPFIELD_NODE_TOKEN bash -s -- --type nginx --opfield opfield.example.com:9443 --opfield-cert-sha256 sha256:<FINGERPRINT> --nginx-mode integrate
+  OPFIELD_NODE_TOKEN=<TOKEN> sudo --preserve-env=OPFIELD_NODE_TOKEN bash -s -- --type nginx --opfield opfield.example.com:9443 --opfield-cert-sha256 sha256:<FINGERPRINT> --nginx-mode integrate
 ```
 
 Use `managed` for fresh ingress nodes where Opfield should own nginx. Use `integrate` when nginx is already used by other workloads on the same host.

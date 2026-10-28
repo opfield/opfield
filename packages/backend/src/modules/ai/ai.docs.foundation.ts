@@ -495,12 +495,11 @@ cd "$(mktemp -d)" && \\
 curl -fsSL -o setup-node.sh ${INSTALLER_RELEASES_URL}/download/<opfield-version>/setup-node.sh && \\
 curl -fsSL -o opfield-node-installers.sha256 ${INSTALLER_RELEASES_URL}/download/<opfield-version>/opfield-node-installers.sha256 && \\
 grep ' setup-node.sh$' opfield-node-installers.sha256 | sha256sum -c - && \\
-export OPFIELD_NODE_TOKEN='<enrollment-token>' && \\
-sudo --preserve-env=OPFIELD_NODE_TOKEN bash setup-node.sh \\
+OPFIELD_NODE_TOKEN='<enrollment-token>' sudo --preserve-env=OPFIELD_NODE_TOKEN bash setup-node.sh \\
   --opfield <opfield-host>:9443 --opfield-cert-sha256 sha256:<opfield-cert-fingerprint> --version <opfield-version>
 \`\`\`
 
-The enrollment token goes through the environment, never the command line, where other users of the server could read it.
+The enrollment token goes through the environment of the sudo command alone, never the command line, where other users of the server could read it, and it does not stay exported in the shell.
 
 The installers by node type: **nginx** setup-node.sh, **docker** and **builder** setup-docker-node.sh, **storage** setup-storage-node.sh, legacy **databases** setup-database-node.sh, **monitoring** setup-monitoring-node.sh, **relay** setup-relay-node.sh (with \`--advertise-address\`).
 

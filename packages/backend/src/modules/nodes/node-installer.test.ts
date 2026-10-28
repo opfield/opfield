@@ -81,13 +81,12 @@ describe('node setup commands', () => {
     const [publicCommand, localCommand] = storageCommands('v2.11.0');
 
     expect(publicCommand?.curl.split(' && \\\n')).toEqual([
-      'export OPFIELD_NODE_TOKEN=gw_node_v2_token',
       'cd "$(mktemp -d)"',
       `curl -fsSL -o setup-storage-node.sh ${RELEASE}/setup-storage-node.sh`,
       `curl -fsSL -o opfield-node-installers.sha256 ${RELEASE}/opfield-node-installers.sha256`,
       "grep ' setup-storage-node.sh$' opfield-node-installers.sha256 | sha256sum -c -",
       [
-        'sudo --preserve-env=OPFIELD_NODE_TOKEN bash setup-storage-node.sh \\',
+        'OPFIELD_NODE_TOKEN=gw_node_v2_token sudo --preserve-env=OPFIELD_NODE_TOKEN bash setup-storage-node.sh \\',
         '  --opfield gw.example.com:9443 \\',
         `  --opfield-cert-sha256 ${CERT} \\`,
         '  --version v2.11.0',
@@ -98,7 +97,7 @@ describe('node setup commands', () => {
       `wget -qO opfield-node-installers.sha256 ${RELEASE}/opfield-node-installers.sha256`
     );
     expect(publicCommand?.wget).toContain(
-      '| sha256sum -c - && \\\nsudo --preserve-env=OPFIELD_NODE_TOKEN bash setup-storage-node.sh'
+      '| sha256sum -c - && \\\nOPFIELD_NODE_TOKEN=gw_node_v2_token sudo --preserve-env=OPFIELD_NODE_TOKEN bash setup-storage-node.sh'
     );
     // An IPv6 target is quoted so no shell expands the brackets.
     expect(localCommand?.curl).toContain("--opfield '[fd00::1]:9443' \\");
@@ -111,8 +110,11 @@ describe('node setup commands', () => {
     for (const release of ['v2.11.0', null]) {
       for (const command of storageCommands(release).flatMap((entry) => [entry.curl, entry.wget])) {
         expect(command).not.toContain('--token');
-        expect(command.startsWith('export OPFIELD_NODE_TOKEN=gw_node_v2_token && \\\n')).toBe(true);
-        expect(command).toMatch(/sudo --preserve-env=OPFIELD_NODE_TOKEN bash /);
+        // Assigned for the sudo command alone: nothing stays exported in the shell that ran the command (L-05).
+        expect(command).not.toContain('export ');
+        expect(command).toMatch(
+          /(^|[|&] |\n)OPFIELD_NODE_TOKEN=gw_node_v2_token sudo --preserve-env=OPFIELD_NODE_TOKEN bash /
+        );
       }
     }
     // A token that needs quoting is quoted for the shell.
@@ -123,7 +125,7 @@ describe('node setup commands', () => {
       opfieldCertSha256: CERT,
       targets: { public: { label: 'Public node', address: 'gw.example.com:9443' } },
     });
-    expect(quoted?.curl).toContain("export OPFIELD_NODE_TOKEN='tok'\\''en' && \\\n");
+    expect(quoted?.curl).toContain("OPFIELD_NODE_TOKEN='tok'\\''en' sudo --preserve-env=OPFIELD_NODE_TOKEN bash ");
   });
 
   it('keep running the installers from main on an unreleased build', () => {
@@ -133,10 +135,10 @@ describe('node setup commands', () => {
 
     const [command] = storageCommands(null);
     expect(command?.curl).toMatch(
-      /^export OPFIELD_NODE_TOKEN=gw_node_v2_token && \\\ncurl -sSL https:\/\/raw\.githubusercontent\.com\/opfield\/opfield\/main\/scripts\/setup-storage-node\.sh \| sudo --preserve-env=OPFIELD_NODE_TOKEN bash -s -- \\\n {2}--opfield /
+      /^curl -sSL https:\/\/raw\.githubusercontent\.com\/opfield\/opfield\/main\/scripts\/setup-storage-node\.sh \| OPFIELD_NODE_TOKEN=gw_node_v2_token sudo --preserve-env=OPFIELD_NODE_TOKEN bash -s -- \\\n {2}--opfield /
     );
     expect(command?.wget).toMatch(
-      /\nwget -qO- https:\/\/raw\.githubusercontent\.com\/.*\/main\/scripts\/setup-storage-node\.sh \|/
+      /^wget -qO- https:\/\/raw\.githubusercontent\.com\/.*\/main\/scripts\/setup-storage-node\.sh \|/
     );
   });
 

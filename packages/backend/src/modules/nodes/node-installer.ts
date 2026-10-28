@@ -128,8 +128,9 @@ export const INSTALL_TOKEN_ENV = 'OPFIELD_NODE_TOKEN';
  * every supported host has, busybox included (Debian, Ubuntu, RHEL, Alpine). An unreleased build pipes the
  * installer from main, unverified, as before installers were pinned.
  *
- * An enrollment token goes to the installer in the environment (exported in the user's shell, passed on by sudo),
- * never as an argument: the command line of the installer is readable by every local user while it runs.
+ * An enrollment token goes to the installer in the environment, never as an argument: the command line of the
+ * installer is readable by every local user while it runs. It is assigned for the sudo command alone (sudo passes it
+ * on), so it does not stay exported in the user's shell afterwards.
  */
 export function nodeInstallCommand(input: {
   installer: string;
@@ -147,20 +148,21 @@ export function nodeInstallCommand(input: {
   const args = input.args
     .map(([flag, value]) => `${argBreak}${flag}${value === undefined ? '' : ` ${shellWord(value)}`}`)
     .join('');
-  const tokenSteps = input.token === undefined ? [] : [`export ${INSTALL_TOKEN_ENV}=${shellWord(input.token)}`];
-  const sudo = input.token === undefined ? 'sudo' : `sudo --preserve-env=${INSTALL_TOKEN_ENV}`;
+  const sudo =
+    input.token === undefined
+      ? 'sudo'
+      : `${INSTALL_TOKEN_ENV}=${shellWord(input.token)} sudo --preserve-env=${INSTALL_TOKEN_ENV}`;
   const join = (steps: string[]) => steps.join(input.oneLine ? ' && ' : ' && \\\n');
   if (!input.release) {
     const url = `${MAIN_INSTALLERS}/${input.installer}`;
     const fetch = input.transport === 'curl' ? `curl -sSL ${url}` : `wget -qO- ${url}`;
-    return join([...tokenSteps, `${fetch} | ${sudo} bash -s --${args}`]);
+    return `${fetch} | ${sudo} bash -s --${args}`;
   }
   const base = `${RELEASE_DOWNLOADS}/${input.release}`;
   const checksums = input.checksums ?? INSTALLER_CHECKSUMS;
   const download = (file: string) =>
     input.transport === 'curl' ? `curl -fsSL -o ${file} ${base}/${file}` : `wget -qO ${file} ${base}/${file}`;
   return join([
-    ...tokenSteps,
     'cd "$(mktemp -d)"',
     download(input.installer),
     download(checksums),
