@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { isLeftoverOneShot, ONE_SHOT_LABEL, ONE_SHOT_LEFTOVER_AGE_MS } from './docker.service.js';
-import { finishedContainerSweepKind } from './update.service.js';
+import { finishedContainerSweepKind, isUnlabelledUpdateSidecar } from './update.service.js';
 
 describe('one-off helper containers (F-3)', () => {
   it('are left alone by the cleanup of finished update sidecars, which they look like', () => {
@@ -24,6 +24,41 @@ describe('one-off helper containers (F-3)', () => {
     ).toBe('sidecar');
     expect(finishedContainerSweepKind({ Id: 'old', State: 'exited', Labels: {} }, null)).toBe('maybe-sidecar');
     expect(finishedContainerSweepKind({ Id: 'old', State: 'exited', Labels: {} }, 'old')).toBe('skip');
+  });
+
+  it('leave unlabelled sidecars of older releases recognizable, whichever path they mounted the Compose directory at', () => {
+    const socket = { Source: '/var/run/docker.sock', Destination: '/var/run/docker.sock' };
+    const pinned = `docker.io/library/docker:27-cli@sha256:${'a'.repeat(64)}`;
+    const sidecar = (Image: string, ...Mounts: Array<{ Source: string; Destination: string }>) => ({
+      Config: { Image },
+      Mounts,
+    });
+    expect(isUnlabelledUpdateSidecar(sidecar(pinned, socket, { Source: '/root', Destination: '/root' }), '/root')).toBe(
+      true
+    );
+    // Older sidecars mounted it at /project, and some ran the unpinned tag.
+    expect(
+      isUnlabelledUpdateSidecar(sidecar('docker:27-cli', socket, { Source: '/root', Destination: '/project' }), '/root')
+    ).toBe(true);
+    // A user's own Docker CLI container is not one.
+    expect(isUnlabelledUpdateSidecar(sidecar('docker:27-cli', socket), '/root')).toBe(false);
+    expect(
+      isUnlabelledUpdateSidecar(sidecar(pinned, socket, { Source: '/srv/app', Destination: '/project' }), '/root')
+    ).toBe(false);
+    expect(
+      isUnlabelledUpdateSidecar(
+        sidecar(
+          'docker:27-cli',
+          socket,
+          { Source: '/root', Destination: '/project' },
+          { Source: '/x', Destination: '/x' }
+        ),
+        '/root'
+      )
+    ).toBe(false);
+    expect(
+      isUnlabelledUpdateSidecar(sidecar('alpine:3', socket, { Source: '/root', Destination: '/project' }), '/root')
+    ).toBe(false);
   });
 
   it('are leftovers once they ended (or, never started, were created) a while ago', () => {

@@ -147,6 +147,28 @@ const LEGACY_UPDATE_SIDECAR_ROLE = LEGACY_UPDATE_SIDECAR_NAME;
 const FINISHED_CONTAINER_ROLES: readonly string[] = [UPDATE_SIDECAR_ROLE, LEGACY_UPDATE_SIDECAR_ROLE];
 /** The Docker CLI image of update sidecars started before they were labelled (any pinned version). */
 const UNLABELLED_SIDECAR_IMAGE = /^docker\.io\/library\/docker:\d+-cli@sha256:[0-9a-f]{64}$/;
+/** Older unlabelled sidecars also ran the unpinned `docker:<n>-cli` tag. */
+const LEGACY_SIDECAR_IMAGE = /^(?:docker\.io\/library\/)?docker:\d+-cli(?:@sha256:[0-9a-f]{64})?$/;
+
+/**
+ * Whether an exited unlabelled container is an update sidecar of an older release: the Docker CLI image with exactly
+ * the Docker socket and the Compose directory mounted. Sidecars mounted the Compose directory at its own path or at
+ * /project; a user's own docker:cli containers do not mount both.
+ */
+export function isUnlabelledUpdateSidecar(
+  details: { Config: { Image: string }; Mounts?: Array<{ Source?: string; Destination?: string }> },
+  composeDir: string
+): boolean {
+  if (!LEGACY_SIDECAR_IMAGE.test(details.Config.Image)) return false;
+  const mounts = details.Mounts ?? [];
+  const socket = mounts.some(
+    (mount) => mount.Source === '/var/run/docker.sock' && mount.Destination === '/var/run/docker.sock'
+  );
+  const compose = mounts.some(
+    (mount) => mount.Source === composeDir && (mount.Destination === composeDir || mount.Destination === '/project')
+  );
+  return socket && compose && mounts.length === 2;
+}
 /**
  * What the cleanup of finished update containers does with a listed container, before inspecting it: only containers
  * that ran and ended count (one just created is about to start, and removing it killed a registry storage switch's
@@ -1114,13 +1136,7 @@ export class UpdateService {
         if (!labelled) {
           if (!composeDir) continue;
           const details = await this.dockerService.inspectContainerDetails(item.Id);
-          if (!details || !UNLABELLED_SIDECAR_IMAGE.test(details.Config.Image)) continue;
-          const mounts = details.Mounts ?? [];
-          const socket = mounts.some(
-            (mount) => mount.Source === '/var/run/docker.sock' && mount.Destination === '/var/run/docker.sock'
-          );
-          const compose = mounts.some((mount) => mount.Source === composeDir && mount.Destination === composeDir);
-          if (!socket || !compose || mounts.length !== 2) continue;
+          if (!details || !isUnlabelledUpdateSidecar(details, composeDir)) continue;
         }
         await this.dockerService
           // Never forced: a container that started meanwhile stays.
@@ -1392,6 +1408,12 @@ service_exists() { compose config --services | grep -qx "$1"; }
 ensure_foundation_services() {
   for service in $(compose config --services); do
     [ "$service" = app ] && continue
+    # The registry holds no state outside its volumes: recreate it when its definition changed, or it keeps the
+    # first one forever (log rotation and level included).
+    if [ "$service" = registry ]; then
+      compose up -d --no-deps registry
+      continue
+    fi
     compose up -d --no-recreate "$service"
   done
 }

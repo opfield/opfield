@@ -157,6 +157,7 @@ services:
     environment:
       REGISTRY_HTTP_ADDR: 0.0.0.0:5000
       REGISTRY_HTTP_DEBUG_ADDR: 127.0.0.1:5001
+      REGISTRY_LOG_LEVEL: info
       REGISTRY_HTTP_SECRET: ${GATEWAY_REGISTRY_HTTP_SECRET}
       REGISTRY_AUTH: token
       REGISTRY_AUTH_TOKEN_REALM: ${GATEWAY_REGISTRY_TOKEN_REALM:-https://gateway.invalid/api/docker/registry/token}
