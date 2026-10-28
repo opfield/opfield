@@ -635,7 +635,7 @@ export class AppPromotionService {
     const selected = preview.items.filter((item) => wanted.has(item.pairKey));
     if (selected.length === 0) throw new AppError(400, 'VALIDATION_ERROR', 'Select at least one item to promote');
     // A new image runs with the target's env and secrets: apps:promote alone does not cover that.
-    if (selected.some((item) => item.promotable && (item.type === 'container' || item.type === 'deployment'))) {
+    if (selected.some((item) => item.promotable && item.type !== 'pages')) {
       assertPromotionImageScopes(actor.scopes, selected, await this.members.listMembers([target.id]));
     }
     const records: AppPromotionItemRecord[] = selected.map((item) => ({

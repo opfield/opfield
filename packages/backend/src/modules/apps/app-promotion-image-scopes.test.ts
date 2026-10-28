@@ -69,13 +69,44 @@ describe('promotion image scopes', () => {
     );
   });
 
+  it('checks a Compose target for docker:compose:manage on the project', () => {
+    const compose = {
+      type: 'compose',
+      targetId: 'project-1',
+      targetName: 'shop',
+      targetNodeId: NODE,
+      promotable: true,
+    };
+    const members = [
+      ...targetMembers,
+      {
+        type: 'compose',
+        id: 'project-1',
+        name: 'shop',
+        environmentId: 'prod',
+        nodeIds: [NODE],
+        nodeId: NODE,
+      } as AppMember,
+    ];
+    expect(() => assertPromotionImageScopes(['apps:promote', 'docker:compose:view'], [compose], members)).toThrowError(
+      /docker:compose:manage/
+    );
+    expect(() => assertPromotionImageScopes([`docker:compose:manage:${NODE}/other`], [compose], members)).toThrowError(
+      /docker:compose:manage/
+    );
+    expect(() =>
+      assertPromotionImageScopes([`docker:compose:manage:${NODE}/project-1`], [compose], members)
+    ).not.toThrow();
+    expect(() => assertPromotionImageScopes([`docker:compose:manage:${NODE}`], [compose], members)).not.toThrow();
+    expect(() => assertPromotionImageScopes([], [{ ...compose, promotable: false }], members)).not.toThrow();
+  });
+
   it('ignores items that are skipped or are not containers and deployments', () => {
     expect(() =>
       assertPromotionImageScopes(
         [],
         [
           { ...container, promotable: false },
-          { type: 'compose', targetId: 'p', targetName: 'p', targetNodeId: NODE, promotable: true },
           { type: 'pages', targetId: 'g', targetName: 'g', targetNodeId: null, promotable: true },
         ],
         targetMembers
