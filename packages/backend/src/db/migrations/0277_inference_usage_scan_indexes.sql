@@ -1,0 +1,2 @@
+CREATE INDEX "inference_requests_unpriced_created_idx" ON "inference_requests" USING btree ("created_at") WHERE "inference_requests"."cost_unknown";--> statement-breakpoint
+CREATE INDEX "inference_usage_ledger_user_budget_time_idx" ON "inference_usage_ledger" USING btree ("user_id","budget_type","occurred_at","credits","api_microdollars");

@@ -158,6 +158,13 @@ export class InferenceBudgetPolicyService {
         SUBSCRIPTION_WINDOWS['30d']
       ),
     };
+    // Only the open windows are summed: bound the scan to them so its cost follows recent usage, not the ledger's age.
+    const subscriptionScanStart = new Date(
+      Math.min(
+        now.getTime(),
+        ...Object.values(subscriptionWindows).flatMap((window) => (window ? [window.start.getTime()] : []))
+      )
+    );
     const [subscriptionResult, apiRow] = await Promise.all([
       database.execute(
         sql<{
@@ -182,6 +189,7 @@ export class InferenceBudgetPolicyService {
           WHERE
             ${inferenceUsageLedger.userId} = ${userId}
             AND ${inferenceUsageLedger.budgetType} = 'subscription'
+            AND ${inferenceUsageLedger.occurredAt} >= ${subscriptionScanStart}
         `
       ),
       database
