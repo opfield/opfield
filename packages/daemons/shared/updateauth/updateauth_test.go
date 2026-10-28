@@ -3,8 +3,10 @@ package updateauth
 import (
 	"crypto/ed25519"
 	"crypto/rand"
+	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
+	"encoding/pem"
 	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"strings"
 	"testing"
@@ -109,10 +111,70 @@ func useTestKey(t *testing.T) ed25519.PrivateKey {
 	if err != nil {
 		t.Fatal(err)
 	}
-	previous := trustedKey
-	trustedKey = func() (ed25519.PublicKey, error) { return public, nil }
-	t.Cleanup(func() { trustedKey = previous })
+	previous := trustedKeys
+	trustedKeys = func() ([]ed25519.PublicKey, error) { return []ed25519.PublicKey{public}, nil }
+	t.Cleanup(func() { trustedKeys = previous })
 	return private
+}
+
+func pemOf(t *testing.T, key ed25519.PublicKey) string {
+	t.Helper()
+	der, err := x509.MarshalPKIXPublicKey(key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: der}))
+}
+
+// The trust is a list of key slots plus a revocation list (R3-09): a manifest signed by the standby key verifies once
+// that key fills the secondary slot, and a revoked key verifies nothing, whatever keyId its envelope names.
+func TestTrustedKeySlotsAndRevocation(t *testing.T) {
+	primaryPublic, primary, _ := ed25519.GenerateKey(rand.Reader)
+	standbyPublic, standby, _ := ed25519.GenerateKey(rand.Reader)
+	standbyDER, _ := x509.MarshalPKIXPublicKey(standbyPublic)
+	standbyLine := base64.StdEncoding.EncodeToString(standbyDER)
+	primaryID, err := PublicKeyID(primaryPublic)
+	if err != nil {
+		t.Fatal(err)
+	}
+	payload := []byte(`{"kind":"daemon-binary"}`)
+	verifies := func(slots []string, revoked []string, private ed25519.PrivateKey) bool {
+		keys, err := trustedKeySet(slots, revoked)
+		if err != nil {
+			return false
+		}
+		return signedByAny(keys, payload, ed25519.Sign(private, payload))
+	}
+
+	if !verifies([]string{pemOf(t, primaryPublic), ""}, nil, primary) {
+		t.Fatal("the primary key with an empty secondary slot does not verify")
+	}
+	if verifies([]string{pemOf(t, primaryPublic), ""}, nil, standby) {
+		t.Fatal("a key in no slot verifies")
+	}
+	if !verifies([]string{pemOf(t, primaryPublic), standbyLine}, nil, standby) {
+		t.Fatal("the standby key in the secondary slot does not verify")
+	}
+	if verifies([]string{pemOf(t, primaryPublic), standbyLine}, []string{strings.ToUpper(primaryID)}, primary) {
+		t.Fatal("a revoked primary key still verifies")
+	}
+	if !verifies([]string{pemOf(t, primaryPublic), standbyLine}, []string{primaryID}, standby) {
+		t.Fatal("the standby key stopped verifying when the primary was revoked")
+	}
+	if _, err := trustedKeySet([]string{pemOf(t, primaryPublic), ""}, []string{primaryID}); err == nil {
+		t.Fatal("a trust with every key revoked was accepted")
+	}
+	if _, err := trustedKeySet([]string{pemOf(t, primaryPublic), "not a key"}, nil); err == nil {
+		t.Fatal("a broken key slot was accepted")
+	}
+}
+
+// The compiled slots parse: a key added to the secondary slot or the revocation list in a broken form fails here.
+func TestCompiledTrustParses(t *testing.T) {
+	keys, err := trustedKeys()
+	if err != nil || len(keys) == 0 {
+		t.Fatalf("compiled trust: %d keys, %v", len(keys), err)
+	}
 }
 
 func TestVerifyWitnessManifest(t *testing.T) {
