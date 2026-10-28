@@ -160,7 +160,9 @@ export function hasAvailabilityEventAccess(scopes: string[], payload: unknown): 
   const bases = ['docker:containers:view', 'docker:compose:view'];
   if (bases.some((base) => hasScope(scopes, base))) return true;
   if (typeof nodeId === 'string') {
-    return bases.some((base) => hasScope(scopes, `${base}:${nodeId}`)) || dockerScopedNodeIds(scopes, bases).includes(nodeId);
+    return (
+      bases.some((base) => hasScope(scopes, `${base}:${nodeId}`)) || dockerScopedNodeIds(scopes, bases).includes(nodeId)
+    );
   }
   return bases.some((base) => hasScopeBase(scopes, base));
 }

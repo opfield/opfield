@@ -37,7 +37,11 @@ export function receiveLimitInterceptor(authenticatedMaxBytes: number): ServerIn
         : ANONYMOUS_MAX_MESSAGE_BYTES;
     const holder = call as unknown as DecoderHolder;
     const decoder = holder.decoder;
-    if (decoder && typeof decoder.maxReadMessageLength === 'number' && typeof holder.maxReceiveMessageSize === 'number') {
+    if (
+      decoder &&
+      typeof decoder.maxReadMessageLength === 'number' &&
+      typeof holder.maxReceiveMessageSize === 'number'
+    ) {
       if (decoder.maxReadMessageLength === -1 || decoder.maxReadMessageLength > limit) {
         decoder.maxReadMessageLength = limit;
       }
@@ -46,7 +50,9 @@ export function receiveLimitInterceptor(authenticatedMaxBytes: number): ServerIn
       }
     } else if (!warnedUnenforceable) {
       warnedUnenforceable = true;
-      logger.error('gRPC receive limit per call cannot be applied: the grpc-js call has no message decoder or size limit');
+      logger.error(
+        'gRPC receive limit per call cannot be applied: the grpc-js call has no message decoder or size limit'
+      );
     }
     return new ServerInterceptingCall(call);
   };

@@ -123,7 +123,12 @@ function hasDockerEventAccess(scopes: string[], baseScope: string, payload: unkn
   return hasDockerResourceScope(scopes, baseScope, nodeId, dockerEventResourceId(payload) ?? '');
 }
 
-export function canReceiveChannelPayload(scopes: string[], channel: string, payload: unknown, userId?: string): boolean {
+export function canReceiveChannelPayload(
+  scopes: string[],
+  channel: string,
+  payload: unknown,
+  userId?: string
+): boolean {
   if (channel === 'domain.changed') {
     const event = payload as { id?: unknown; folderId?: unknown; action?: unknown } | undefined;
     if (typeof event?.id === 'string') return hasScope(scopes, `domains:view:${event.id}`);

@@ -5,8 +5,8 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { ALL_SCOPES } from '@/lib/scopes.js';
-import { hasChannelAccess, isDefaultDeliverChannel } from './events-channel-access.js';
 import { canReceiveChannelPayload } from './events.ws.js';
+import { hasChannelAccess, isDefaultDeliverChannel } from './events-channel-access.js';
 
 const FRONTEND_SRC = join(process.cwd(), '../frontend/src');
 
@@ -80,8 +80,12 @@ describe('events the frontend subscribes to', () => {
   it('delivers Docker Availability events to a container viewer, for its nodes only when node-limited', () => {
     for (const channel of ['docker.availability.changed', 'docker.availability.operation.changed']) {
       expect(canReceiveChannelPayload(['docker:containers:view'], channel, { policyId: 'p' })).toBe(true);
-      expect(canReceiveChannelPayload(['docker:containers:view:n1'], channel, { policyId: 'p', nodeId: 'n1' })).toBe(true);
-      expect(canReceiveChannelPayload(['docker:containers:view:n1'], channel, { policyId: 'p', nodeId: 'n2' })).toBe(false);
+      expect(canReceiveChannelPayload(['docker:containers:view:n1'], channel, { policyId: 'p', nodeId: 'n1' })).toBe(
+        true
+      );
+      expect(canReceiveChannelPayload(['docker:containers:view:n1'], channel, { policyId: 'p', nodeId: 'n2' })).toBe(
+        false
+      );
       expect(canReceiveChannelPayload(['nodes:details'], channel, { policyId: 'p' })).toBe(false);
     }
   });
