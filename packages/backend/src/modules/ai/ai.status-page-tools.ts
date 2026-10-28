@@ -73,11 +73,11 @@ export async function manageStatusPageTool(user: User, args: Record<string, unkn
     }
     if (operation === 'reorder') {
       ensureToolScope(user, 'status-page:manage');
-      return service.reorderServices(ReorderStatusPageServicesSchema.parse(payload).serviceIds, user.id);
+      return service.reorderServices(ReorderStatusPageServicesSchema.parse(payload).serviceIds, user.id, user.scopes);
     }
     if (operation === 'delete') {
       ensureToolScope(user, 'status-page:manage');
-      await service.deleteService(String(args.serviceId), user.id);
+      await service.deleteService(String(args.serviceId), user.id, user.scopes);
       return { success: true };
     }
   }

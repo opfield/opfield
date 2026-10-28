@@ -845,7 +845,8 @@ export class AppPromotionService {
             sourceYaml: this.pinComposeYaml(sourceState.revision.sourceYaml, sourceState.services),
             promotedFromRevisionId: sourceState.revision.id,
           },
-          actor.userId
+          actor.userId,
+          actor.scopes
         );
         if (result.operationId) {
           const operation = await this.resolve(DockerComposeService)!.waitForOperation(result.operationId, 10 * 60_000);

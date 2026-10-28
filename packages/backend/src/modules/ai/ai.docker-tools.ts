@@ -806,7 +806,8 @@ async function manageDockerCompose(context: DockerToolContext, user: User, args:
         variables: a.variables ?? {},
         secretKeys: a.secretKeys ?? [],
       }),
-      user.id
+      user.id,
+      user.scopes
     );
   }
   if (operation === 'delete') {
@@ -836,7 +837,8 @@ async function manageDockerCompose(context: DockerToolContext, user: User, args:
         variables: a.variables ?? {},
         secretKeys: a.secretKeys ?? [],
       }),
-      user.id
+      user.id,
+      user.scopes
     );
   }
   if (operation === 'revision_delete') {
@@ -877,7 +879,9 @@ async function manageDockerCompose(context: DockerToolContext, user: User, args:
         removeOrphans: a.removeOrphans,
         volumeNames: a.volumeNames ?? [],
       }),
-      user.id
+      user.id,
+      false,
+      { actorScopes: user.scopes }
     );
   }
   if (operation === 'secret_list') {
