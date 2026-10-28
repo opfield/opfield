@@ -392,7 +392,7 @@ async function authenticateAndCreateExec(
     void drainOutput(ws, state, nodeId);
   };
   state.outputHandler = outputHandler;
-  registry.registerExecHandler(execId, outputHandler);
+  registry.registerExecHandler(execId, outputHandler, nodeId);
 
   if (!isNew && buffer.length > 0) {
     for (const b64chunk of buffer) {
