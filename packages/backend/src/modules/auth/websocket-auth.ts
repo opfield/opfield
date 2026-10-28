@@ -4,12 +4,15 @@ import { authenticateBearerToken } from '@/modules/auth/auth.middleware.js';
 import { requiresSessionMfaReauthentication, resolveLiveSessionUser } from '@/modules/auth/live-session-user.js';
 import { isDemoRealtimeCapabilityAllowed } from '@/modules/demo/demo-mode.js';
 import type { User } from '@/types.js';
+import { sessionAllowedForCookie } from './legacy-session-cookie.js';
 import { selectSessionCookie } from './session-cookie.js';
 
 export type WebSocketCredential =
   | {
       type: 'session';
       value: string;
+      /** Read under a legacy cookie name: only a session from before the `__Host-` cookie counts. */
+      legacy?: true;
     }
   | {
       type: 'bearer';
@@ -64,7 +67,10 @@ export function getSessionWebSocketCredential(
     consoleUrl,
     cookieHeader ?? ''
   );
-  return cookie ? { type: 'session', value: cookie.value } : null;
+  if (!cookie) return null;
+  return cookie.legacy
+    ? { type: 'session', value: cookie.value, legacy: true }
+    : { type: 'session', value: cookie.value };
 }
 
 export function getProgrammaticWebSocketCredential(
@@ -107,11 +113,13 @@ export async function resolveWebSocketCredentialContext(
   credential: WebSocketCredential | null
 ): Promise<WebSocketAuthResult | null> {
   if (!credential) return null;
+  const legacyCookie = credential.type === 'session' && credential.legacy === true;
   const result =
     credential.type === 'session'
       ? await resolveLiveSessionUser(credential.value).then((value) => {
           if (
             !value ||
+            !sessionAllowedForCookie({ legacy: legacyCookie }, value.session) ||
             value.session.purpose === 'setup' ||
             (value.impersonation && !value.impersonation.authorized) ||
             (!value.impersonation && requiresSessionMfaReauthentication(value.user, value.session))

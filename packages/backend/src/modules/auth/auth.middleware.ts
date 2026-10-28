@@ -16,6 +16,7 @@ import { SetupAccessService } from '@/modules/setup/setup-access.service.js';
 import { TokensService } from '@/modules/tokens/tokens.service.js';
 import { SessionService } from '@/services/session.service.js';
 import type { AppEnv, SessionData, User } from '@/types.js';
+import { sessionAllowedForCookie } from './legacy-session-cookie.js';
 import {
   getSessionCookiePublicUrl,
   LEGACY_SESSION_COOKIE_NAME,
@@ -62,6 +63,17 @@ async function extractCredential(c: Context<AppEnv>): Promise<RequestCredential 
   return cookie ? { type: 'session', value: cookie.value, cookie, publicUrl } : null;
 }
 
+/**
+ * The session a cookie credential names, or null. A legacy-named cookie only carries a session from before the
+ * `__Host-` cookie (sessionAllowedForCookie); anything else under that name is treated as no session.
+ */
+async function getCredentialSession(
+  credential: Extract<RequestCredential, { type: 'session' }>
+): Promise<SessionData | null> {
+  const session = await container.resolve(SessionService).getSession(credential.value);
+  return session && sessionAllowedForCookie(credential.cookie, session) ? session : null;
+}
+
 /** A session that arrived under a legacy cookie name continues under the current one (see selectSessionCookie). */
 function moveLegacySessionCookie(c: Context<AppEnv>, credential: RequestCredential, session: SessionData): void {
   if (credential.type !== 'session') return;
@@ -99,7 +111,7 @@ async function validateSetupPurposeSession(session: SessionData, path: string): 
 export async function isAdmittedSetupPurposeRequest(c: Context<AppEnv>): Promise<boolean> {
   const credential = await extractCredential(c);
   if (!credential || credential.type !== 'session') return false;
-  const session = await container.resolve(SessionService).getSession(credential.value);
+  const session = await getCredentialSession(credential);
   if (!session) return false;
   return validateSetupPurposeSession(session, new URL(c.req.url).pathname);
 }
@@ -170,7 +182,7 @@ function applyBearerContext(c: Context<AppEnv>, result: AuthenticatedBearer): vo
 export async function liveRequestSessionId(c: Context<AppEnv>): Promise<string | null> {
   const credential = await extractCredential(c);
   if (credential?.type !== 'session') return null;
-  const session = await container.resolve(SessionService).getSession(credential.value);
+  const session = await getCredentialSession(credential);
   return session && session.purpose !== 'setup' ? credential.value : null;
 }
 
@@ -190,7 +202,7 @@ export const authMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
     assertDemoRequestAllowed(c);
   } else {
     const sessionService = container.resolve(SessionService);
-    const session = await sessionService.getSession(credential.value);
+    const session = await getCredentialSession(credential);
     if (!session) {
       throw new HTTPException(401, { message: 'Invalid or expired session' });
     }
@@ -269,7 +281,7 @@ export const optionalAuthMiddleware: MiddlewareHandler<AppEnv> = async (c, next)
       }
     } else {
       const sessionService = container.resolve(SessionService);
-      const session = await sessionService.getSession(credential.value);
+      const session = await getCredentialSession(credential);
       if (session) {
         if (session.purpose === 'setup') {
           const validSetupSession = await validateSetupPurposeSession(session, new URL(c.req.url).pathname);

@@ -75,6 +75,7 @@ import { AuthSettingsService } from '@/modules/auth/auth.settings.service.js';
 import { AuthEmailQueueService } from '@/modules/auth/auth-email-queue.service.js';
 import { AuthMailService } from '@/modules/auth/auth-mail.service.js';
 import { AvatarStorageService, resolveAvatarStorageDir } from '@/modules/auth/avatar-storage.service.js';
+import { initializeHostCookieSince } from '@/modules/auth/legacy-session-cookie.js';
 import { LocalAuthService } from '@/modules/auth/local-auth.service.js';
 import { MfaService } from '@/modules/auth/mfa.service.js';
 import { OidcSettingsService } from '@/modules/auth/oidc-settings.service.js';
@@ -383,6 +384,8 @@ export async function initializeContainer(): Promise<void> {
   const environmentSettingsService = new EnvironmentSettingsService(db, eventBus);
   await environmentSettingsService.initialize();
   container.registerInstance(EnvironmentSettingsService, environmentSettingsService);
+  // Before requests are served: which sessions a legacy-named cookie may still carry.
+  await initializeHostCookieSince(db);
   const readModelCoordinator = new ReadModelCoordinator(eventBus);
   container.registerInstance(ReadModelCoordinator, readModelCoordinator);
   const inferenceCatalogEvents = new InferenceCatalogEventsService(eventBus);

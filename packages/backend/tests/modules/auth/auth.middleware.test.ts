@@ -6,6 +6,7 @@ import type { DrizzleClient } from '@/db/client.js';
 import { runWithAuditRequestContext } from '@/modules/audit/audit-request-context.js';
 import { authMiddleware, optionalAuthMiddleware } from '@/modules/auth/auth.middleware.js';
 import { getSessionCookieName } from '@/modules/auth/session-cookie.js';
+import { initializeHostCookieSince } from '@/modules/auth/legacy-session-cookie.js';
 import { GeneralSettingsService } from '@/modules/settings/general-settings.service.js';
 import { SetupAccessService } from '@/modules/setup/setup-access.service.js';
 import { TokensService } from '@/modules/tokens/tokens.service.js';
@@ -493,6 +494,15 @@ describe('authMiddleware session cookies of an HTTPS console (R1-10)', () => {
     } as unknown as GeneralSettingsService);
   }
 
+  /** This release first started at `since` (the settings row initializeHostCookieSince reads). */
+  async function useHostCookieSince(since: number) {
+    const row = { value: { since: new Date(since).toISOString() } };
+    await initializeHostCookieSince({
+      insert: () => ({ values: () => ({ onConflictDoNothing: async () => undefined }) }),
+      select: () => ({ from: () => ({ where: () => ({ limit: async () => [row] }) }) }),
+    } as never);
+  }
+
   it('uses the __Host- cookie and ignores another one planted next to it', async () => {
     const sessionService = registerSession();
     useHttpsPublicUrl();
@@ -512,6 +522,7 @@ describe('authMiddleware session cookies of an HTTPS console (R1-10)', () => {
   it('moves a session signed in before the __Host- cookie to it and clears the old cookie', async () => {
     const sessionService = registerSession();
     useHttpsPublicUrl();
+    await useHostCookieSince(Date.now() + 60_000);
 
     const response = await createApp().request('/read', {
       headers: { Cookie: `${unprefixedHttpsCookie()}=session-1` },
@@ -526,6 +537,19 @@ describe('authMiddleware session cookies of an HTTPS console (R1-10)', () => {
     expect(reissued).toMatch(/; HttpOnly/);
     expect(reissued).not.toMatch(/Domain=/i);
     expect(setCookies.some((cookie) => cookie.startsWith(`${unprefixedHttpsCookie()}=;`))).toBe(true);
+  });
+
+  it('refuses a legacy-named cookie for a session created since this release started (L-08)', async () => {
+    registerSession({ session: { ...SESSION, createdAt: Date.now() } });
+    useHttpsPublicUrl();
+    await useHostCookieSince(Date.now() - 60_000);
+
+    const response = await createApp().request('/read', {
+      headers: { Cookie: `${unprefixedHttpsCookie()}=planted-session` },
+    });
+
+    expect(response.status).toBe(401);
+    expect(response.headers.get('set-cookie')).toBeNull();
   });
 
   it('refuses the plain session_id cookie for a non-loopback HTTPS console', async () => {

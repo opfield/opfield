@@ -22,7 +22,7 @@ describe('browser WebSocket credentials', () => {
       value: 'legacy-session',
     });
     expect(getSessionWebSocketCredential('session_id=legacy-session', 'https://localhost:3000', allowedOrigin)).toEqual(
-      { type: 'session', value: 'legacy-session' }
+      { type: 'session', value: 'legacy-session', legacy: true }
     );
     expect(getSessionWebSocketCredential('session_id=planted', 'https://opfield.test', allowedOrigin)).toBeNull();
   });
@@ -35,8 +35,9 @@ describe('browser WebSocket credentials', () => {
       type: 'session',
       value: 'own-session',
     });
+    // Marked, so only a session from before the __Host- cookie is accepted through it (L-08).
     expect(getSessionWebSocketCredential(`${unprefixed}=before-upgrade`, 'https://opfield.test', allowedOrigin)).toEqual(
-      { type: 'session', value: 'before-upgrade' }
+      { type: 'session', value: 'before-upgrade', legacy: true }
     );
   });
 

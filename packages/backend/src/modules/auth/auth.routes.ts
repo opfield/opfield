@@ -62,6 +62,7 @@ import {
   PasswordResetTokenSchema,
 } from './auth-route-schemas.js';
 import { AvatarStorageService } from './avatar-storage.service.js';
+import { sessionAllowedForCookie } from './legacy-session-cookie.js';
 import { requiresSessionMfaReauthentication } from './live-session-user.js';
 import { LocalAuthService } from './local-auth.service.js';
 import { MfaService } from './mfa.service.js';
@@ -134,7 +135,10 @@ async function getPublicUrl(): Promise<string> {
 
 async function getRequestSessionId(c: any): Promise<string | null> {
   const publicUrl = await getSessionCookiePublicUrl();
-  return selectSessionCookie((name) => getCookie(c, name), publicUrl, c.req.header('Cookie') ?? '')?.value ?? null;
+  const cookie = selectSessionCookie((name) => getCookie(c, name), publicUrl, c.req.header('Cookie') ?? '');
+  if (!cookie?.legacy) return cookie?.value ?? null;
+  const session = await container.resolve(SessionService).getSession(cookie.value);
+  return session && sessionAllowedForCookie(cookie, session) ? cookie.value : null;
 }
 
 async function finishLocalPrimaryAuth(c: any, user: import('@/types.js').User, authMethod: 'password' | 'email_otp') {
