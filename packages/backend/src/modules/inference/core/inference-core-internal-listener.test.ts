@@ -2,7 +2,7 @@ import 'reflect-metadata';
 import { describe, expect, it } from 'vitest';
 import { INFERENCE_CORE_CALLBACK_PATHS } from './inference-core.contract.js';
 import { inferenceCoreInternalRoutes } from './inference-core-internal.routes.js';
-import { inferenceCoreListenHosts } from './inference-core-internal-listener.js';
+import { inferenceCoreListenHosts, startCoreListeners } from './inference-core-internal-listener.js';
 
 const entry = (address: string, family: 'IPv4' | 'IPv6', internal = false) =>
   ({ address, family, internal, netmask: '', mac: '', cidr: null }) as never;
@@ -48,5 +48,35 @@ describe('core callback body size', () => {
       body: 'x'.repeat(2 * 1024 * 1024),
     });
     expect(response.status).toBe(413);
+  });
+});
+
+describe('starting the core callback listeners', () => {
+  it('skips an address that cannot be bound and serves on the others', async () => {
+    const skipped: string[] = [];
+    const result = await startCoreListeners(
+      ['172.18.0.5', '10.9.0.2'],
+      async (host) => {
+        if (host === '172.18.0.5') throw new Error('EADDRNOTAVAIL');
+        return { host };
+      },
+      (host) => skipped.push(host)
+    );
+    expect(result).toEqual({ servers: [{ host: '10.9.0.2' }], hosts: ['10.9.0.2'] });
+    expect(skipped).toEqual(['172.18.0.5']);
+  });
+
+  it('fails startup when no address binds', async () => {
+    const skipped: string[] = [];
+    await expect(
+      startCoreListeners(
+        ['172.18.0.5', '10.9.0.2'],
+        async () => {
+          throw new Error('EADDRINUSE');
+        },
+        (host) => skipped.push(host)
+      )
+    ).rejects.toThrow('EADDRINUSE');
+    expect(skipped).toEqual(['172.18.0.5', '10.9.0.2']);
   });
 });

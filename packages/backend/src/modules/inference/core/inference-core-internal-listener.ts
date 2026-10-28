@@ -45,3 +45,31 @@ export function inferenceCoreListenHostsFromEnvironment(override?: string | null
 
 /** Largest callback body: admission and settlement are small JSON documents. */
 export const INFERENCE_CORE_CALLBACK_MAX_BODY_BYTES = 1024 * 1024;
+
+/**
+ * Starts the listener on every address. An address that cannot be bound (an interface that went away between the
+ * lookup and the bind, a network attached in a way the address cannot be used) is reported through `onSkipped` and
+ * left out; startup fails only when no address binds, because then the core could not reach Opfield at all.
+ */
+export async function startCoreListeners<Server>(
+  hosts: string[],
+  start: (host: string) => Promise<Server>,
+  onSkipped: (host: string, error: unknown) => void
+): Promise<{ servers: Server[]; hosts: string[] }> {
+  const results = await Promise.allSettled(hosts.map((host) => start(host)));
+  const servers: Server[] = [];
+  const bound: string[] = [];
+  results.forEach((result, index) => {
+    if (result.status === 'fulfilled') {
+      servers.push(result.value);
+      bound.push(hosts[index]!);
+    } else {
+      onSkipped(hosts[index]!, result.reason);
+    }
+  });
+  if (servers.length === 0) {
+    const first = results.find((result): result is PromiseRejectedResult => result.status === 'rejected');
+    throw first?.reason ?? new Error('No address for the inference core callback listener');
+  }
+  return { servers, hosts: bound };
+}
