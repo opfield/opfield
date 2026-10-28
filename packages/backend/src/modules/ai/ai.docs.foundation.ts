@@ -495,9 +495,12 @@ cd "$(mktemp -d)" && \\
 curl -fsSL -o setup-node.sh ${INSTALLER_RELEASES_URL}/download/<opfield-version>/setup-node.sh && \\
 curl -fsSL -o opfield-node-installers.sha256 ${INSTALLER_RELEASES_URL}/download/<opfield-version>/opfield-node-installers.sha256 && \\
 grep ' setup-node.sh$' opfield-node-installers.sha256 | sha256sum -c - && \\
-sudo bash setup-node.sh \\
-  --opfield <opfield-host>:9443 --token <enrollment-token> --opfield-cert-sha256 sha256:<opfield-cert-fingerprint> --version <opfield-version>
+export OPFIELD_NODE_TOKEN='<enrollment-token>' && \\
+sudo --preserve-env=OPFIELD_NODE_TOKEN bash setup-node.sh \\
+  --opfield <opfield-host>:9443 --opfield-cert-sha256 sha256:<opfield-cert-fingerprint> --version <opfield-version>
 \`\`\`
+
+The enrollment token goes through the environment, never the command line, where other users of the server could read it.
 
 The installers by node type: **nginx** setup-node.sh, **docker** and **builder** setup-docker-node.sh, **storage** setup-storage-node.sh, legacy **databases** setup-database-node.sh, **monitoring** setup-monitoring-node.sh, **relay** setup-relay-node.sh (with \`--advertise-address\`).
 
@@ -530,7 +533,7 @@ The node status changes from **pending** to **online** in the Nodes list once th
 ### Alternative: Manual installation
 If you cannot use the setup script, you can install manually. Storage and database nodes are the stateful exceptions: they use the restricted docker-daemon profiles and require the verified storage preflight.
 1. Download the daemon binary and place it at \`/usr/local/bin/<type>-daemon\`
-2. Run: \`<type>-daemon install --opfield <host>:9443 --token <token> --opfield-cert-sha256 sha256:<opfield-cert-fingerprint>\`
+2. Run: \`OPFIELD_NODE_TOKEN='<token>' <type>-daemon install --opfield <host>:9443 --opfield-cert-sha256 sha256:<opfield-cert-fingerprint>\` (the token through the environment, off the command line)
    This creates the config file and systemd service automatically.
 3. Enable and start: \`systemctl enable --now <type>-daemon\`
 
