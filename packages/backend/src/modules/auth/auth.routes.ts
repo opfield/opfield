@@ -36,7 +36,13 @@ import {
   updateCurrentUserAvatarRoute,
   updateCurrentUserPreferencesRoute,
 } from './auth.docs.js';
-import { authMiddleware, CSRF_HEADER_NAME, rejectImpersonation, sessionOnly } from './auth.middleware.js';
+import {
+  assertNotImpersonating,
+  authMiddleware,
+  CSRF_HEADER_NAME,
+  rejectImpersonation,
+  sessionOnly,
+} from './auth.middleware.js';
 import { AuthService } from './auth.service.js';
 import {
   EmailCodeSchema,
@@ -770,9 +776,14 @@ authRoutes.openapi(currentUserPreferencesRoute, async (c) => {
 });
 
 authRoutes.openapi(updateCurrentUserPreferencesRoute, async (c) => {
+  const input = c.req.valid('json');
+  // The subject's AI approval mode decides what their assistant may run unasked after the impersonation ends.
+  if (input.aiApprovalMode !== undefined) {
+    assertNotImpersonating(c, 'The AI approval mode cannot be changed while impersonating');
+  }
   const sessionUser = c.get('user')!;
   const authService = container.resolve(AuthService);
-  const preferences = await authService.updateUserPreferences(sessionUser.id, c.req.valid('json'));
+  const preferences = await authService.updateUserPreferences(sessionUser.id, input);
   return c.json(preferences);
 });
 
