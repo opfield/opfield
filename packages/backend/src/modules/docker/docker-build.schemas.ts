@@ -7,11 +7,23 @@ import {
   DockerDeploymentRouteSchema,
 } from './docker-deployment.schemas.js';
 
+/** The builder accepts only clean repository-relative paths: `./app`, `/app` and `app/` are all stored as `app`. */
+export function normalizeBuildPath(value: string): string {
+  return (
+    value
+      .split('/')
+      .filter((segment) => segment !== '' && segment !== '.')
+      .join('/') || '.'
+  );
+}
+
 const RelativeBuildPathSchema = z
   .string()
+  .trim()
   .min(1)
   .max(500)
-  .refine((value) => !value.startsWith('/') && !value.split('/').includes('..'), {
+  .transform(normalizeBuildPath)
+  .refine((value) => !value.split('/').includes('..'), {
     message: 'Build paths must stay inside the repository',
   });
 
