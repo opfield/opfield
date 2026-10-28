@@ -20,6 +20,7 @@ vi.mock('@/modules/auth/auth.middleware.js', async (importOriginal) => ({
 
 const { tokensRoutes } = await import('./tokens.routes.js');
 const { TokensService } = await import('./tokens.service.js');
+const { RegistryRepositoryWorkloadService } = await import('./token-registry-workloads.js');
 
 function setup(externalAccessEnabled: boolean) {
   container.registerInstance(DockerInternalRegistryService, {
@@ -84,5 +85,40 @@ describe('token create route', () => {
       'integrations:github:repo:read:0b8f2a8e-6f1c-4a57-9a51-3f9d7f1b2c01/repo/7',
       ...USE_LINE,
     ]);
+  });
+});
+
+describe('token create route registry access', () => {
+  async function create(registryAccess: Record<string, unknown>) {
+    session.scopes = ['docker:containers:view:node-1/c1'];
+    const createToken = vi.fn().mockResolvedValue({ id: 'token-1' });
+    const workloads = vi.fn(async (repository: string) =>
+      repository === 'tenant/app' ? [{ kind: 'containers' as const, nodeId: 'node-1', resourceId: 'c1' }] : []
+    );
+    container.registerInstance(TokensService, { createToken } as unknown as InstanceType<typeof TokensService>);
+    container.registerInstance(RegistryRepositoryWorkloadService, { workloads } as never);
+    const app = new OpenAPIHono<AppEnv>();
+    app.onError(errorHandler);
+    app.route('/api/tokens', tokensRoutes);
+    const response = await app.request('/api/tokens', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'ci', scopes: [], registryAccess }),
+    });
+    return { status: response.status, body: await response.json(), createToken };
+  }
+
+  it('gives every repository only to the broad workload or image scope', async () => {
+    const result = await create({ pull: 'all' });
+    expect(result.status).toBe(403);
+    expect(result.body).toMatchObject({ code: 'REGISTRY_ACCESS_NOT_ALLOWED' });
+    expect(result.createToken).not.toHaveBeenCalled();
+  });
+
+  it('gives a listed repository only through a workload of the owner that uses it', async () => {
+    expect((await create({ pull: ['tenant/app'] })).status).toBe(201);
+    const other = await create({ pull: ['other-team/app'] });
+    expect(other.status).toBe(403);
+    expect(other.body.message).toContain('pull other-team/app');
   });
 });

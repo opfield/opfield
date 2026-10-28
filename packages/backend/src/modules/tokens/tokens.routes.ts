@@ -7,6 +7,7 @@ import { AppError } from '@/middleware/error-handler.js';
 import { authMiddleware, sessionOnly } from '@/modules/auth/auth.middleware.js';
 import { DockerInternalRegistryService } from '@/modules/docker/docker-registry-internal.service.js';
 import type { AppEnv } from '@/types.js';
+import { registryRepositoryWorkloads } from './token-registry-workloads.js';
 import {
   createTokenRoute,
   listTokensRoute,
@@ -16,7 +17,11 @@ import {
   tokenRegistryAccessRoute,
 } from './tokens.docs.js';
 import { CreateTokenSchema, UpdateTokenSchema } from './tokens.schemas.js';
-import { authorizeRequestedRegistryAccess, resolveRequestedTokenScopes, TokensService } from './tokens.service.js';
+import {
+  authorizeRequestedRegistryAccessForWorkloads,
+  resolveRequestedTokenScopes,
+  TokensService,
+} from './tokens.service.js';
 
 export const tokensRoutes = new OpenAPIHono<AppEnv>({ defaultHook: openApiValidationHook });
 
@@ -69,7 +74,7 @@ tokensRoutes.openapi(createTokenRoute, async (c) => {
 
   // Registry access comes from the user's workload permissions; every other scope must be one the user holds.
   const userScopes = user.scopes;
-  const delegated = authorizeRequestedRegistryAccess(input, userScopes);
+  const delegated = await authorizeRequestedRegistryAccessForWorkloads(input, userScopes, registryRepositoryWorkloads);
   if (!isScopeSubset(delegated, userScopes)) {
     const disallowed = delegated.filter((s) => !TokensService.hasScope(userScopes, s));
     return c.json(
@@ -95,7 +100,7 @@ tokensRoutes.openapi(renameTokenRoute, async (c) => {
       : {}),
   };
 
-  const delegated = authorizeRequestedRegistryAccess(input, user.scopes);
+  const delegated = await authorizeRequestedRegistryAccessForWorkloads(input, user.scopes, registryRepositoryWorkloads);
   if (input.scopes !== undefined && !isScopeSubset(delegated, user.scopes)) {
     const disallowed = delegated.filter((s) => !TokensService.hasScope(user.scopes, s));
     return c.json(

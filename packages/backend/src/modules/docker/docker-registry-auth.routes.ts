@@ -4,7 +4,13 @@ import { getClientIpForContext } from '@/lib/request-ip.js';
 import { hasTokenPrefix } from '@/lib/token-prefixes.js';
 import { AppError } from '@/middleware/error-handler.js';
 import { demoRestriction, isDemoMode } from '@/modules/demo/demo-mode.js';
-import { REGISTRY_REPOSITORY_PATTERN, tokenAllowsRegistryAction } from '@/modules/tokens/token-registry-access.js';
+import {
+  REGISTRY_REPOSITORY_PATTERN,
+  type RegistryAction,
+  type RegistryRepositoryWorkloads,
+  tokenAllowsRegistryAction,
+} from '@/modules/tokens/token-registry-access.js';
+import { registryRepositoryWorkloads } from '@/modules/tokens/token-registry-workloads.js';
 import { TokensService } from '@/modules/tokens/tokens.service.js';
 import type { AppEnv } from '@/types.js';
 import { DockerInternalRegistryService } from './docker-registry-internal.service.js';
@@ -72,14 +78,32 @@ dockerRegistryAuthRoutes.get('/token', async (c) => {
   }
 
   const requested = requestedRegistryGrants(new URL(c.req.url));
-  // The token's registry access (not its scopes), bounded by what its owner may do with workloads right now.
+  // The token's registry access (not its scopes), bounded by what its owner may do with the workloads using each
+  // repository right now.
   const ownerScopes = authenticated.user.accountScopes ?? authenticated.user.scopes;
-  const allowed = requested.map((grant) => ({
-    repository: grant.repository,
-    actions: grant.actions.filter((action) =>
-      tokenAllowsRegistryAction(authenticated.registryAccess, ownerScopes, action, grant.repository)
-    ),
-  }));
+  const workloads = new Map<string, ReturnType<RegistryRepositoryWorkloads>>();
+  const workloadsOf: RegistryRepositoryWorkloads = (repository) => {
+    if (!workloads.has(repository)) workloads.set(repository, registryRepositoryWorkloads(repository));
+    return workloads.get(repository)!;
+  };
+  const allowed: typeof requested = [];
+  for (const grant of requested) {
+    const actions: RegistryAction[] = [];
+    for (const action of grant.actions) {
+      if (
+        await tokenAllowsRegistryAction(
+          authenticated.registryAccess,
+          ownerScopes,
+          action,
+          grant.repository,
+          workloadsOf
+        )
+      ) {
+        actions.push(action);
+      }
+    }
+    allowed.push({ repository: grant.repository, actions });
+  }
   if (allowed.some((grant, index) => grant.actions.length !== requested[index]!.actions.length)) {
     throw new AppError(403, 'REGISTRY_SCOPE_DENIED', 'API token does not grant the requested registry action');
   }
