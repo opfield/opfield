@@ -7,6 +7,7 @@ import {
   DEFAULT_NETWORK_SECURITY_SETTINGS,
   type NetworkSecuritySettings,
   NetworkSettingsService,
+  REVERSE_PROXY_WITHOUT_PROXIES_WARNING,
 } from '@/modules/settings/network-settings.service.js';
 import type { AppEnv } from '@/types.js';
 
@@ -21,6 +22,18 @@ export function resolveClientIp(
   headers: Pick<Headers, 'get'>,
   remoteAddress: string | undefined,
   settings: NetworkSecuritySettings = DEFAULT_NETWORK_SECURITY_SETTINGS
+): ClientIpResolution {
+  const resolution = resolveConfiguredClientIp(headers, remoteAddress, settings);
+  // Settings saved before reverse_proxy required trusted proxies are read as auto; the settings page says so.
+  return settings.reverseProxyWithoutTrustedProxies
+    ? { ...resolution, warning: REVERSE_PROXY_WITHOUT_PROXIES_WARNING }
+    : resolution;
+}
+
+function resolveConfiguredClientIp(
+  headers: Pick<Headers, 'get'>,
+  remoteAddress: string | undefined,
+  settings: NetworkSecuritySettings
 ): ClientIpResolution {
   const remote = normalizeIp(remoteAddress);
   const cfIp = normalizeIp(headers.get('cf-connecting-ip'));

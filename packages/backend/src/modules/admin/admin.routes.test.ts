@@ -651,7 +651,7 @@ describe('admin Opfield settings route permissions', () => {
   });
 
   it('returns a human-readable conflict when OIDC is enabled before it is configured', async () => {
-    registerSession(['settings:opfield:edit']);
+    registerSession(['settings:opfield:edit', 'admin:system']);
     const updateConfig = vi.fn();
     container.registerInstance(AuthSettingsService, { updateConfig } as unknown as AuthSettingsService);
     container.registerInstance(McpSettingsService, {} as McpSettingsService);
@@ -676,7 +676,7 @@ describe('admin Opfield settings route permissions', () => {
   });
 
   it('returns a human-readable conflict when email sign-in is enabled before SMTP is verified', async () => {
-    registerSession(['settings:opfield:edit']);
+    registerSession(['settings:opfield:edit', 'admin:system']);
     const updateConfig = vi.fn();
     container.registerInstance(AuthSettingsService, { updateConfig } as unknown as AuthSettingsService);
     container.registerInstance(McpSettingsService, {} as McpSettingsService);
@@ -1482,10 +1482,25 @@ describe('identity-trust settings require admin:system', () => {
     senderName: 'Opfield',
     senderEmail: 'security@example.com',
   };
+  const currentAuth = {
+    oidcRequireVerifiedEmail: true,
+    oidcAutoCreateUsers: false,
+    oidcDefaultGroupId: '',
+    mfaExistingSessionGracePeriodDays: 3,
+    methods: { oidc: true, password: true, emailOtp: false, passkeyLogin: false },
+  };
+  const currentNetwork = {
+    clientIpSource: 'reverse_proxy' as const,
+    trustedProxyCidrs: ['10.0.0.0/8'],
+    trustCloudflareHeaders: false,
+  };
+  const currentWebhookPolicy = { allowPrivateNetworks: false, allowedPrivateCidrs: ['10.1.0.0/16'] };
   const current = {
     smtp: async () => currentSmtp,
     generalSettings: async () => ({ publicUrl: 'https://opfield.example.com' }),
-    authSettings: async () => ({ oidcRequireVerifiedEmail: true }),
+    authSettings: async () => currentAuth,
+    networkSecurity: async () => currentNetwork,
+    outboundWebhookPolicy: async () => currentWebhookPolicy,
   };
   const smtpInput = {
     host: 'smtp.example.com',
@@ -1535,6 +1550,80 @@ describe('identity-trust settings require admin:system', () => {
         current
       )
     ).resolves.toEqual([]);
+  });
+
+  it('flags client IP trust, the webhook policy, auto-provisioning, sign-in methods and the MFA grace period', async () => {
+    await expect(
+      findIdentityTrustChanges({ networkSecurity: { trustedProxyCidrs: ['0.0.0.0/0'] } }, current)
+    ).resolves.toEqual(['client IP trust']);
+    await expect(findIdentityTrustChanges({ networkSecurity: { clientIpSource: 'direct' } }, current)).resolves.toEqual(
+      ['client IP trust']
+    );
+    await expect(
+      findIdentityTrustChanges({ outboundWebhookPolicy: { allowPrivateNetworks: true } }, current)
+    ).resolves.toEqual(['the outbound webhook policy']);
+    await expect(findIdentityTrustChanges({ oidcAutoCreateUsers: true }, current)).resolves.toEqual([
+      'OIDC user auto-creation',
+    ]);
+    await expect(
+      findIdentityTrustChanges({ oidcDefaultGroupId: '0b3d7f0e-1111-4c1a-9d2e-3f4a5b6c7d8e' }, current)
+    ).resolves.toEqual(['OIDC user auto-creation']);
+    await expect(findIdentityTrustChanges({ methods: { emailOtp: true } }, current)).resolves.toEqual([
+      'the sign-in methods',
+    ]);
+    await expect(findIdentityTrustChanges({ mfaExistingSessionGracePeriodDays: 7 }, current)).resolves.toEqual([
+      'the MFA grace period',
+    ]);
+  });
+
+  it('allows the settings form to resubmit the security settings unchanged', async () => {
+    await expect(
+      findIdentityTrustChanges(
+        {
+          networkSecurity: { ...currentNetwork, trustedProxyCidrs: [' 10.0.0.0/8 '] },
+          outboundWebhookPolicy: currentWebhookPolicy,
+          oidcAutoCreateUsers: false,
+          oidcDefaultGroupId: undefined,
+          methods: { oidc: true, password: true },
+          mfaExistingSessionGracePeriodDays: 3,
+          passwordPolicy: { minLength: 14 },
+        },
+        current
+      )
+    ).resolves.toEqual([]);
+  });
+
+  it('rejects a client IP trust change from a settings:opfield:edit holder before anything is saved', async () => {
+    registerSession(['settings:opfield:edit']);
+    const updateNetwork = vi.fn();
+    container.registerInstance(AuthSettingsService, { updateConfig: vi.fn() } as unknown as AuthSettingsService);
+    container.registerInstance(AuthMailService, {} as AuthMailService);
+    container.registerInstance(GeneralSettingsService, {} as GeneralSettingsService);
+    container.registerInstance(NetworkSettingsService, {
+      getConfig: vi
+        .fn()
+        .mockResolvedValue({ clientIpSource: 'auto', trustedProxyCidrs: [], trustCloudflareHeaders: false }),
+      updateConfig: updateNetwork,
+    } as unknown as NetworkSettingsService);
+    for (const service of [McpSettingsService, OutboundWebhookPolicyService, GroupService]) {
+      container.registerInstance(service as never, {} as never);
+    }
+    container.registerInstance(AuditService, { log: vi.fn() } as unknown as AuditService);
+
+    const response = await createApp().request('/api/admin/auth-settings', {
+      method: 'PUT',
+      headers: sessionHeaders(),
+      body: JSON.stringify({
+        networkSecurity: { clientIpSource: 'reverse_proxy', trustedProxyCidrs: ['0.0.0.0/0'] },
+      }),
+    });
+
+    expect(response.status).toBe(403);
+    expect(await response.json()).toMatchObject({
+      code: 'ADMIN_SYSTEM_REQUIRED',
+      message: expect.stringContaining('client IP trust'),
+    });
+    expect(updateNetwork).not.toHaveBeenCalled();
   });
 
   it('rejects an SMTP change from a settings:opfield:edit holder before anything is saved', async () => {
@@ -2031,7 +2120,9 @@ describe('sign-in on a managed installation', () => {
         {
           smtp: async () => ({}) as never,
           generalSettings: async () => ({ publicUrl: null }),
-          authSettings: async () => ({ oidcRequireVerifiedEmail: true }),
+          authSettings: async () => ({}) as never,
+          networkSecurity: async () => ({}) as never,
+          outboundWebhookPolicy: async () => ({}) as never,
         }
       )
     ).resolves.toEqual(['the OIDC provider']);
