@@ -7,31 +7,46 @@ import type { CacheService } from '@/services/cache.service.js';
 
 const logger = createChildLogger('AccountSignInThrottle');
 
-/** Failed sign-in checks one account may have within the window before it is locked. */
-export const ACCOUNT_SIGN_IN_FAILURE_LIMIT = 10;
+/** Failed sign-in checks one account may have from one client address within the window before that pair is locked. */
+export const CLIENT_SIGN_IN_FAILURE_LIMIT = 10;
+/** Failed checks of one account from all addresses together before the whole account is locked. */
+export const ACCOUNT_SIGN_IN_FAILURE_LIMIT = 100;
 const FAILURE_WINDOW_SECONDS = 15 * 60;
 const LOCK_SECONDS = 15 * 60;
 
-// Takes one attempt before the credential is checked, so parallel guesses cannot all pass the limit at once.
-// Returns 0 when the attempt may go ahead, otherwise the lock's remaining milliseconds (negative: the lock starts now).
+// Takes one attempt before the credential is checked, so parallel guesses cannot all pass the limits at once.
+// KEYS: client attempts, client lock, account attempts, account lock. Returns {state, ms}: state 0 = go ahead,
+// 1 = already locked (ms left), 2 = the client lock starts now, 3 = the account lock starts now.
 const BEGIN_ATTEMPT_SCRIPT = `
-local lockTtl = redis.call('PTTL', KEYS[2])
-if lockTtl > 0 then return lockTtl end
-if lockTtl == -1 then return tonumber(ARGV[3]) * 1000 end
-local attempts = redis.call('INCR', KEYS[1])
-if attempts == 1 then redis.call('EXPIRE', KEYS[1], ARGV[2]) end
-if attempts > tonumber(ARGV[1]) then
-  redis.call('DEL', KEYS[1])
-  redis.call('SET', KEYS[2], '1', 'EX', ARGV[3])
-  return -tonumber(ARGV[3]) * 1000
+for _, lockKey in ipairs({KEYS[2], KEYS[4]}) do
+  local lockTtl = redis.call('PTTL', lockKey)
+  if lockTtl > 0 then return {1, lockTtl} end
+  if lockTtl == -1 then return {1, tonumber(ARGV[4]) * 1000} end
 end
-return 0
+local clientAttempts = redis.call('INCR', KEYS[1])
+if clientAttempts == 1 then redis.call('EXPIRE', KEYS[1], ARGV[3]) end
+if clientAttempts > tonumber(ARGV[1]) then
+  redis.call('DEL', KEYS[1])
+  redis.call('SET', KEYS[2], '1', 'EX', ARGV[4])
+  return {2, tonumber(ARGV[4]) * 1000}
+end
+local accountAttempts = redis.call('INCR', KEYS[3])
+if accountAttempts == 1 then redis.call('EXPIRE', KEYS[3], ARGV[3]) end
+if accountAttempts > tonumber(ARGV[2]) then
+  redis.call('DEL', KEYS[3])
+  redis.call('DECR', KEYS[1])
+  redis.call('SET', KEYS[4], '1', 'EX', ARGV[4])
+  return {3, tonumber(ARGV[4]) * 1000}
+end
+return {0, 0}
 `;
 
-// A correct credential gives its attempt back: only failures count towards the lock.
+// A correct credential gives its attempt back: only failures count towards the locks.
 const RELEASE_ATTEMPT_SCRIPT = `
-local attempts = tonumber(redis.call('GET', KEYS[1]) or '0')
-if attempts > 0 then redis.call('DECR', KEYS[1]) end
+for _, key in ipairs(KEYS) do
+  local attempts = tonumber(redis.call('GET', key) or '0')
+  if attempts > 0 then redis.call('DECR', key) end
+end
 return 0
 `;
 
@@ -43,6 +58,17 @@ export type SignInFactor = 'password' | 'email_otp' | 'mfa';
 function subjectKey(subject: SignInSubject): string {
   if ('userId' in subject) return `user:${subject.userId}`;
   return `email:${createHash('sha256').update(subject.email.trim().toLowerCase()).digest('hex')}`;
+}
+
+function attemptKeys(subject: SignInSubject, clientIp: string | undefined) {
+  const account = subjectKey(subject);
+  const client = `${account}:ip:${clientIp || 'unknown'}`;
+  return {
+    clientAttempts: `auth:sign-in:attempts:${client}`,
+    clientLock: `auth:sign-in:locked:${client}`,
+    accountAttempts: `auth:sign-in:attempts:${account}`,
+    accountLock: `auth:sign-in:locked:${account}`,
+  };
 }
 
 function signInLocked(retryAfterMs: number): AppError {
@@ -57,40 +83,45 @@ function signInLocked(retryAfterMs: number): AppError {
 }
 
 /**
- * Per-account limit on password, email code and second-factor checks, on top of the per-address request limit:
- * 10 failures within 15 minutes lock the account's sign-in checks for 15 minutes (429), from any address.
+ * Per-account limit on password, email code and second-factor checks, on top of the per-address request limit.
+ * 10 failures of one account from one client address within 15 minutes lock that account for that address for 15
+ * minutes (429), so a guesser cannot lock its owner out from elsewhere; 100 failures from all addresses together lock
+ * the account everywhere for 15 minutes, which still bounds guessing spread over many addresses.
  */
 export class AccountSignInThrottle {
   constructor(private readonly cache: Pick<CacheService, 'getClient'>) {}
 
-  /** Takes an attempt for the account before its credential is checked; throws 429 while the account is locked. */
-  async beginAttempt(subject: SignInSubject, factor: SignInFactor): Promise<void> {
-    const key = subjectKey(subject);
-    const result = Number(
-      await this.cache
-        .getClient()
-        .eval(
-          BEGIN_ATTEMPT_SCRIPT,
-          2,
-          `auth:sign-in:attempts:${key}`,
-          `auth:sign-in:locked:${key}`,
-          ACCOUNT_SIGN_IN_FAILURE_LIMIT,
-          FAILURE_WINDOW_SECONDS,
-          LOCK_SECONDS
-        )
-    );
-    if (result === 0) return;
-    if (result < 0) await this.auditLock(subject, factor);
-    throw signInLocked(Math.abs(result));
+  /** Takes an attempt before the credential is checked; throws 429 while the account is locked for this client. */
+  async beginAttempt(subject: SignInSubject, factor: SignInFactor, clientIp: string | undefined): Promise<void> {
+    const keys = attemptKeys(subject, clientIp);
+    const result = await this.cache
+      .getClient()
+      .eval(
+        BEGIN_ATTEMPT_SCRIPT,
+        4,
+        keys.clientAttempts,
+        keys.clientLock,
+        keys.accountAttempts,
+        keys.accountLock,
+        CLIENT_SIGN_IN_FAILURE_LIMIT,
+        ACCOUNT_SIGN_IN_FAILURE_LIMIT,
+        FAILURE_WINDOW_SECONDS,
+        LOCK_SECONDS
+      );
+    const [state, retryAfterMs] = Array.isArray(result) ? result.map(Number) : [0, 0];
+    if (!state) return;
+    if (state === 2 || state === 3) await this.auditLock(subject, factor, state === 3 ? 'account' : 'client');
+    throw signInLocked(retryAfterMs || LOCK_SECONDS * 1000);
   }
 
   /** The credential was correct: its attempt does not count as a failure. */
-  async attemptSucceeded(subject: SignInSubject): Promise<void> {
-    await this.cache.getClient().eval(RELEASE_ATTEMPT_SCRIPT, 1, `auth:sign-in:attempts:${subjectKey(subject)}`);
+  async attemptSucceeded(subject: SignInSubject, clientIp: string | undefined): Promise<void> {
+    const keys = attemptKeys(subject, clientIp);
+    await this.cache.getClient().eval(RELEASE_ATTEMPT_SCRIPT, 2, keys.clientAttempts, keys.accountAttempts);
   }
 
-  private async auditLock(subject: SignInSubject, factor: SignInFactor): Promise<void> {
-    logger.warn('Sign-in locked after repeated failures', { subject: subjectKey(subject), factor });
+  private async auditLock(subject: SignInSubject, factor: SignInFactor, scope: 'client' | 'account'): Promise<void> {
+    logger.warn('Sign-in locked after repeated failures', { subject: subjectKey(subject), factor, scope });
     if (!container.isRegistered(AuditService)) return;
     await container
       .resolve(AuditService)
@@ -100,8 +131,8 @@ export class AccountSignInThrottle {
         resourceType: 'session',
         details: {
           method: factor,
-          reason: 'account_locked',
-          failures: ACCOUNT_SIGN_IN_FAILURE_LIMIT,
+          reason: scope === 'account' ? 'account_locked' : 'account_locked_for_client',
+          failures: scope === 'account' ? ACCOUNT_SIGN_IN_FAILURE_LIMIT : CLIENT_SIGN_IN_FAILURE_LIMIT,
           lockSeconds: LOCK_SECONDS,
           ...('email' in subject ? { email: subject.email.trim().toLowerCase().slice(0, 320) } : {}),
         },

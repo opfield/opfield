@@ -239,21 +239,22 @@ export class MfaService {
 
   async verifyLoginChallenge(
     challengeId: string,
-    input: { totpCode?: string; recoveryCode?: string }
+    input: { totpCode?: string; recoveryCode?: string },
+    clientIp?: string
   ): Promise<{ userId: string; authMethod: 'password' | 'email_otp' } | null> {
     const key = `mfa:login:${challengeId}`;
     const raw = await this.cacheService.getClient().eval(TAKE_MFA_LOGIN_ATTEMPT_SCRIPT, 1, key, MAX_MFA_LOGIN_ATTEMPTS);
     if (typeof raw !== 'string' || raw.length === 0) return null;
     const pending = JSON.parse(raw) as PendingMfaLogin;
     const subject = { userId: pending.userId };
-    await this.signInThrottle.beginAttempt(subject, 'mfa');
+    await this.signInThrottle.beginAttempt(subject, 'mfa', clientIp);
     const valid = input.totpCode
       ? await this.verifyTotp(pending.userId, input.totpCode)
       : input.recoveryCode
         ? await this.useRecoveryCode(pending.userId, input.recoveryCode)
         : false;
     if (!valid) return null;
-    await this.signInThrottle.attemptSucceeded(subject);
+    await this.signInThrottle.attemptSucceeded(subject, clientIp);
     return this.consumeLoginChallenge(key);
   }
 

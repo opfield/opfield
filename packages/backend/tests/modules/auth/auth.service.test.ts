@@ -1423,13 +1423,14 @@ describe('AuthService.updateUserAuthMethod second factors (R1-07)', () => {
       passkeys: 2,
     });
 
-    await service.updateUserAuthMethod(target.id, 'email_otp');
+    await service.updateUserAuthMethod(target.id, 'email_otp', { actorUserId: 'actor-1' });
 
     expect(deleted).toEqual(expect.arrayContaining([userTotpFactors, userRecoveryCodes, userPasskeys]));
     expect(cacheService.delete).toHaveBeenCalledWith(`mfa:totp:setup:${target.id}`);
     expect(sessionService.destroyAllUserSessions).toHaveBeenCalledWith(target.id);
     expect(auditService.log).toHaveBeenCalledWith(
       expect.objectContaining({
+        userId: 'actor-1',
         action: 'user.mfa_reset',
         resourceId: target.id,
         details: expect.objectContaining({

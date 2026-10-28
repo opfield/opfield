@@ -11,8 +11,8 @@ import { MfaService } from './mfa.service.js';
 function challengeRedis(pending: Record<string, unknown> | null, options: { lockedAccount?: boolean } = {}) {
   let raw: string | null = pending ? JSON.stringify(pending) : null;
   const evalChallenge = vi.fn(async (script: string, _keys: number, ..._args: unknown[]) => {
-    if (script.includes("redis.call('PTTL', KEYS[2])")) return options.lockedAccount ? 600_000 : 0;
-    if (script.includes("redis.call('DECR', KEYS[1])")) return 0;
+    if (script.includes("redis.call('PTTL', lockKey)")) return options.lockedAccount ? [1, 600_000] : [0, 0];
+    if (script.includes("redis.call('DECR', key)")) return 0;
     if (script.includes('attempts > tonumber(ARGV[1])')) {
       if (!raw) return '';
       const challenge = JSON.parse(raw);

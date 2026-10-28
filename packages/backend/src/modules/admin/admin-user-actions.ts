@@ -118,7 +118,9 @@ export async function updateAdminUserAuthMethod(
   if (authMethod === 'password' || authMethod === 'email_otp') {
     await assertSmtpVerified('SMTP must be verified before switching to email sign-in');
   }
-  const updated = await authServiceOf(services).updateUserAuthMethod(userId, authMethod);
+  const updated = await authServiceOf(services).updateUserAuthMethod(userId, authMethod, {
+    actorUserId: actor.user.id,
+  });
   await sendSignInOnboarding(updated.email, authMethod);
   await auditServiceOf(services).log({
     userId: actor.user.id,

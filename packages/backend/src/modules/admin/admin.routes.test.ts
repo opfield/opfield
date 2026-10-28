@@ -313,7 +313,7 @@ describe('admin user email onboarding', () => {
     });
 
     expect(response.status).toBe(200);
-    expect(updateUserAuthMethod).toHaveBeenCalledWith(TARGET_USER.id, 'email_otp');
+    expect(updateUserAuthMethod).toHaveBeenCalledWith(TARGET_USER.id, 'email_otp', { actorUserId: USER.id });
     expect(sendEmailOtpOnboarding).toHaveBeenCalledWith(updatedUser.email);
   });
 });
@@ -1922,7 +1922,7 @@ describe('what a managed installation keeps', () => {
       body: JSON.stringify({ authMethod: 'password' }),
     });
     expect(response.status).toBe(200);
-    expect(updateUserAuthMethod).toHaveBeenCalledWith(TARGET_USER.id, 'password');
+    expect(updateUserAuthMethod).toHaveBeenCalledWith(TARGET_USER.id, 'password', { actorUserId: USER.id });
   });
 });
 

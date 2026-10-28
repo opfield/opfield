@@ -747,7 +747,11 @@ export class AuthService {
     return mapped;
   }
 
-  async updateUserAuthMethod(userId: string, authMethod: UserAuthMethod): Promise<User> {
+  async updateUserAuthMethod(
+    userId: string,
+    authMethod: UserAuthMethod,
+    options: { actorUserId?: string } = {}
+  ): Promise<User> {
     await this.assertAuthMethodEnabled(authMethod);
     const target = await this.db.query.users.findFirst({ where: eq(users.id, userId) });
     if (!target) throw new AppError(404, 'USER_NOT_FOUND', 'User not found');
@@ -772,7 +776,7 @@ export class AuthService {
     // Never carry a previous password across a primary-method transition.
     // Switching to password is activated by a fresh, emailed setup link.
     await this.db.delete(userPasswordCredentials).where(eq(userPasswordCredentials.userId, userId));
-    await this.clearSecondFactorsForMethodChange(updated, target.authMethod);
+    await this.clearSecondFactorsForMethodChange(updated, target.authMethod, options.actorUserId);
     await this.sessionService.destroyAllUserSessions(userId);
     this.emitUser(userId, 'updated');
     const mapped = await this.mapDbUserToUser(updated);
@@ -786,7 +790,8 @@ export class AuthService {
    */
   private async clearSecondFactorsForMethodChange(
     user: typeof users.$inferSelect,
-    previousAuthMethod: string
+    previousAuthMethod: string,
+    actorUserId: string | undefined
   ): Promise<void> {
     const [totp, recoveryCodes, passkeys] = await Promise.all([
       this.db
@@ -802,7 +807,7 @@ export class AuthService {
     await this.cacheService.delete(`mfa:totp:setup:${user.id}`);
     if (totp.length === 0 && recoveryCodes.length === 0 && passkeys.length === 0) return;
     await this.auditService.log({
-      userId: null,
+      userId: actorUserId ?? null,
       action: 'user.mfa_reset',
       resourceType: 'user',
       resourceId: user.id,
