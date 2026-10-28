@@ -1,6 +1,7 @@
 import { container } from '@/container.js';
 import { getFolderScopedIds } from '@/lib/folder-scopes.js';
 import { getResourceScopedIds, hasScope, hasScopeForCreation } from '@/lib/permissions.js';
+import { resolveSlugVisibleTo } from '@/lib/slug-lookup.js';
 import { AppError, isZodError, validationErrorDetails } from '@/middleware/error-handler.js';
 import {
   DockerBuildCreateSchema,
@@ -61,7 +62,6 @@ import {
   requiredString,
   requiredValue,
 } from './ai.resource-setup-args.js';
-import { resolveSlugVisibleTo } from './ai.slug-lookup.js';
 
 /**
  * A base64 chunk plus its JSON-RPC envelope must stay under the default 2 MiB

@@ -2,13 +2,13 @@ import { container, TOKENS } from '@/container.js';
 import type { CommercialEditionRuntime } from '@/edition/runtime.js';
 import { commercialModuleUnavailable } from '@/edition/unavailable.js';
 import { hasScope } from '@/lib/permissions.js';
+import { resolveSlugVisibleTo } from '@/lib/slug-lookup.js';
 import { AppError } from '@/middleware/error-handler.js';
 import { databaseToolRuntime } from '@/modules/databases/database-tool-runtime.js';
 import type { DatabaseConnectionService } from '@/modules/databases/databases.service.js';
 import { ManagedDatabaseBindingService } from '@/modules/databases/managed-database-bindings.service.js';
 import { ManagedDatabaseService } from '@/modules/databases/managed-databases.service.js';
 import type { User } from '@/types.js';
-import { resolveSlugVisibleTo } from './ai.slug-lookup.js';
 
 export const DATABASE_TOOL_NAMES = new Set([
   'list_databases',

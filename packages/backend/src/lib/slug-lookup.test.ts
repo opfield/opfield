@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { AppError } from '@/middleware/error-handler.js';
-import { resolveSlugVisibleTo } from './ai.slug-lookup.js';
+import { resolveSlugVisibleTo } from './slug-lookup.js';
 
 describe('resolveSlugVisibleTo', () => {
   it('returns the resource when the caller may view it', async () => {

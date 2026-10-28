@@ -11,6 +11,7 @@ import {
   hasScopeForCreation,
   hasScopeForResource,
 } from '@/lib/permissions.js';
+import { resolveSlugVisibleTo } from '@/lib/slug-lookup.js';
 import { AppError } from '@/middleware/error-handler.js';
 import {
   assertNotImpersonating,
@@ -463,11 +464,13 @@ nodesRoutes.openapi({ ...deleteNodeFolderRoute, middleware: requireScopeBase('no
 
 nodesRoutes.openapi(getNodeBySlugRoute, async (c) => {
   const service = container.resolve(NodesService);
-  const node = await service.getBySlug(c.req.param('slug')!);
   const scopes = c.get('effectiveScopes') || [];
-  if (!hasScope(scopes, `nodes:details:${node.id}`)) {
-    throw new AppError(403, 'FORBIDDEN', `Missing required scope: nodes:details:${node.id}`);
-  }
+  // A Node the caller may not view answers like a missing slug.
+  const node = await resolveSlugVisibleTo(
+    'Node',
+    () => service.getBySlug(c.req.param('slug')!),
+    (id) => hasScope(scopes, `nodes:details:${id}`)
+  );
   return c.json({ data: node });
 });
 

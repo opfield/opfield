@@ -1,6 +1,7 @@
 import { container } from '@/container.js';
 import { createChildLogger } from '@/lib/logger.js';
 import { hasScope, hasScopeBase, hasScopeForCreation, hasScopeForResource } from '@/lib/permissions.js';
+import { resolveSlugVisibleTo } from '@/lib/slug-lookup.js';
 import { AppError } from '@/middleware/error-handler.js';
 import { assertRoutePlacementOnGroup } from '@/modules/ingress-groups/ingress-group-operations.js';
 import { LicensePolicyService } from '@/modules/license/license-policy.service.js';
@@ -41,7 +42,6 @@ import {
   compactProxyHostForAgent,
   PROXY_HOST_UPDATE_FIELDS,
 } from './ai.service-helpers.js';
-import { resolveSlugVisibleTo } from './ai.slug-lookup.js';
 
 const logger = createChildLogger('AIProxyTools');
 

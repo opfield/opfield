@@ -3,6 +3,7 @@ import { container, TOKENS } from '@/container.js';
 import type { DrizzleClient } from '@/db/client.js';
 import { proxyHosts } from '@/db/schema/index.js';
 import { hasScope, hasScopeForResource } from '@/lib/permissions.js';
+import { resolveSlugVisibleTo } from '@/lib/slug-lookup.js';
 import { AppError } from '@/middleware/error-handler.js';
 import {
   FileBrowseSchema,
@@ -44,7 +45,6 @@ import { executeNodeConsoleCommand } from './ai.node-console-tool.js';
 import { resolveNodeListAccess } from './ai.node-list-scopes.js';
 import { NODE_LIST_ROLE_NOTE, nodeRole } from './ai.node-roles.js';
 import { agentPage, agentPageLimit } from './ai.service-helpers.js';
-import { resolveSlugVisibleTo } from './ai.slug-lookup.js';
 
 export const NODE_TOOL_NAMES = new Set([
   'list_nodes',

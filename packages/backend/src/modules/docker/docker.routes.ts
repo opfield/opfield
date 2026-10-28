@@ -2,7 +2,7 @@ import { OpenAPIHono } from '@hono/zod-openapi';
 import { container, TOKENS } from '@/container.js';
 import type { DrizzleClient } from '@/db/client.js';
 import { openApiValidationHook } from '@/lib/openapi.js';
-import { AppError } from '@/middleware/error-handler.js';
+import { resolveSlugVisibleTo } from '@/lib/slug-lookup.js';
 import { authMiddleware } from '@/modules/auth/auth.middleware.js';
 import type { AppEnv } from '@/types.js';
 import { registerDockerAvailabilityRoutes } from './availability/docker-availability.routes.js';
@@ -32,10 +32,13 @@ dockerRoutes.use('*', authMiddleware);
 
 dockerRoutes.openapi(getDockerNodeBySlugRoute, async (c) => {
   const db = container.resolve(TOKENS.DrizzleClient) as DrizzleClient;
-  const node = await resolveDockerNodeBySlug(db, c.req.param('nodeSlug')!);
-  if (!hasDockerNodeRouteAccess(c.get('effectiveScopes') || [], node.id)) {
-    throw new AppError(403, 'FORBIDDEN', 'Missing required Docker node access scope');
-  }
+  const scopes = c.get('effectiveScopes') || [];
+  // A Docker node the caller has no access to answers like a missing slug.
+  const node = await resolveSlugVisibleTo(
+    'Docker node',
+    () => resolveDockerNodeBySlug(db, c.req.param('nodeSlug')!),
+    (id) => hasDockerNodeRouteAccess(scopes, id)
+  );
   return c.json({ data: node });
 });
 

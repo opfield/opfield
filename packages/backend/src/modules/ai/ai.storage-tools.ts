@@ -2,10 +2,10 @@ import { container, TOKENS } from '@/container.js';
 import type { CommercialEditionRuntime } from '@/edition/runtime.js';
 import { commercialModuleUnavailable } from '@/edition/unavailable.js';
 import { hasScope } from '@/lib/permissions.js';
+import { resolveSlugVisibleTo } from '@/lib/slug-lookup.js';
 import { ObjectStorageService } from '@/modules/object-storage/object-storage.service.js';
 import { storageToolRuntime } from '@/modules/object-storage/storage-tool-runtime.js';
 import type { User } from '@/types.js';
-import { resolveSlugVisibleTo } from './ai.slug-lookup.js';
 import { createStorageObjectDownloadLink } from './ai.storage-object-link.js';
 import type { AIToolDefinition } from './ai.types.js';
 
