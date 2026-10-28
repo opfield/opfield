@@ -1771,6 +1771,88 @@ test('the nginx installer gives the nginx temp directories to a non-root run use
   }
 });
 
+// R3-05: a daemon binary was checked only against checksums.txt from the same place as the binary. The node installers
+// now run nothing they downloaded before its signed release manifest verified with the update signing keys they carry
+// (key slots and a revocation list, R3-09), and the binary matches the checksum the manifest names.
+test('the node installers verify a daemon against its signed release manifest before installing it', { skip: !linux || spawnSync('sh', ['-c', 'command -v openssl']).status !== 0 }, async () => {
+  const releaseKey = readFileSync(path.resolve('config/update-trust/update-signing-public-key.pem'), 'utf8')
+    .split('\n')
+    .filter((line) => line && !line.startsWith('-----'))
+    .join('');
+  const sources = Object.fromEntries(
+    ['setup-node.sh', 'setup-docker-node.sh', 'setup-monitoring-node.sh', 'setup-relay-node.sh'].map((script) => [
+      script,
+      readFileSync(path.join(scriptsDir, script), 'utf8'),
+    ])
+  );
+  for (const [script, text] of Object.entries(sources)) {
+    assert.ok(text.includes(`\nUPDATE_TRUST_PRIMARY='${releaseKey}'\n`), `${script} trusts the release signing key`);
+  }
+  const verifier = ['ensure_artifact_verifier', 'artifact_json_field', 'artifact_base64url_decode', 'artifact_signed_by_trusted_key', 'verify_release_artifact'];
+  for (const script of ['setup-docker-node.sh', 'setup-monitoring-node.sh']) {
+    for (const name of verifier) {
+      assert.equal(shellFunction(sources[script], name), shellFunction(sources['setup-node.sh'], name), `${script} ${name}`);
+    }
+  }
+
+  const dir = await mkdtemp(path.join(tmpdir(), 'opfield-signed-artifact-'));
+  try {
+    const shell = (script) => {
+      const result = runShell(script);
+      assert.equal(result.status, 0, result.output);
+      return result.output.trim();
+    };
+    shell(`openssl genpkey -algorithm ed25519 -out '${dir}/release.pem' && openssl genpkey -algorithm ed25519 -out '${dir}/other.pem'`);
+    const keyBody = (key) => shell(`openssl pkey -in '${dir}/${key}.pem' -pubout -outform DER | base64 -w0`);
+    const keyId = (key) => shell(`openssl pkey -in '${dir}/${key}.pem' -pubout -outform DER | sha256sum | cut -d' ' -f1`);
+    const name = 'nginx-daemon-linux-amd64';
+    const tag = 'v2.12.9-nginx';
+    const binary = 'nginx daemon binary\n';
+    const digest = spawnSync('sha256sum', { input: binary, encoding: 'utf8' }).stdout.split(' ')[0];
+    const payload = { kind: 'daemon-binary', version: 'v2.12.9', tag, daemonType: 'nginx', arch: 'amd64', artifactName: name,
+      downloadUrl: `https://get.opfield.dev/opfield/nginx-daemon/${tag}/${name}`, sha256: digest, createdAt: '2026-10-28T00:00:00Z' };
+    // Written like the release tooling writes it (shared/cmd/update-trust: an indented envelope).
+    const manifest = (signer, fields = {}) => {
+      const text = JSON.stringify({ ...payload, ...fields });
+      runShell(`printf '%s' '${text}' > '${dir}/payload'`);
+      shell(`openssl pkeyutl -sign -inkey '${dir}/${signer}.pem' -rawin -in '${dir}/payload' -out '${dir}/signature'`);
+      const signature = readFileSync(path.join(dir, 'signature')).toString('base64url');
+      return JSON.stringify({ schemaVersion: 1, keyId: LEGACY_UPDATE_KEY_ID, payload: Buffer.from(text).toString('base64url'), signature }, null, 2);
+    };
+    const run = ({ signed, served = binary, primary = keyBody('release'), secondary = '', revoked = '', env = '' }) => {
+      runShell(`rm -f '${dir}/manifest.json'`);
+      if (signed !== undefined) runShell(`cat > '${dir}/manifest.json' <<'EOF'\n${signed}\nEOF`);
+      runShell(`printf '%s' '${served}' > '${dir}/binary'`);
+      return runShell(
+        [
+          `LEGACY_UPDATE_KEY_ID=${LEGACY_UPDATE_KEY_ID}; LOG_FILE=/dev/null; ARCH=amd64; ${env}`,
+          'log() { :; }; ok() { echo "OK: $*"; }; warn() { echo "WARN: $*"; }; die() { echo "DIE: $*"; exit 1; }',
+          'verify_checksum() { echo CHECKSUMS_ONLY; }',
+          `curl() { local out="" url=""; while [[ $# -gt 0 ]]; do case "$1" in -o) out="$2"; shift 2 ;; -*) shift ;; *) url="$1"; shift ;; esac; done; [[ "$url" == *.update.json && -f '${dir}/manifest.json' ]] || return 22; cp '${dir}/manifest.json' "$out"; }`,
+          `UPDATE_TRUST_PRIMARY='${primary}'; UPDATE_TRUST_SECONDARY='${secondary}'; UPDATE_TRUST_REVOKED='${revoked}'`,
+          sources['setup-node.sh'].match(/^ALLOW_UNSIGNED_ARTIFACTS=.*$/m)[0],
+          ...verifier.map((fn) => shellFunction(sources['setup-node.sh'], fn)),
+          `verify_release_artifact '${dir}/binary' ${name} nginx ${tag} https://get.opfield.dev/opfield/nginx-daemon/${tag} && echo VERIFIED`,
+        ].join('\n')
+      ).output;
+    };
+
+    assert.match(run({ signed: manifest('release') }), /OK: Signed release verified[\s\S]*VERIFIED/);
+    assert.match(run({ signed: manifest('release'), served: 'tampered\n' }), /DIE: nginx-daemon-linux-amd64 does not match its signed release manifest/);
+    assert.match(run({ signed: manifest('release', { tag: 'v2.12.8-nginx' }) }), /DIE: The signed release manifest names another artifact[\s\S]*\(tag\)/);
+    assert.match(run({ signed: manifest('release', { artifactName: 'nginx-daemon-linux-arm64' }) }), /\(artifactName\)/);
+    assert.match(run({ signed: manifest('other') }), /DIE: The release manifest of nginx-daemon-linux-amd64 v2\.12\.9-nginx is not signed by a trusted Opfield key/);
+    // The standby key in the secondary slot verifies; a revoked key verifies nothing.
+    assert.match(run({ signed: manifest('other'), secondary: keyBody('other') }), /VERIFIED/);
+    assert.match(run({ signed: manifest('release'), secondary: keyBody('other'), revoked: keyId('release') }), /DIE: .*not signed by a trusted Opfield key/);
+    // No signed manifest: refused, unless the operator allows a development build (checksums.txt only, with a warning).
+    assert.match(run({}), /DIE: Could not download the signed release manifest/);
+    assert.match(run({ env: 'OPFIELD_ALLOW_UNSIGNED_ARTIFACTS=1' }), /WARN: .*no signed release manifest[\s\S]*CHECKSUMS_ONLY[\s\S]*VERIFIED/);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
 // F-B5: a relay installed through a mirror (OPFIELD_ARTIFACT_BASE_URL) took its binaries from the origin named in the
 // signed manifest. It takes them from the mirror, next to their manifests, and they must still match the signed
 // checksum. F-B4: the latest release resolves without jq, which a dry run cannot install.
@@ -1817,6 +1899,8 @@ test('the relay installer downloads its binaries from the mirror and checks them
           'openssl() { case "$1" in pkeyutl) return 0 ;; base64) base64 -d ;; esac; }',
           `curl() { local url="" out=""; while [[ $# -gt 0 ]]; do case "$1" in -o) out="$2"; shift 2 ;; -*) shift ;; *) url="$1"; shift ;; esac; done; echo "$url" >> '${dir}/requests'; case "$url" in *.update.json) printf '%s' "$MANIFEST" > "$out" ;; *) printf '%s' "$SERVED" > "$out" ;; esac; }`,
           `MANIFEST='${manifest(digest)}'; SERVED='${served}'`,
+          ...source.match(/^UPDATE_TRUST_\w+=.*$/gm),
+          shellFunction(source, 'signed_by_trusted_key'),
           shellFunction(source, 'decode_base64url'),
           shellFunction(source, 'relay_artifact_url'),
           shellFunction(source, 'fetch_verified'),
@@ -2088,7 +2172,10 @@ test('a fresh monitoring install records its token, so a new token is refused af
       '#!/bin/bash',
       'case "$1" in',
       '  version) echo "monitoring-daemon v2.11.1" ;;',
-      `  install) mkdir -p '${etc}' && printf 'opfield:\n  address: gw.example.com:9443\n  token: %s\nlog_level: info\n' "$5" > '${etc}/config.yaml' ;;`,
+      // Like the daemon: install without arguments prints its usage; the token comes from OPFIELD_NODE_TOKEN.
+      '  install) [ $# -ge 4 ] || { echo "Usage: monitoring-daemon install --opfield <address> (OPFIELD_NODE_TOKEN)"; exit 1; }',
+      `    printf '%s\\n' "$*" > '${dir}/install-args'`,
+      `    mkdir -p '${etc}' && printf 'opfield:\n  address: gw.example.com:9443\n  token: %s\nlog_level: info\n' "$OPFIELD_NODE_TOKEN" > '${etc}/config.yaml' ;;`,
       '  run)',
       `    printf '{"protocolVersion":1,"daemonType":"monitoring","pid":%s}' $$ > '${lib}/launcher/owner.json'`,
       `    printf '{"pid":%s,"ready":true}' $$ > '${lib}/launcher/child.json'`,
@@ -2119,6 +2206,8 @@ test('a fresh monitoring install records its token, so a new token is refused af
             ...process.env,
             PATH: `${path.join(dir, 'bin')}:${path.join(work, 'bin')}:${process.env.PATH}`,
             OPFIELD_ARTIFACT_BASE_URL: 'https://mirror.example/opfield',
+            // The stub daemon has no signed release manifest (the signed path has its own test).
+            OPFIELD_ALLOW_UNSIGNED_ARTIFACTS: '1',
             OPFIELD_MONITORING_ENROLLMENT_WAIT_SECONDS: '20',
             OPFIELD_MANUAL_LAUNCH_TIMEOUT_SECONDS: '20',
           },
@@ -2129,6 +2218,9 @@ test('a fresh monitoring install records its token, so a new token is refused af
     const fresh = install('gw_node_fresh');
     assert.equal(fresh.status, 0, fresh.output);
     assert.match(fresh.output, /monitoring-daemon is connected to Opfield/);
+    // The daemon's install got the token in its environment, not on its command line (R3-04).
+    assert.match(readFileSync(path.join(etc, 'config.yaml'), 'utf8'), /token: gw_node_fresh/);
+    assert.doesNotMatch(readFileSync(path.join(dir, 'install-args'), 'utf8'), /gw_node_fresh/);
     const recorded = readFileSync(path.join(lib, 'enrollment-token.sha256'), 'utf8').trim();
     assert.equal(recorded, spawnSync('sh', ['-c', "printf '%s' gw_node_fresh | sha256sum | cut -d' ' -f1"], { encoding: 'utf8' }).stdout.trim());
     const config = readFileSync(path.join(etc, 'config.yaml'), 'utf8');

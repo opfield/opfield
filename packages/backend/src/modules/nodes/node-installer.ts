@@ -119,17 +119,25 @@ function shellWord(value: string): string {
   return /^[A-Za-z0-9_./:@%+=,-]+$/.test(value) ? value : `'${value.replaceAll("'", "'\\''")}'`;
 }
 
+/** The variable the installers read the enrollment token from (setup-*.sh, the daemons' install command). */
+export const INSTALL_TOKEN_ENV = 'OPFIELD_NODE_TOKEN';
+
 /**
  * One setup command, shown with line continuations. A release build downloads the installer from its own GitHub
  * release and runs it only when it matches that release's opfield-node-installers.sha256. The steps use tools
  * every supported host has, busybox included (Debian, Ubuntu, RHEL, Alpine). An unreleased build pipes the
  * installer from main, unverified, as before installers were pinned.
+ *
+ * An enrollment token goes to the installer in the environment (exported in the user's shell, passed on by sudo),
+ * never as an argument: the command line of the installer is readable by every local user while it runs.
  */
 export function nodeInstallCommand(input: {
   installer: string;
   release: string | null;
   transport: InstallTransport;
   args: ReadonlyArray<readonly [flag: string, value?: string]>;
+  /** The enrollment token, passed in INSTALL_TOKEN_ENV. */
+  token?: string;
   /** One line, for a command shown inline instead of in a copy block. */
   oneLine?: boolean;
   /** The release's checksum list; releases before 2.12.1 publish only the old name. */
@@ -139,21 +147,26 @@ export function nodeInstallCommand(input: {
   const args = input.args
     .map(([flag, value]) => `${argBreak}${flag}${value === undefined ? '' : ` ${shellWord(value)}`}`)
     .join('');
+  const tokenSteps = input.token === undefined ? [] : [`export ${INSTALL_TOKEN_ENV}=${shellWord(input.token)}`];
+  const sudo = input.token === undefined ? 'sudo' : `sudo --preserve-env=${INSTALL_TOKEN_ENV}`;
+  const join = (steps: string[]) => steps.join(input.oneLine ? ' && ' : ' && \\\n');
   if (!input.release) {
     const url = `${MAIN_INSTALLERS}/${input.installer}`;
-    return `${input.transport === 'curl' ? `curl -sSL ${url}` : `wget -qO- ${url}`} | sudo bash -s --${args}`;
+    const fetch = input.transport === 'curl' ? `curl -sSL ${url}` : `wget -qO- ${url}`;
+    return join([...tokenSteps, `${fetch} | ${sudo} bash -s --${args}`]);
   }
   const base = `${RELEASE_DOWNLOADS}/${input.release}`;
   const checksums = input.checksums ?? INSTALLER_CHECKSUMS;
   const download = (file: string) =>
     input.transport === 'curl' ? `curl -fsSL -o ${file} ${base}/${file}` : `wget -qO ${file} ${base}/${file}`;
-  return [
+  return join([
+    ...tokenSteps,
     'cd "$(mktemp -d)"',
     download(input.installer),
     download(checksums),
     `grep ' ${input.installer}$' ${checksums} | sha256sum -c -`,
-    `sudo bash ${input.installer}${args}`,
-  ].join(input.oneLine ? ' && ' : ' && \\\n');
+    `${sudo} bash ${input.installer}${args}`,
+  ]);
 }
 
 /**
@@ -227,9 +240,11 @@ export function nodeInstallCommands(input: {
       ? // legacy-name: --gateway flags of a relay installer before 2.12.1 — remove once every relay pool runs 2.12.1+
         { address: LEGACY_ADDRESS_FLAG, certificate: LEGACY_CERT_FLAG }
       : enrollmentFlags(installer);
+    // A relay installer before 2.12.1 reads the token only from --token; every installer of this release takes it from
+    // the environment, off the command line.
     const args: Array<readonly [string, string]> = [
       [flags.address, address],
-      ['--token', input.token],
+      ...(legacyRelay ? [['--token', input.token] as const] : []),
       [flags.certificate, input.opfieldCertSha256],
     ];
     if (input.nodeType === 'builder') args.push(['--mode', 'builder']);
@@ -244,6 +259,7 @@ export function nodeInstallCommands(input: {
         release,
         transport,
         args,
+        token: legacyRelay ? undefined : input.token,
         checksums: legacyRelay ? LEGACY_INSTALLER_CHECKSUMS : undefined,
       });
     return [{ target, label, address, curl: command('curl'), wget: command('wget') }];
