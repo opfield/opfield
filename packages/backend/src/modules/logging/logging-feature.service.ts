@@ -1,5 +1,8 @@
 import { AppError } from '@/middleware/error-handler.js';
 
+/** How long a log producer waits before it retries a batch while logging is off. */
+export const LOGGING_DISABLED_RETRY_AFTER_SECONDS = 300;
+
 interface LoggingConfigurationSource {
   isConfigured(): boolean;
 }
@@ -70,6 +73,12 @@ export class LoggingFeatureService {
   }
 
   requireAvailableForIngest(): void {
+    if (!this.isEnabled()) {
+      // Producers keep sending while logging stays off: make them back off instead of retrying every batch.
+      throw new AppError(503, 'LOGGING_DISABLED', 'External logging is disabled', {
+        retryAfterSeconds: LOGGING_DISABLED_RETRY_AFTER_SECONDS,
+      });
+    }
     this.requireAvailableForStorage();
     if (this.capacityExhausted) {
       throw new AppError(

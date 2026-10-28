@@ -160,7 +160,7 @@ export const errorHandler: ErrorHandler<AppEnv> = async (err, c) => {
   const requestId = c.get('requestId');
 
   if (err instanceof AppError) {
-    if (err.statusCode === 429 && err.details && typeof err.details === 'object') {
+    if ((err.statusCode === 429 || err.statusCode === 503) && err.details && typeof err.details === 'object') {
       const retryAfterSeconds = (err.details as { retryAfterSeconds?: unknown }).retryAfterSeconds;
       if (typeof retryAfterSeconds === 'number') {
         c.header('Retry-After', String(retryAfterSeconds));
