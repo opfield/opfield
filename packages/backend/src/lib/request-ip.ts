@@ -16,6 +16,12 @@ export interface ClientIpResolution {
   remoteAddress?: string;
   source: 'remote' | 'cloudflare' | 'forwarded' | 'real-ip' | 'unknown';
   warning?: string;
+  /**
+   * The address does not tell clients apart: proxy headers came in but are not trusted (so every client behind that
+   * proxy resolves to the proxy) or the settings carry the reverse_proxy-without-trusted-proxies marker. Per-client
+   * limits must not key on it (nor on a missing address).
+   */
+  sharedAddress?: true;
 }
 
 export function resolveClientIp(
@@ -25,9 +31,11 @@ export function resolveClientIp(
 ): ClientIpResolution {
   const resolution = resolveConfiguredClientIp(headers, remoteAddress, settings);
   // Settings saved before reverse_proxy required trusted proxies are read as auto; the settings page says so.
-  return settings.reverseProxyWithoutTrustedProxies
-    ? { ...resolution, warning: REVERSE_PROXY_WITHOUT_PROXIES_WARNING }
-    : resolution;
+  if (settings.reverseProxyWithoutTrustedProxies) {
+    return { ...resolution, warning: REVERSE_PROXY_WITHOUT_PROXIES_WARNING, sharedAddress: true };
+  }
+  // A fallback to the peer with a warning means proxy headers were present and ignored.
+  return resolution.source === 'remote' && resolution.warning ? { ...resolution, sharedAddress: true } : resolution;
 }
 
 function resolveConfiguredClientIp(
@@ -97,6 +105,12 @@ export async function resolveClientIpForContext(c: Context<AppEnv>): Promise<Cli
 
 export async function getClientIpForContext(c: Context<AppEnv>): Promise<string | undefined> {
   return (await resolveClientIpForContext(c)).ipAddress;
+}
+
+/** The client address when it tells clients apart (see ClientIpResolution.sharedAddress), otherwise undefined. */
+export async function getDistinctClientIpForContext(c: Context<AppEnv>): Promise<string | undefined> {
+  const resolution = await resolveClientIpForContext(c);
+  return resolution.sharedAddress ? undefined : resolution.ipAddress;
 }
 
 export function getRemoteAddress(c: Context<AppEnv>): string | undefined {

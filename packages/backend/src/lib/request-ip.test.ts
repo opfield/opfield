@@ -122,3 +122,28 @@ describe('resolveClientIp', () => {
     expect(result.source).toBe('cloudflare');
   });
 });
+
+describe('resolveClientIp: addresses that do not tell clients apart (M-03)', () => {
+  const auto = { clientIpSource: 'auto' as const, trustedProxyCidrs: [], trustCloudflareHeaders: false };
+
+  it('marks the peer address shared when proxy headers came in but are ignored', () => {
+    const behindProxy = resolveClientIp(headers({ 'x-forwarded-for': '198.51.100.10' }), '172.18.0.5', auto);
+    expect(behindProxy).toMatchObject({ ipAddress: '172.18.0.5', sharedAddress: true });
+  });
+
+  it('marks it shared for settings with the reverse_proxy-without-trusted-proxies marker', () => {
+    const marked = resolveClientIp(headers({}), '172.18.0.5', { ...auto, reverseProxyWithoutTrustedProxies: true });
+    expect(marked).toMatchObject({ ipAddress: '172.18.0.5', sharedAddress: true });
+  });
+
+  it('keeps direct peers and trusted proxy clients distinct', () => {
+    expect(resolveClientIp(headers({}), '203.0.113.7', auto).sharedAddress).toBeUndefined();
+    const trusted = resolveClientIp(headers({ 'x-forwarded-for': '198.51.100.10' }), '10.0.0.2', {
+      clientIpSource: 'reverse_proxy',
+      trustedProxyCidrs: ['10.0.0.0/8'],
+      trustCloudflareHeaders: false,
+    });
+    expect(trusted).toMatchObject({ ipAddress: '198.51.100.10' });
+    expect(trusted.sharedAddress).toBeUndefined();
+  });
+});

@@ -8,7 +8,7 @@ import { container, TOKENS } from '@/container.js';
 import type { DrizzleClient } from '@/db/client.js';
 import { users } from '@/db/schema/index.js';
 import { openApiValidationHook } from '@/lib/openapi.js';
-import { getClientIpForContext } from '@/lib/request-ip.js';
+import { getClientIpForContext, getDistinctClientIpForContext } from '@/lib/request-ip.js';
 import { AppError } from '@/middleware/error-handler.js';
 import { AuditService } from '@/modules/audit/audit.service.js';
 import { setAuditSubjectUser } from '@/modules/audit/audit-request-context.js';
@@ -439,7 +439,11 @@ authRoutes.post('/demo/verify', async (c) => {
 authRoutes.post('/password/login', async (c) => {
   const input = LocalPasswordLoginSchema.parse(await c.req.json());
   const localAuth = container.resolve(LocalAuthService);
-  const user = await localAuth.authenticatePassword(input.email, input.password, await getClientIpForContext(c));
+  const user = await localAuth.authenticatePassword(
+    input.email,
+    input.password,
+    await getDistinctClientIpForContext(c)
+  );
   if (!user) {
     await auditFailedLocalSignIn('password', input.email);
     return c.json({ code: 'INVALID_CREDENTIALS', message: 'Invalid email or password' }, 401);
@@ -462,7 +466,7 @@ authRoutes.post('/email-otp/request', async (c) => {
 authRoutes.post('/email-otp/verify', async (c) => {
   const input = EmailCodeSchema.parse(await c.req.json());
   const localAuth = container.resolve(LocalAuthService);
-  const user = await localAuth.verifyEmailOtp(input.challengeId, input.code, await getClientIpForContext(c));
+  const user = await localAuth.verifyEmailOtp(input.challengeId, input.code, await getDistinctClientIpForContext(c));
   if (!user) return c.json({ code: 'INVALID_CODE', message: 'Invalid or expired sign-in code' }, 401);
   return finishLocalPrimaryAuth(c, user, 'email_otp');
 });
@@ -470,7 +474,7 @@ authRoutes.post('/email-otp/verify', async (c) => {
 authRoutes.post('/mfa/verify', async (c) => {
   const input = MfaVerifySchema.parse(await c.req.json());
   const mfa = container.resolve(MfaService);
-  const completed = await mfa.verifyLoginChallenge(input.challengeId, input, await getClientIpForContext(c));
+  const completed = await mfa.verifyLoginChallenge(input.challengeId, input, await getDistinctClientIpForContext(c));
   if (!completed) return c.json({ code: 'INVALID_MFA_CODE', message: 'Invalid or expired authentication code' }, 401);
   const user = await container.resolve(AuthService).getUserById(completed.userId);
   if (!user || user.isBlocked || !isAllowedDemoMfaUser(user))

@@ -189,20 +189,24 @@ function memoryRedis(other: (script: string, args: unknown[]) => unknown = () =>
   const locks = new Set<string>();
   const evalScript = vi.fn(async (script: string, keyCount: number, ...args: unknown[]) => {
     if (script.includes("redis.call('PTTL', lockKey)")) {
-      const [clientAttempts, clientLock, accountAttempts, accountLock, clientLimit, accountLimit] = args as string[];
-      if (locks.has(clientLock!) || locks.has(accountLock!)) return [1, 600_000];
-      const client = (counters.get(clientAttempts!) ?? 0) + 1;
-      counters.set(clientAttempts!, client);
-      if (client > Number(clientLimit)) {
-        counters.delete(clientAttempts!);
-        locks.add(clientLock!);
-        return [2, 900_000];
+      const [accountAttempts, accountLock, clientAttempts, clientLock] = args.slice(0, keyCount) as string[];
+      const [clientLimit, accountLimit] = args.slice(keyCount) as number[];
+      if (locks.has(accountLock!) || (clientLock && locks.has(clientLock))) return [1, 600_000];
+      let client = 0;
+      if (clientAttempts) {
+        client = (counters.get(clientAttempts) ?? 0) + 1;
+        counters.set(clientAttempts, client);
+        if (client > Number(clientLimit)) {
+          counters.delete(clientAttempts);
+          locks.add(clientLock!);
+          return [2, 900_000];
+        }
       }
       const account = (counters.get(accountAttempts!) ?? 0) + 1;
       counters.set(accountAttempts!, account);
       if (account > Number(accountLimit)) {
         counters.delete(accountAttempts!);
-        counters.set(clientAttempts!, client - 1);
+        if (clientAttempts) counters.set(clientAttempts, client - 1);
         locks.add(accountLock!);
         return [3, 900_000];
       }
@@ -299,6 +303,21 @@ describe('LocalAuthService password sign-in (R1-04, R1-08)', () => {
     await expect(service.authenticatePassword('user@example.com', 'right', '203.0.113.20')).resolves.toMatchObject({
       id: 'user-1',
     });
+  });
+
+  it('applies only the account-wide limit when the client address does not tell clients apart (M-03)', async () => {
+    vi.spyOn(bcrypt, 'compare').mockImplementation((async (password: string) => password === 'right') as never);
+    const { service, redis } = setup();
+
+    // Behind an untrusted proxy every client has the proxy's address, so the route passes no address.
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      await expect(service.authenticatePassword('user@example.com', 'wrong', undefined)).resolves.toBeNull();
+    }
+    await expect(service.authenticatePassword('user@example.com', 'right', undefined)).resolves.toMatchObject({
+      id: 'user-1',
+    });
+    expect(redis.locks.size).toBe(0);
+    expect([...redis.counters.keys()]).toEqual(['auth:sign-in:attempts:user:user-1']);
   });
 
   it('locks the account everywhere after 100 failures spread over many addresses', async () => {
