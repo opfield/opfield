@@ -45,6 +45,17 @@ describe('drizzle migration metadata', () => {
     expect(snapshotTags.at(-1)).toBe(entries.at(-1)?.tag.slice(0, 4));
   });
 
+  it('hashes the webhook tokens that exist and removes their plaintext', () => {
+    const migration = readFileSync(join(process.cwd(), 'src/db/migrations/0277_docker_webhook_token_hash.sql'), 'utf8');
+    expect(migration).toContain(
+      `UPDATE "docker_webhooks" SET "token_hash" = encode(sha256(convert_to("token"::text, 'UTF8')), 'hex')`
+    );
+    // The hash is written before the plaintext is cleared, and only for rows that were hashed.
+    expect(migration.indexOf('SET "token_hash"')).toBeLessThan(migration.indexOf('SET "token" = NULL'));
+    expect(migration).toContain('SET "token" = NULL WHERE "token_hash" IS NOT NULL');
+    expect(migration).toContain('CREATE UNIQUE INDEX "docker_webhooks_token_hash_idx"');
+  });
+
   it('keeps historical core settlement estimation unknown during migration', () => {
     const migration = readFileSync(
       join(process.cwd(), 'src/db/migrations/0187_core_attempt_usage_estimated.sql'),

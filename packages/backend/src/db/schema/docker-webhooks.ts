@@ -13,7 +13,13 @@ export const dockerWebhooks = pgTable(
     containerName: text('container_name').notNull(),
     targetType: text('target_type').$type<'container' | 'deployment'>().notNull().default('container'),
     deploymentId: uuid('deployment_id').references(() => dockerDeployments.id, { onDelete: 'cascade' }),
-    token: uuid('token').notNull().defaultRandom(),
+    /**
+     * Legacy plaintext token, always null once hashed. The default stays so a writer that still inserts a webhook
+     * without `tokenHash` gets a usable token; DockerWebhookService hashes it on first use.
+     */
+    token: uuid('token').defaultRandom(),
+    /** SHA-256 (hex) of the token in the webhook URL. The URL itself is shown only when issued. */
+    tokenHash: text('token_hash'),
     enabled: boolean('enabled').notNull().default(true),
     /**
      * The account that created the webhook, and the one that last changed it (enable, disable, token rotation). A
@@ -28,5 +34,6 @@ export const dockerWebhooks = pgTable(
   (table) => [
     unique('docker_webhooks_node_id_container_name_unique').on(table.nodeId, table.containerName),
     uniqueIndex('docker_webhooks_token_idx').on(table.token),
+    uniqueIndex('docker_webhooks_token_hash_idx').on(table.tokenHash),
   ]
 );

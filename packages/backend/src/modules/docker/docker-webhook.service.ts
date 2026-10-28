@@ -1,5 +1,4 @@
-import { randomUUID } from 'node:crypto';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import type { DrizzleClient } from '@/db/client.js';
 import { dockerWebhooks } from '@/db/schema/index.js';
 import { createChildLogger } from '@/lib/logger.js';
@@ -19,9 +18,9 @@ import { envListToMap, normalizeEnvRecord } from './docker-env-operations.js';
 import type { DockerImageCleanupService } from './docker-image-cleanup.service.js';
 import type { DockerRegistryService } from './docker-registry.service.js';
 import type { DockerTaskService } from './docker-task.service.js';
+import { hashWebhookToken, issueWebhookToken, presentWebhook, WEBHOOK_TOKEN_RE } from './docker-webhook-token.js';
 
 const logger = createChildLogger('DockerWebhookService');
-const WEBHOOK_TOKEN_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export class DockerWebhookService {
   private eventBus?: EventBusService;
@@ -57,16 +56,28 @@ export class DockerWebhookService {
         )
       )
       .limit(1);
-    return row ?? null;
+    return row ? presentWebhook(row) : null;
   }
 
   async getByToken(token: string) {
-    // The token column is UUID-typed. Reject malformed bearer values before
-    // PostgreSQL sees them so database parameter/error logs never receive the
-    // raw secret path segment.
+    // Reject malformed bearer values before PostgreSQL sees them so database
+    // parameter/error logs never receive the raw secret path segment.
     if (!WEBHOOK_TOKEN_RE.test(token)) return null;
-    const [row] = await this.db.select().from(dockerWebhooks).where(eq(dockerWebhooks.token, token)).limit(1);
-    return row ?? null;
+    const tokenHash = hashWebhookToken(token);
+    const [row] = await this.db.select().from(dockerWebhooks).where(eq(dockerWebhooks.tokenHash, tokenHash)).limit(1);
+    if (row) return presentWebhook(row);
+    // A webhook written by a path that does not hash yet (token column default) is matched once and hashed here.
+    const [legacy] = await this.db
+      .select()
+      .from(dockerWebhooks)
+      .where(and(isNull(dockerWebhooks.tokenHash), eq(dockerWebhooks.token, token.toLowerCase())))
+      .limit(1);
+    if (!legacy) return null;
+    await this.db
+      .update(dockerWebhooks)
+      .set({ tokenHash, token: null })
+      .where(and(eq(dockerWebhooks.id, legacy.id), isNull(dockerWebhooks.tokenHash)));
+    return presentWebhook(legacy);
   }
 
   async getByDeployment(deploymentId: string) {
@@ -75,7 +86,7 @@ export class DockerWebhookService {
       .from(dockerWebhooks)
       .where(and(eq(dockerWebhooks.deploymentId, deploymentId), eq(dockerWebhooks.targetType, 'deployment')))
       .limit(1);
-    return row ?? null;
+    return row ? presentWebhook(row) : null;
   }
 
   async upsert(nodeId: string, containerName: string, input: { enabled?: boolean }, userId: string) {
@@ -92,15 +103,19 @@ export class DockerWebhookService {
         .where(eq(dockerWebhooks.id, existing.id))
         .returning();
       this.emit('updated', updated);
-      return updated;
+      return presentWebhook(updated);
     }
 
+    // The URL is shown once, in this response; only its hash is stored.
+    const issued = issueWebhookToken();
     const [created] = await this.db
       .insert(dockerWebhooks)
       .values({
         nodeId,
         containerName,
         targetType: 'container',
+        token: null,
+        tokenHash: issued.tokenHash,
         enabled: input.enabled ?? true,
         createdById: userId,
         updatedById: userId,
@@ -115,7 +130,7 @@ export class DockerWebhookService {
       details: { nodeId, containerName },
     });
     this.emit('created', created);
-    return created;
+    return presentWebhook(created, issued.token);
   }
 
   async remove(nodeId: string, containerName: string, userId: string) {
@@ -138,9 +153,10 @@ export class DockerWebhookService {
     const existing = await this.getByContainer(nodeId, containerName);
     if (!existing) throw new AppError(404, 'NOT_FOUND', 'Webhook not found');
 
+    const issued = issueWebhookToken();
     const [updated] = await this.db
       .update(dockerWebhooks)
-      .set({ token: randomUUID(), updatedById: userId, updatedAt: new Date() })
+      .set({ token: null, tokenHash: issued.tokenHash, updatedById: userId, updatedAt: new Date() })
       .where(eq(dockerWebhooks.id, existing.id))
       .returning();
 
@@ -152,7 +168,7 @@ export class DockerWebhookService {
       details: { nodeId, containerName },
     });
     this.emit('updated', updated);
-    return updated;
+    return presentWebhook(updated, issued.token);
   }
 
   // ─── Core update action ───────────────────────────────────────────
@@ -341,7 +357,7 @@ export class DockerWebhookService {
   // ─── Helpers ──────────────────────────────────────────────────────
 
   private emit(action: string, data: Record<string, unknown>) {
-    const { token: _token, ...safeData } = data;
+    const { token: _token, tokenHash: _tokenHash, ...safeData } = data;
     this.eventBus?.publish('docker.webhook.changed', { ...safeData, action });
   }
 }
