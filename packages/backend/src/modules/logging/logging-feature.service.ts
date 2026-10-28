@@ -1,7 +1,10 @@
 import { AppError } from '@/middleware/error-handler.js';
 
-/** How long a log producer waits before it retries a batch while logging is off. */
-export const LOGGING_DISABLED_RETRY_AFTER_SECONDS = 300;
+/**
+ * How long a log producer waits before it retries a batch the ingest refused. It equals the SDK's longest own retry
+ * delay, so a producer's flush and close take no longer than before while logging stays off or unavailable.
+ */
+export const LOGGING_INGEST_RETRY_AFTER_SECONDS = 30;
 
 interface LoggingConfigurationSource {
   isConfigured(): boolean;
@@ -59,32 +62,29 @@ export class LoggingFeatureService {
     };
   }
 
-  requireEnabled(): void {
+  requireEnabled(details?: unknown): void {
     if (!this.isEnabled()) {
-      throw new AppError(503, 'LOGGING_DISABLED', 'External logging is disabled');
+      throw new AppError(503, 'LOGGING_DISABLED', 'External logging is disabled', details);
     }
   }
 
-  requireAvailableForStorage(): void {
-    this.requireEnabled();
+  requireAvailableForStorage(details?: unknown): void {
+    this.requireEnabled(details);
     if (!this.available) {
-      throw new AppError(503, 'LOGGING_UNAVAILABLE', 'External logging storage is unavailable');
+      throw new AppError(503, 'LOGGING_UNAVAILABLE', 'External logging storage is unavailable', details);
     }
   }
 
   requireAvailableForIngest(): void {
-    if (!this.isEnabled()) {
-      // Producers keep sending while logging stays off: make them back off instead of retrying every batch.
-      throw new AppError(503, 'LOGGING_DISABLED', 'External logging is disabled', {
-        retryAfterSeconds: LOGGING_DISABLED_RETRY_AFTER_SECONDS,
-      });
-    }
-    this.requireAvailableForStorage();
+    // Producers keep sending while ingest is refused: have them back off instead of retrying every batch at once.
+    const backOff = { retryAfterSeconds: LOGGING_INGEST_RETRY_AFTER_SECONDS };
+    this.requireAvailableForStorage(backOff);
     if (this.capacityExhausted) {
       throw new AppError(
         507,
         'LOGGING_CAPACITY_EXHAUSTED',
-        this.capacityReason ?? 'External logging storage capacity is exhausted'
+        this.capacityReason ?? 'External logging storage capacity is exhausted',
+        backOff
       );
     }
   }

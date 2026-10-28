@@ -3243,16 +3243,17 @@ export class RelayPolicyService {
     const results = await Promise.allSettled(connected.map((nodeId) => this.syncNodeGrants(nodeId, options)));
     const failures = connected.flatMap((nodeId, index) => {
       const result = results[index]!;
-      return result.status === 'rejected' ? [`${nodeId}: ${errorMessage(result.reason)}`] : [];
+      return result.status === 'rejected' ? [{ nodeId, reason: errorMessage(result.reason) }] : [];
     });
-    this.failedGrantRefreshNodeIds = new Set(connected.filter((_, index) => results[index]!.status === 'rejected'));
+    this.failedGrantRefreshNodeIds = new Set(failures.map((failure) => failure.nodeId));
     if (due) {
       this.lastGrantRefreshAt = Date.now();
       this.lastGrantRefreshRevision = revision;
     }
     if (failures.length) {
       // Name each daemon and why it refused: a count alone leaves a failure that repeats every pass undiagnosable.
-      throw new Error(`Failed to refresh relay grants for ${failures.length} daemon(s): ${failures.join('; ')}`);
+      const detail = failures.map((failure) => `${failure.nodeId}: ${failure.reason}`).join('; ');
+      throw new Error(`Failed to refresh relay grants for ${failures.length} daemon(s): ${detail}`);
     }
   }
 
