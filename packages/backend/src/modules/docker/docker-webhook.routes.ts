@@ -32,7 +32,7 @@ export function registerWebhookConfigRoutes(router: OpenAPIHono<AppEnv>) {
     async (c) => {
       const service = container.resolve(DockerWebhookService);
       const nodeId = c.req.param('nodeId')!;
-      const containerName = decodeURIComponent(c.req.param('containerName')!);
+      const containerName = c.req.param('containerName')!;
       const data = await service.getByContainer(nodeId, containerName);
       // An impersonating admin sees the config, never the user's webhook token.
       return c.json({ data: data && c.get('impersonation') ? { ...data, token: null } : data });
@@ -50,7 +50,7 @@ export function registerWebhookConfigRoutes(router: OpenAPIHono<AppEnv>) {
       assertNotImpersonating(c, 'Webhook tokens cannot be issued while impersonating');
       const service = container.resolve(DockerWebhookService);
       const nodeId = c.req.param('nodeId')!;
-      const containerName = decodeURIComponent(c.req.param('containerName')!);
+      const containerName = c.req.param('containerName')!;
       const body = WebhookUpsertSchema.parse(await c.req.json());
       const user = c.get('user')!;
       const data = await service.upsert(nodeId, containerName, body, user.id);
@@ -67,7 +67,7 @@ export function registerWebhookConfigRoutes(router: OpenAPIHono<AppEnv>) {
     async (c) => {
       const service = container.resolve(DockerWebhookService);
       const nodeId = c.req.param('nodeId')!;
-      const containerName = decodeURIComponent(c.req.param('containerName')!);
+      const containerName = c.req.param('containerName')!;
       const user = c.get('user')!;
       await service.remove(nodeId, containerName, user.id);
       return c.json({ success: true });
@@ -84,7 +84,7 @@ export function registerWebhookConfigRoutes(router: OpenAPIHono<AppEnv>) {
       assertNotImpersonating(c, 'Webhook tokens cannot be regenerated while impersonating');
       const service = container.resolve(DockerWebhookService);
       const nodeId = c.req.param('nodeId')!;
-      const containerName = decodeURIComponent(c.req.param('containerName')!);
+      const containerName = c.req.param('containerName')!;
       const user = c.get('user')!;
       const data = await service.regenerateToken(nodeId, containerName, user.id);
       return c.json({ data });
@@ -99,7 +99,7 @@ export function registerWebhookConfigRoutes(router: OpenAPIHono<AppEnv>) {
     async (c) => {
       const service = container.resolve(DockerImageCleanupService);
       const nodeId = c.req.param('nodeId')!;
-      const containerName = decodeURIComponent(c.req.param('containerName')!);
+      const containerName = c.req.param('containerName')!;
       const data = await service.getForContainer(nodeId, containerName);
       return c.json({ data });
     }
@@ -113,7 +113,7 @@ export function registerWebhookConfigRoutes(router: OpenAPIHono<AppEnv>) {
     async (c) => {
       const service = container.resolve(DockerImageCleanupService);
       const nodeId = c.req.param('nodeId')!;
-      const containerName = decodeURIComponent(c.req.param('containerName')!);
+      const containerName = c.req.param('containerName')!;
       const data = await service.upsertForContainer(
         nodeId,
         containerName,
