@@ -107,6 +107,50 @@ func TestLoopbackEndpointServesOnlyTheNginxWorkerUID(t *testing.T) {
 	}
 }
 
+// The legacy 127.0.0.1 port that raw configs may still reference passes the same uid check as a loopback endpoint
+// (R3-01): any local process can connect to it, only the nginx workers' uid reaches the relay opener.
+func TestLegacyTCPPortServesOnlyTheNginxWorkerUID(t *testing.T) {
+	opened := make(chan net.Conn, 4)
+	manager := testSourceLinkManager(t, func(_ string, connection net.Conn) {
+		opened <- connection
+		_ = connection.Close()
+	})
+	authority := newNginxPeerAuthority("", nil)
+	manager.authorizeUnixPeer = authority.authorize
+	statuses, err := manager.sync(sourceCommand(0, 1))
+	if err != nil || len(statuses) != 1 || statuses[0].Port == 0 {
+		t.Fatalf("sync: %#v %v", statuses, err)
+	}
+	address := net.JoinHostPort("127.0.0.1", stringPort(statuses[0].Port))
+
+	// The nginx workers run as this test's user (no master: the daemon's own uid).
+	dialAndSend(t, "tcp4", address)
+	select {
+	case <-opened:
+	case <-time.After(2 * time.Second):
+		t.Fatal("the nginx worker's connection to the legacy port was not served")
+	}
+
+	// nginx runs its workers as another user: this process is any other local process now.
+	authority.masterPID = func() (int, error) { return 1, nil }
+	authority.workerUID = func(int, string) (int, error) { return os.Getuid() + 1, nil }
+	refused, err := net.DialTimeout("tcp4", address, time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = refused.Close() })
+	_ = refused.SetDeadline(time.Now().Add(5 * time.Second))
+	_, _ = refused.Write([]byte("GET"))
+	select {
+	case <-opened:
+		t.Fatal("a process of another user reached the relay opener through the legacy port")
+	case <-time.After(300 * time.Millisecond):
+	}
+	if _, err := refused.Read(make([]byte, 1)); err == nil {
+		t.Fatal("the refused legacy connection stays open")
+	}
+}
+
 func TestLoopbackPeerUIDIsThePeerSocketOwner(t *testing.T) {
 	listener, err := net.Listen("tcp4", "127.64.0.9:0")
 	if err != nil {
@@ -123,7 +167,7 @@ func TestLoopbackPeerUIDIsThePeerSocketOwner(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer server.Close()
-	uid, err := secureLinkLoopbackPeerUID(server)
+	uid, err := loopbackPeerUID(server)
 	if err != nil || uid != os.Getuid() {
 		t.Fatalf("peer uid = %d, %v; want %d", uid, err, os.Getuid())
 	}

@@ -10,6 +10,7 @@ import (
 	"io"
 	"math/rand/v2"
 	"net"
+	"os"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -19,6 +20,7 @@ import (
 	"github.com/opfield/opfield/daemon-shared/handover"
 	"github.com/opfield/opfield/daemon-shared/lifecycle"
 	"github.com/opfield/opfield/daemon-shared/logepisode"
+	"github.com/opfield/opfield/daemon-shared/loopbackpeer"
 	"github.com/opfield/opfield/daemon-shared/netaccept"
 	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
 	"github.com/opfield/opfield/daemon-shared/relaybridge"
@@ -800,6 +802,9 @@ func (p *DockerPlugin) openManagedDatabaseBinding(connection net.Conn, bindingID
 	tunnel.bridge(p.linkTraffic.carry(link, flow))
 }
 
+// backupRelayRoutePeers decides which local users a backup relay route serves (replaced in tests).
+var backupRelayRoutePeers = func() func(uid int) bool { return loopbackpeer.Users(os.Getuid(), backupRunnerUID) }
+
 // OpenBackupRelayRoute resolves a signed per-run connect grant. routeID is the
 // RelayGrantAssignment.ownerId (the backup run UUID); the matching endpoint
 // assignment's routeId selects the owned target runtime server-side.
@@ -814,10 +819,17 @@ func (p *DockerPlugin) OpenBackupRelayRoute(ctx context.Context, ownerKind, rout
 	if assignment == nil || (assignment.GetGrant() == nil && len(relaybridge.PoolCandidates(assignment, false)) == 0) {
 		return nil, errors.New("backup relay route is unavailable")
 	}
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	loopback, err := net.Listen("tcp4", "127.0.0.1:0")
 	if err != nil {
 		return nil, fmt.Errorf("open backup relay loopback listener: %w", err)
 	}
+	// Any local process may connect to the port while the run lasts: only the run's own clients are served, the
+	// backup runner container (host network, backupRunnerUID), this daemon (native storage bridge) and root.
+	listener := loopbackpeer.Restrict(loopback, backupRelayRoutePeers(), loopbackpeer.RefusalLog(func(uid int, remote net.Addr) {
+		if p.logger != nil {
+			p.logger.Warn("backup relay route refused a local connection of another user", "owner_kind", ownerKind, "uid", uid, "remote", remote.String())
+		}
+	}))
 	routeCtx, cancel := context.WithCancel(ctx)
 	route := &BackupRelayRoute{Address: listener.Addr().String(), listener: listener, cancel: cancel, done: make(chan struct{})}
 	go func() {

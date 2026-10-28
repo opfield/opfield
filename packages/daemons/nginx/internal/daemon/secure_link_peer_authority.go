@@ -1,10 +1,13 @@
 package daemon
 
 import (
+	"errors"
 	"net"
 	"os"
 	"sync"
 	"time"
+
+	"github.com/opfield/opfield/daemon-shared/loopbackpeer"
 )
 
 // Authorizing a Secure Link peer must cost next to nothing: it runs for every
@@ -33,9 +36,10 @@ type knownNginxPeer struct {
 type nginxPeerAuthority struct {
 	binary    string
 	masterPID func() (int, error)
-	// isManaged and workerUID are the /proc checks (replaceable in tests).
+	// isManaged, workerUID and workerGID are the /proc checks (replaceable in tests).
 	isManaged func(peerPID, masterPID int, binary string) bool
 	workerUID func(masterPID int, binary string) (int, error)
+	workerGID func(masterPID int, binary string) (int, error)
 
 	mu        sync.Mutex
 	known     map[int]knownNginxPeer
@@ -47,7 +51,7 @@ type nginxPeerAuthority struct {
 func newNginxPeerAuthority(binary string, masterPID func() (int, error)) *nginxPeerAuthority {
 	return &nginxPeerAuthority{
 		binary: binary, masterPID: masterPID,
-		isManaged: isManagedNginxProcess, workerUID: managedNginxWorkerUID,
+		isManaged: isManagedNginxProcess, workerUID: managedNginxWorkerUID, workerGID: managedNginxWorkerGID,
 		known: map[int]knownNginxPeer{},
 	}
 }
@@ -105,7 +109,7 @@ func (a *nginxPeerAuthority) authorizePeer(peer unixPeerIdentity, now time.Time)
 // managed nginx workers: its peer socket is owned by their uid. A loopback
 // port carries no process credentials, so this is the uid check alone: any
 // process of that user passes (root when nginx runs its workers as root).
-var loopbackPeerUID = secureLinkLoopbackPeerUID
+var loopbackPeerUID = loopbackpeer.UID
 
 func (a *nginxPeerAuthority) authorizeLoopback(connection net.Conn) bool {
 	uid, err := loopbackPeerUID(connection)
@@ -114,6 +118,22 @@ func (a *nginxPeerAuthority) authorizeLoopback(connection net.Conn) bool {
 	}
 	owner, err := a.socketOwnerUID()
 	return err == nil && uid == owner
+}
+
+// workerGroupGID is the gid of the managed nginx workers, the group of the
+// service sockets only they use (the maintenance access socket).
+func (a *nginxPeerAuthority) workerGroupGID() (int, error) {
+	if a.masterPID == nil {
+		return os.Getgid(), nil
+	}
+	master, err := a.masterPID()
+	if err != nil {
+		return 0, err
+	}
+	if master <= 0 {
+		return 0, errors.New("the managed nginx master is not running")
+	}
+	return a.workerGID(master, a.binary)
 }
 
 // socketOwnerUID is the uid of the managed nginx workers, which own the

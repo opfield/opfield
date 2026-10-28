@@ -12,17 +12,17 @@ import (
 // daemon process on a restart or update like the Secure Link sockets: the listener keeper holds a copy, so a request
 // nginx sends meanwhile waits in the backlog instead of failing.
 
-// listenServiceSocket listens on a service socket at path that any local process may reach (nginx workers run as
-// another user): the socket the previous process kept there while the path still names it, else a new one, kept for
-// the next process. It returns the keeper name ("" when not kept).
-func listenServiceSocket(path string) (net.Listener, string, error) {
+// listenServiceSocket listens on a service socket at path with mode (nginx workers run as another user: 0666 for any
+// local process, 0660 for the group its caller gives the socket): the socket the previous process kept there while
+// the path still names it, else a new one, kept for the next process. It returns the keeper name ("" when not kept).
+func listenServiceSocket(path string, mode os.FileMode) (net.Listener, string, error) {
 	if current, err := listenerkeep.Name(path); err == nil {
 		if file, name, ok := takeKept(current); ok {
 			listener, err := net.FileListener(file)
 			_ = file.Close()
 			if unixListener, ok := listener.(*net.UnixListener); err == nil && ok {
 				unixListener.SetUnlinkOnClose(false)
-				if os.Chmod(path, 0o666) == nil {
+				if os.Chmod(path, mode) == nil {
 					return unixListener, name, nil
 				}
 			}
@@ -49,7 +49,7 @@ func listenServiceSocket(path string) (net.Listener, string, error) {
 	if err != nil {
 		return nil, "", err
 	}
-	if err := os.Chmod(path, 0o666); err != nil {
+	if err := os.Chmod(path, mode); err != nil {
 		_ = listener.Close()
 		_ = os.Remove(path)
 		return nil, "", err

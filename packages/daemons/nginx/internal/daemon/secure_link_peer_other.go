@@ -24,3 +24,7 @@ func isManagedNginxProcess(peerPID, masterPID int, nginxBinary string) bool {
 func managedNginxWorkerUID(masterPID int, nginxBinary string) (int, error) {
 	return 0, errors.New("managed nginx worker identity requires Linux")
 }
+
+func managedNginxWorkerGID(masterPID int, nginxBinary string) (int, error) {
+	return 0, errors.New("managed nginx worker identity requires Linux")
+}

@@ -101,9 +101,33 @@ func isManagedNginxProcess(peerPID, masterPID int, nginxBinary string) bool {
 }
 
 func managedNginxWorkerUID(masterPID int, nginxBinary string) (int, error) {
-	entries, err := os.ReadDir("/proc")
+	_, uid, err := managedNginxWorker(masterPID, nginxBinary)
+	return uid, err
+}
+
+// managedNginxWorkerGID is the effective gid of a worker of the managed nginx master.
+func managedNginxWorkerGID(masterPID int, nginxBinary string) (int, error) {
+	pid, _, err := managedNginxWorker(masterPID, nginxBinary)
 	if err != nil {
 		return 0, err
+	}
+	data, err := os.ReadFile(fmt.Sprintf("/proc/%d/status", pid))
+	if err != nil {
+		return 0, err
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		if fields := strings.Fields(line); len(fields) >= 3 && fields[0] == "Gid:" {
+			return strconv.Atoi(fields[2])
+		}
+	}
+	return 0, errors.New("managed nginx worker group is unknown")
+}
+
+// managedNginxWorker returns the PID and effective uid of a worker of the managed nginx master.
+func managedNginxWorker(masterPID int, nginxBinary string) (int, int, error) {
+	entries, err := os.ReadDir("/proc")
+	if err != nil {
+		return 0, 0, err
 	}
 	for _, entry := range entries {
 		pid, parseErr := strconv.Atoi(entry.Name())
@@ -112,8 +136,8 @@ func managedNginxWorkerUID(masterPID int, nginxBinary string) (int, error) {
 		}
 		parent, uid, identityErr := processParentAndEffectiveUID(pid)
 		if identityErr == nil && parent == masterPID {
-			return uid, nil
+			return pid, uid, nil
 		}
 	}
-	return 0, errors.New("managed nginx worker process not found")
+	return 0, 0, errors.New("managed nginx worker process not found")
 }
