@@ -17,6 +17,7 @@ const bidi = { ...unary, path: '/test.Service/Stream', requestStream: true, resp
 describe('gRPC receive limit per call', () => {
   let server: grpc.Server;
   let client: grpc.Client;
+  let port = 0;
 
   beforeAll(async () => {
     // The server-wide limit stays large for enrolled daemons; the interceptor narrows it per call.
@@ -36,7 +37,7 @@ describe('gRPC receive limit per call', () => {
         },
       }
     );
-    const port = await new Promise<number>((resolve, reject) =>
+    port = await new Promise<number>((resolve, reject) =>
       server.bindAsync('127.0.0.1:0', grpc.ServerCredentials.createInsecure(), (error, bound) =>
         error ? reject(error) : resolve(bound)
       )
@@ -73,6 +74,31 @@ describe('gRPC receive limit per call', () => {
     expect((outcome as { code: number }).code).not.toBe(grpc.status.OK);
   });
 
+  it('also bounds the decompressed size: a small gzip message cannot expand past 1 MiB', async () => {
+    const gzipClient = new grpc.Client(`127.0.0.1:${port}`, grpc.credentials.createInsecure(), {
+      'grpc.default_compression_algorithm': grpc.compressionAlgorithms.gzip,
+      'grpc.max_send_message_length': 64 * 1024 * 1024,
+    });
+    const send = (size: number) =>
+      new Promise<{ code: number } | { size: number }>((resolve) => {
+        gzipClient.makeUnaryRequest(
+          unary.path,
+          identity,
+          identity,
+          Buffer.alloc(size, 0),
+          (error: grpc.ServiceError | null, response?: Buffer) =>
+            resolve(error ? { code: error.code } : { size: Number(response!.toString()) })
+        );
+      });
+    try {
+      // 8 MiB of zeros is a few KiB on the wire, far below the length-prefix check.
+      expect(await send(8 * 1024 * 1024)).toEqual({ code: grpc.status.RESOURCE_EXHAUSTED });
+      expect(await send(1000)).toEqual({ size: 1000 });
+    } finally {
+      gzipClient.close();
+    }
+  });
+
   it('holds a stream without a verified client certificate to 1 MiB too', async () => {
     const outcome = await new Promise<string>((resolve) => {
       const call = client.makeBidiStreamRequest(bidi.path, identity, identity);
@@ -100,10 +126,13 @@ describe('receive limit of a call with a client certificate', () => {
   const BIG = 512 * 1024 * 1024;
   const callOf = (authorized: boolean | undefined) => ({
     decoder: { maxReadMessageLength: BIG },
+    maxReceiveMessageSize: BIG,
     stream: { session: { socket: { authorized, getPeerCertificate: () => ({}) } } },
   });
   const limitFor = (descriptor: { requestStream: boolean }, call: ReturnType<typeof callOf>) => {
     receiveLimitInterceptor(BIG)(descriptor as never, call as never);
+    // The decoder checks the wire size, the call the decompressed size: both follow the same limit.
+    expect(call.maxReceiveMessageSize).toBe(call.decoder.maxReadMessageLength);
     return call.decoder.maxReadMessageLength;
   };
 
