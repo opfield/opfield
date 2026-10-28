@@ -51,8 +51,8 @@ import {
   DEFAULT_ENVIRONMENT_SETTINGS,
   EnvironmentSettingsService,
 } from '@/modules/settings/environment-settings.service.js';
-import { CreateTokenSchema, UpdateTokenSchema } from '@/modules/tokens/tokens.schemas.js';
 import { registryRepositoryWorkloads } from '@/modules/tokens/token-registry-workloads.js';
+import { CreateTokenSchema, UpdateTokenSchema } from '@/modules/tokens/tokens.schemas.js';
 import {
   authorizeRequestedRegistryAccessForWorkloads,
   resolveRequestedTokenScopes,
