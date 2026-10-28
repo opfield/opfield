@@ -26,6 +26,7 @@ import {
   hasChannelAccess,
   hasHostingSnapshotEventAccess,
   hasIntegrationConnectorEventAccess,
+  isDefaultDeliverChannel,
   projectHostingSnapshotEvent,
   requiredScopeFor,
 } from './events-channel-access.js';
@@ -422,7 +423,9 @@ function canReceiveChannelPayload(scopes: string[], channel: string, payload: un
       !!(templateId && hasScope(scopes, `proxy:templates:view:${templateId}`))
     );
   }
-  return true;
+  // Anything not handled above is denied unless it is one of the channels that reach every
+  // subscriber who passed hasChannelAccess; a new channel is never delivered by default.
+  return isDefaultDeliverChannel(channel);
 }
 
 async function authenticate(token: string): Promise<{ user: User; scopes: string[] } | null> {

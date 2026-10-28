@@ -6,6 +6,7 @@ import {
   hasChannelAccess,
   hasHostingSnapshotEventAccess,
   hasIntegrationConnectorEventAccess,
+  isDefaultDeliverChannel,
   projectHostingSnapshotEvent,
 } from './events-channel-access.js';
 
@@ -163,5 +164,26 @@ describe('availability set event channel access', () => {
     expect(hasAvailabilitySetEventAccess(['storage:view'], storage)).toBe(true);
     // A grant on single resources cannot be matched to a set event (it names the managed id): no delivery.
     expect(hasAvailabilitySetEventAccess(['databases:view:connection'], database)).toBe(false);
+  });
+});
+
+describe('default-deliver channels', () => {
+  it('delivers id-only channels to every subscriber and nothing unknown', () => {
+    for (const channel of [
+      'read-model.refreshed',
+      'system.relay.health.changed',
+      'docker.registry.changed',
+      'pki.template.changed',
+      'cert.folder.changed',
+      'apps',
+      'audit.changed',
+      'siem.delivery.changed',
+      'permissions.changed.user-1',
+    ]) {
+      expect(isDefaultDeliverChannel(channel), channel).toBe(true);
+    }
+    expect(isDefaultDeliverChannel('future.secret.changed')).toBe(false);
+    expect(isDefaultDeliverChannel('docker.future.changed')).toBe(false);
+    expect(isDefaultDeliverChannel('')).toBe(false);
   });
 });

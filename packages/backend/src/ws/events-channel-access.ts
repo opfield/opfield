@@ -110,6 +110,45 @@ export function requiredScopeFor(channel: string): string | null {
 }
 
 /**
+ * Channels whose events reach every connection that passed `hasChannelAccess`, because they carry only ids,
+ * actions or nothing at all (layout refetch pings, per-user channels already pinned to the subscriber at
+ * subscribe time, system status). Keep their payloads id-only; a channel with data needs its own branch in
+ * canReceiveChannelPayload (events.ws.ts) instead of an entry here.
+ */
+const DEFAULT_DELIVER_CHANNELS: ReadonlySet<string> = new Set([
+  'read-model.refreshed',
+  'system.relay.health.changed',
+  'logging.health.changed',
+  'inference.core.changed',
+  'status-page.changed',
+  'pki.template.changed',
+  'pki.template.folder.changed',
+  'nginx.template.folder.changed',
+  'cert.folder.changed',
+  'ca.folder.changed',
+  'access-list.folder.changed',
+  'ingress_group.changed',
+  'apps.folder.changed',
+  'apps',
+  'audit.changed',
+  'siem.destination.changed',
+  'siem.delivery.changed',
+  'notification.alert-rule.folder.changed',
+  'notification.webhook.folder.changed',
+]);
+
+const DEFAULT_DELIVER_PREFIXES = [
+  'permissions.changed.',
+  MFA_REQUIRED_CHANNEL_PREFIX,
+  TOOL_STORE_INVALIDATION_CHANNEL_PREFIX,
+  'docker.registry',
+] as const;
+
+export function isDefaultDeliverChannel(channel: string): boolean {
+  return DEFAULT_DELIVER_CHANNELS.has(channel) || DEFAULT_DELIVER_PREFIXES.some((prefix) => channel.startsWith(prefix));
+}
+
+/**
  * `integration.connector.changed` carries a connector's ID and name: deliver it only to callers who may see
  * that connector (Git connectors through any grant on them, the others through their provider scopes).
  */
