@@ -22,6 +22,7 @@ import {
   isTrustedRelayServiceCall,
   stageRelayForwardedIdentityTrust,
 } from './interceptors/auth.js';
+import { receiveLimitInterceptor } from './interceptors/receive-limit.js';
 import { legacyGrpcServiceDefinition } from './legacy-service-names.js';
 import { createControlHandlers } from './services/control.js';
 import { createEnrollmentHandlers } from './services/enrollment.js';
@@ -217,6 +218,8 @@ export async function startGrpcServer(
     'grpc.keepalive_permit_without_calls': 1,
     'grpc.max_send_message_length': GRPC_MAX_MESSAGE_BYTES,
     'grpc.max_receive_message_length': GRPC_MAX_MESSAGE_BYTES,
+    // Enroll and the other methods reachable without a client certificate take small messages only.
+    interceptors: [receiveLimitInterceptor(GRPC_MAX_MESSAGE_BYTES)],
   });
 
   const protectUnary = (handler: (call: any, callback: any) => void) => (call: any, callback: any) => {
