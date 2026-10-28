@@ -259,7 +259,8 @@ export class StatusPageService {
   }
   async reorderServices(
     _serviceIds: string[],
-    _userId: string
+    _userId: string,
+    _actorScopes: readonly string[]
   ): Promise<
     {
       source: {
@@ -302,7 +303,7 @@ export class StatusPageService {
   > {
     return commercialModuleUnavailable();
   }
-  async deleteService(_id: string, _userId: string): Promise<void> {
+  async deleteService(_id: string, _userId: string, _actorScopes: readonly string[]): Promise<void> {
     return commercialModuleUnavailable();
   }
   async listIncidents(_query: { status?: 'active' | 'resolved' | 'all'; limit?: number; offset?: number }): Promise<

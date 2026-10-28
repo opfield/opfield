@@ -224,14 +224,14 @@ export class BackupService {
     _databaseId: string,
     _runId: string,
     _userId: string,
-    _options?: { artifacts?: BackupHistoryArtifactsAction }
+    _options?: { artifacts?: BackupHistoryArtifactsAction; actorScopes?: readonly string[] }
   ): Promise<BackupHistoryDeleteResult> {
     return commercialModuleUnavailable();
   }
   async deleteOrphanedHistory(
     _runId: string,
     _userId: string,
-    _options?: { artifacts?: BackupHistoryArtifactsAction }
+    _options?: { artifacts?: BackupHistoryArtifactsAction; actorScopes?: readonly string[] }
   ): Promise<BackupHistoryDeleteResult> {
     return commercialModuleUnavailable();
   }
