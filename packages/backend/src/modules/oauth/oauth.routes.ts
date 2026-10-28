@@ -232,6 +232,9 @@ oauthRoutes.get('/authorize', optionalAuthMiddleware, async (c) => {
 });
 
 oauthRoutes.post('/token', async (c) => {
+  // Token responses carry credentials and must never be cached (RFC 6749 section 5.1).
+  c.header('Cache-Control', 'no-store');
+  c.header('Pragma', 'no-cache');
   const contentType = c.req.header('content-type') ?? '';
   const body = contentType.includes('application/json')
     ? await c.req.json()

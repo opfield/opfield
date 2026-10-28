@@ -73,6 +73,8 @@ describe('token create route', () => {
       body: JSON.stringify({ name: 'ci', ...body }),
     });
     expect(response.status).toBe(201);
+    // The response carries the token secret (R1-13).
+    expect(response.headers.get('cache-control')).toBe('no-store');
     return createToken.mock.calls[0]![1].scopes as string[];
   }
 

@@ -84,6 +84,8 @@ tokensRoutes.openapi(createTokenRoute, async (c) => {
   }
 
   const result = await tokensService.createToken(user.id, input);
+  // The response carries the new token's secret.
+  c.header('Cache-Control', 'no-store');
   return c.json(result, 201);
 });
 
