@@ -10,6 +10,7 @@ import { AuthService } from '@/modules/auth/auth.service.js';
 import { AuthSettingsService } from '@/modules/auth/auth.settings.service.js';
 import { AuthMailService } from '@/modules/auth/auth-mail.service.js';
 import { LocalAuthService } from '@/modules/auth/local-auth.service.js';
+import { MfaService } from '@/modules/auth/mfa.service.js';
 import { OidcSettingsService } from '@/modules/auth/oidc-settings.service.js';
 import { CloudLinkService } from '@/modules/cloud-link/cloud-link.service.js';
 import { groupRoutes } from '@/modules/groups/group.routes.js';
@@ -75,6 +76,15 @@ function createApp() {
   app.onError(errorHandler);
   app.route('/api/admin', adminRoutes);
   return app;
+}
+
+/** The target's second factors as MfaService reports them (none by default). */
+function registerMfaStatus(
+  status: { totpConfigured?: boolean; passkeyCount?: number; recoveryCodeCount?: number } = {}
+) {
+  container.registerInstance(MfaService, {
+    getStatus: vi.fn().mockResolvedValue({ totpConfigured: false, passkeyCount: 0, recoveryCodeCount: 0, ...status }),
+  } as unknown as MfaService);
 }
 
 function registerSession(scopes: string[], user: User = USER) {
@@ -290,6 +300,7 @@ describe('admin user email onboarding', () => {
 
   it('sends the same onboarding email when an existing user is switched to email-code sign-in', async () => {
     registerSession(['admin:users', 'nodes:details:node-1']);
+    registerMfaStatus();
     const updatedUser = { ...TARGET_USER, authMethod: 'email_otp' as const };
     const updateUserAuthMethod = vi.fn().mockResolvedValue(updatedUser);
     const sendEmailOtpOnboarding = vi.fn().mockResolvedValue(undefined);
@@ -315,6 +326,40 @@ describe('admin user email onboarding', () => {
     expect(response.status).toBe(200);
     expect(updateUserAuthMethod).toHaveBeenCalledWith(TARGET_USER.id, 'email_otp', { actorUserId: USER.id });
     expect(sendEmailOtpOnboarding).toHaveBeenCalledWith(updatedUser.email);
+  });
+
+  // L-01: the change removes the user's second factors, which only a system administrator may reset.
+  it('requires admin:system to change the sign-in method of a user with second factors', async () => {
+    const changeMethod = async (scopes: string[]) => {
+      registerSession(scopes);
+      registerMfaStatus({ passkeyCount: 1 });
+      const updateUserAuthMethod = vi.fn().mockResolvedValue({ ...TARGET_USER, authMethod: 'oidc' });
+      container.registerInstance(AuthService, {
+        getUserById: vi.fn().mockResolvedValue({ ...TARGET_USER, authMethod: 'password' }),
+        updateUserAuthMethod,
+      } as unknown as AuthService);
+      container.registerInstance(AuditService, {
+        log: vi.fn().mockResolvedValue(undefined),
+      } as unknown as AuditService);
+      const response = await createApp().request(`/api/admin/users/${TARGET_USER.id}/auth-method`, {
+        method: 'PATCH',
+        headers: sessionHeaders(),
+        body: JSON.stringify({ authMethod: 'oidc' }),
+      });
+      return { response, updateUserAuthMethod };
+    };
+
+    const delegated = await changeMethod(['admin:users', 'nodes:details:node-1']);
+    expect(delegated.response.status).toBe(403);
+    await expect(delegated.response.json()).resolves.toMatchObject({
+      code: 'FORBIDDEN',
+      message: 'Missing required scope: admin:system',
+    });
+    expect(delegated.updateUserAuthMethod).not.toHaveBeenCalled();
+
+    const system = await changeMethod(['admin:system', 'admin:users', 'nodes:details:node-1']);
+    expect(system.response.status).toBe(200);
+    expect(system.updateUserAuthMethod).toHaveBeenCalledWith(TARGET_USER.id, 'oidc', { actorUserId: USER.id });
   });
 });
 
@@ -1898,6 +1943,7 @@ describe('what a managed installation keeps', () => {
 
   it('lets the owner of a managed installation move to password sign-in like on any installation', async () => {
     registerSession(['admin:users', 'nodes:details:node-1']);
+    registerMfaStatus();
     managed();
     container.registerInstance(FinalizeSetupService, {
       isOwner: vi.fn().mockResolvedValue(true),

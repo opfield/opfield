@@ -115,6 +115,13 @@ export async function updateAdminUserAuthMethod(
 ): Promise<User> {
   assertNotOwnSignInFromProgrammaticCaller(actor, userId);
   const targetUser = await requireManageableUser(actor, userId, services);
+  if (authMethod !== targetUser.authMethod) {
+    // The change removes the user's TOTP factor, recovery codes and passkeys, which is an MFA reset: same scope.
+    const mfa = await container.resolve(MfaService).getStatus(targetUser.id);
+    if (mfa.totpConfigured || mfa.passkeyCount > 0 || mfa.recoveryCodeCount > 0) {
+      assertSystemAdministrator(actor.scopes);
+    }
+  }
   if (authMethod === 'password' || authMethod === 'email_otp') {
     await assertSmtpVerified('SMTP must be verified before switching to email sign-in');
   }
