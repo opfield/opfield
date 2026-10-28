@@ -6,6 +6,8 @@ import { errorHandler } from '@/middleware/error-handler.js';
 import type { AppEnv } from '@/types.js';
 import { registerDockerDeploymentRoutes } from './docker-deployment.routes.js';
 import { DockerDeploymentService } from './docker-deployment.service.js';
+import { DockerWebhookService } from './docker-webhook.service.js';
+import { hashWebhookToken } from './docker-webhook-token.js';
 
 const NODE = '11111111-1111-4111-8111-111111111111';
 const DEPLOYMENT = '22222222-2222-4222-8222-222222222222';
@@ -94,5 +96,30 @@ describe('deployment webhook token under impersonation', () => {
     expect(await get.json()).toMatchObject({ data: { id: 'webhook-1', token: null } });
     expect((await send(router, 'POST', '/webhook/regenerate')).status).toBe(403);
     expect(service.regenerateWebhook).not.toHaveBeenCalled();
+  });
+});
+
+describe('deployment webhook token storage', () => {
+  it('shows the token only in the response that issued it, and keeps only its hash', async () => {
+    const service = registerService();
+    service.getWebhook.mockResolvedValue({ id: 'webhook-1', token: null, tokenHash: hashWebhookToken('old-token') });
+    const patches: Array<Record<string, unknown>> = [];
+    const db = {
+      update: () => ({
+        set: (patch: Record<string, unknown>) => {
+          patches.push(patch);
+          return { where: async () => undefined };
+        },
+      }),
+    };
+    container.registerInstance(DockerWebhookService, new DockerWebhookService(db as never, ...Array(6).fill({})));
+    const router = app([`docker:containers:webhooks:${NODE}/${DEPLOYMENT}`]);
+
+    const read = await (await send(router, 'GET', '/webhook')).json();
+    expect(read.data).toEqual({ id: 'webhook-1', token: null });
+
+    const rotated = await (await send(router, 'POST', '/webhook/regenerate')).json();
+    expect(rotated.data).toEqual({ id: 'webhook-1', token: 'new-token' });
+    expect(patches).toEqual([{ tokenHash: hashWebhookToken('new-token'), token: null }]);
   });
 });

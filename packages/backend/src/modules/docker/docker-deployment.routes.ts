@@ -56,6 +56,8 @@ import { dockerImageOriginMap, withDockerImageSources } from './docker-image-sou
 import { resolveDockerDeploymentIdByName } from './docker-route-resolvers.js';
 import { DockerSecretService } from './docker-secret.service.js';
 import { WebhookUpsertSchema } from './docker-webhook.schemas.js';
+import { DockerWebhookService } from './docker-webhook.service.js';
+import { presentWebhook } from './docker-webhook-token.js';
 
 /** The build rollout owning a deployment; the UI shows it as busy and disables mutations. */
 async function deploymentBuildRollout(deploymentId: string) {
@@ -491,8 +493,8 @@ export function registerDockerDeploymentRoutes(router: OpenAPIHono<AppEnv>) {
     async (c) => {
       const service = container.resolve(DockerDeploymentService);
       const data = await service.getWebhook(c.req.param('nodeId')!, c.req.param('deploymentId')!);
-      // An impersonating admin sees the config, never the user's webhook token.
-      return c.json({ data: data && c.get('impersonation') ? { ...data, token: null } : data });
+      // The token is shown only by the call that issued it; an impersonating admin never sees it.
+      return c.json({ data: data ? presentWebhook(data) : data });
     }
   );
 
@@ -509,7 +511,7 @@ export function registerDockerDeploymentRoutes(router: OpenAPIHono<AppEnv>) {
         WebhookUpsertSchema.parse(await c.req.json()),
         user.id
       );
-      return c.json({ data });
+      return c.json({ data: await container.resolve(DockerWebhookService).sealIssuedToken(data) });
     }
   );
 
@@ -533,7 +535,7 @@ export function registerDockerDeploymentRoutes(router: OpenAPIHono<AppEnv>) {
       const service = container.resolve(DockerDeploymentService);
       const user = c.get('user')!;
       const data = await service.regenerateWebhook(c.req.param('nodeId')!, c.req.param('deploymentId')!, user.id);
-      return c.json({ data });
+      return c.json({ data: await container.resolve(DockerWebhookService).sealIssuedToken(data) });
     }
   );
 

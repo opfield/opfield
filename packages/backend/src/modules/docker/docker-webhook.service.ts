@@ -1,4 +1,4 @@
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import type { DrizzleClient } from '@/db/client.js';
 import { dockerWebhooks } from '@/db/schema/index.js';
 import { createChildLogger } from '@/lib/logger.js';
@@ -66,18 +66,34 @@ export class DockerWebhookService {
     const tokenHash = hashWebhookToken(token);
     const [row] = await this.db.select().from(dockerWebhooks).where(eq(dockerWebhooks.tokenHash, tokenHash)).limit(1);
     if (row) return presentWebhook(row);
-    // A webhook written by a path that does not hash yet (token column default) is matched once and hashed here.
+    // A webhook written by a path that does not hash (the token column default) is matched once and hashed here.
     const [legacy] = await this.db
       .select()
       .from(dockerWebhooks)
-      .where(and(isNull(dockerWebhooks.tokenHash), eq(dockerWebhooks.token, token.toLowerCase())))
+      .where(eq(dockerWebhooks.token, token.toLowerCase()))
       .limit(1);
     if (!legacy) return null;
     await this.db
       .update(dockerWebhooks)
       .set({ tokenHash, token: null })
-      .where(and(eq(dockerWebhooks.id, legacy.id), isNull(dockerWebhooks.tokenHash)));
+      .where(and(eq(dockerWebhooks.id, legacy.id), eq(dockerWebhooks.token, token.toLowerCase())));
     return presentWebhook(legacy);
+  }
+
+  /**
+   * The response of a call that created or rotated a webhook through another service (deployment webhooks): hashes the
+   * plaintext token that service wrote, and returns the row with the token shown once. A row that carries no plaintext
+   * token (an enabled webhook saved again) comes back with `token: null`.
+   */
+  async sealIssuedToken<T extends { id: string; token?: string | null; tokenHash?: string | null }>(row: T) {
+    const token = row.token ?? null;
+    if (token) {
+      await this.db
+        .update(dockerWebhooks)
+        .set({ tokenHash: hashWebhookToken(token), token: null })
+        .where(eq(dockerWebhooks.id, row.id));
+    }
+    return presentWebhook(row, token);
   }
 
   async getByDeployment(deploymentId: string) {

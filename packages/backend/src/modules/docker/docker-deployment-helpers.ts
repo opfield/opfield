@@ -4,12 +4,15 @@ export type DeploymentRouteShape = Pick<
   'hostPort' | 'containerPort' | 'isPrimary'
 >;
 type DeploymentWithWebhook = {
-  webhook?: { token?: string; [key: string]: unknown } | null;
+  webhook?: { token?: string | null; [key: string]: unknown } | null;
 };
 export function redactDeploymentWebhookToken<T extends DeploymentWithWebhook>(deployment: T, canReveal: boolean): T {
-  if (canReveal || !deployment.webhook) return deployment;
+  if (!deployment.webhook) return deployment;
+  // The stored hash never leaves the server.
+  const { tokenHash: _tokenHash, ...webhook } = deployment.webhook;
   return {
     ...deployment,
-    webhook: { ...deployment.webhook, token: '[REDACTED]' },
+    // A webhook whose token is not stored in the clear has none to hide: the UI shows the issue-once placeholder.
+    webhook: canReveal || webhook.token == null ? webhook : { ...webhook, token: '[REDACTED]' },
   };
 }

@@ -50,4 +50,20 @@ describe('deployment environment redaction', () => {
     expect(presented.slots[0]!.desiredConfig).not.toHaveProperty('env');
     expect(presented.webhook.token).toBe('[REDACTED]');
   });
+
+  it('never returns the stored token hash, and leaves a token that is not stored in the clear null', () => {
+    const sealed = {
+      ...deployment(),
+      webhook: { id: 'webhook-1', token: null, tokenHash: 'a'.repeat(64) },
+    };
+    const presented = presentDeploymentForCaller(sealed, [`docker:containers:view:${NODE_ID}`], NODE_ID, DEPLOYMENT_ID);
+    expect(presented.webhook).toEqual({ id: 'webhook-1', token: null });
+    const revealed = presentDeploymentForCaller(
+      sealed,
+      [`docker:containers:webhooks:${NODE_ID}/${DEPLOYMENT_ID}`],
+      NODE_ID,
+      DEPLOYMENT_ID
+    );
+    expect(revealed.webhook).toEqual({ id: 'webhook-1', token: null });
+  });
 });
