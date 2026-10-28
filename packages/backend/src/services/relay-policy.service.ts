@@ -3241,13 +3241,18 @@ export class RelayPolicyService {
     const connected = nodeIds.filter((nodeId) => this.dispatch?.isNodeConnected(nodeId));
     const options = force ? {} : ROUTINE_GRANT_SYNC;
     const results = await Promise.allSettled(connected.map((nodeId) => this.syncNodeGrants(nodeId, options)));
+    const failures = connected.flatMap((nodeId, index) => {
+      const result = results[index]!;
+      return result.status === 'rejected' ? [`${nodeId}: ${errorMessage(result.reason)}`] : [];
+    });
     this.failedGrantRefreshNodeIds = new Set(connected.filter((_, index) => results[index]!.status === 'rejected'));
     if (due) {
       this.lastGrantRefreshAt = Date.now();
       this.lastGrantRefreshRevision = revision;
     }
-    if (this.failedGrantRefreshNodeIds.size) {
-      throw new Error(`Failed to refresh relay grants for ${this.failedGrantRefreshNodeIds.size} daemon(s)`);
+    if (failures.length) {
+      // Name each daemon and why it refused: a count alone leaves a failure that repeats every pass undiagnosable.
+      throw new Error(`Failed to refresh relay grants for ${failures.length} daemon(s): ${failures.join('; ')}`);
     }
   }
 
