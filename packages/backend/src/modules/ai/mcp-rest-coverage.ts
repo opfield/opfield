@@ -62,6 +62,7 @@ export const HOST_MCP_REST_COVERAGE: McpRestCoverageMap = {
   'PUT /api/access-lists/folders/{id}/move': mcp('manage_resource_folder:move_folder'),
   'GET /api/access-lists/{id}': mcp('manage_access_list:get'),
   'PUT /api/access-lists/{id}': mcp('manage_access_list:update'),
+  'POST /api/access-lists/{id}/ip-rules/move': mcp('manage_access_list:move_rule'),
   'DELETE /api/access-lists/{id}': mcp('delete_access_list'),
   // /api/access-service-tokens
   'GET /api/access-service-tokens': mcp('manage_access_sign_in:list'),

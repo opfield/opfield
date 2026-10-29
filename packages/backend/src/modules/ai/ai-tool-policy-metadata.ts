@@ -118,7 +118,7 @@ const OPERATION_POLICIES: Record<string, Record<string, AIToolOperationPolicy>> 
     update: ['update', 'add_member', 'reorder', 'convert_route', 'convert_domain'],
     delete: ['delete', 'remove_member'],
   }),
-  manage_access_list: operationPolicies({ read: ['get'], update: ['update'] }),
+  manage_access_list: operationPolicies({ read: ['get'], update: ['update', 'move_rule'] }),
   manage_node_config: operationPolicies({ read: ['read'], update: ['update'], external: ['test'] }),
   manage_node_file: operationPolicies({
     read: ['list', 'read'],

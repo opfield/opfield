@@ -287,6 +287,7 @@ Programmatic clients read and write raw nginx config with the same \`proxy:raw:*
 - \`POST /api/access-lists\` — create access list
 - \`GET /api/access-lists/:id\` — access list detail (sign-in methods, rules, skip ranges; usernames and \`sharedPasswordSet\`, never hashes)
 - \`PUT /api/access-lists/:id\` — update access list (omitted fields keep their value; topic access-lists)
+- \`POST /api/access-lists/:id/ip-rules/move\` — legacy: move one rule of the list's legacy ipRules view (\`{ fromIndex, toIndex }\`, 0-based); 409 \`ACCESS_LIST_NOT_LEGACY\` for a list with sign-in rules
 - \`DELETE /api/access-lists/:id\` — delete access list (refused while a route or Pages project uses it)
 
 ### Browser-only administration

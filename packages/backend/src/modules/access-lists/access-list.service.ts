@@ -24,8 +24,14 @@ import type { NginxCertificateDistributionService } from '@/services/nginx-certi
 import type { NginxConfigGenerator } from '@/services/nginx-config-generator.service.js';
 import type { NodeDispatchService } from '@/services/node-dispatch.service.js';
 import type { PaginatedResponse } from '@/types.js';
-import type { AccessListQuery, CreateAccessListInput, UpdateAccessListInput } from './access-list.schemas.js';
+import type {
+  AccessListQuery,
+  CreateAccessListInput,
+  MoveAccessListIpRuleInput,
+  UpdateAccessListInput,
+} from './access-list.schemas.js';
 import { removeAccessListHtpasswd } from './access-list-credentials.js';
+import { movedLegacyIpRules } from './access-list-legacy.js';
 import {
   type AccessListModel,
   accessListModelOf,
@@ -129,7 +135,26 @@ export class AccessListService {
     return presentAccessList(updated);
   }
 
-  private async updateLocked(id: string, input: UpdateAccessListInput, userId: string) {
+  /** The legacy IP rule move (movedLegacyIpRules), under the same lock as an update. */
+  async moveIpRule(id: string, input: MoveAccessListIpRuleInput, userId: string): Promise<PresentedAccessList> {
+    const updated = await withProxyLocks([accessListLockKey(id)], async () => {
+      const existing = await this.db.query.accessLists.findFirst({ where: eq(accessLists.id, id) });
+      if (!existing) throw new AppError(404, 'ACCESS_LIST_NOT_FOUND', 'Access list not found');
+      const { moved, ...fields } = movedLegacyIpRules(accessListModelOf(existing), input);
+      return this.updateLocked(id, fields, userId, {
+        action: 'access_list.move_ip_rule',
+        details: { fromIndex: input.fromIndex, toIndex: input.toIndex, rule: moved },
+      });
+    });
+    return presentAccessList(updated);
+  }
+
+  private async updateLocked(
+    id: string,
+    input: UpdateAccessListInput,
+    userId: string,
+    audit?: { action: string; details: Record<string, unknown> }
+  ) {
     // 1. Get existing access list
     const existing = await this.db.query.accessLists.findFirst({
       where: eq(accessLists.id, id),
@@ -220,10 +245,10 @@ export class AccessListService {
     // 4. Audit log
     await this.auditService.log({
       userId,
-      action: 'access_list.update',
+      action: audit?.action ?? 'access_list.update',
       resourceType: 'access_list',
       resourceId: id,
-      details: { changes: Object.keys(input) },
+      details: audit?.details ?? { changes: Object.keys(input) },
     });
 
     logger.info('Updated access list', { id });

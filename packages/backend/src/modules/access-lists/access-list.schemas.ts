@@ -2,6 +2,10 @@ import { isIP } from 'node:net';
 import { z } from 'zod';
 import type { AccessRuleSelector } from '@/db/schema/access-lists.js';
 import { AppError } from '@/middleware/error-handler.js';
+import {
+  MAX_ACCESS_SESSION_TTL_SECONDS,
+  MIN_ACCESS_SESSION_TTL_SECONDS,
+} from '@/modules/access-signin/access-signin.schemas.js';
 
 // ---------------------------------------------------------------------------
 // Shared helpers
@@ -138,8 +142,8 @@ const SkipIpRangesSchema = z
 const SessionTtlSchema = z
   .number()
   .int()
-  .min(300)
-  .max(365 * 24 * 3600)
+  .min(MIN_ACCESS_SESSION_TTL_SECONDS)
+  .max(MAX_ACCESS_SESSION_TTL_SECONDS)
   .nullable();
 
 /** A user of the list's sign-in form and basic authentication; without a password an existing user keeps theirs. */
@@ -250,6 +254,19 @@ export const UpdateAccessListSchema = z
   .superRefine(oneModel);
 
 // ---------------------------------------------------------------------------
+// Move one legacy IP rule (published API and MCP clients from before sign-in based lists)
+// ---------------------------------------------------------------------------
+
+export const MoveAccessListIpRuleSchema = z.object({
+  fromIndex: z.number().int().min(0).describe('0-based position of the rule to move'),
+  toIndex: z
+    .number()
+    .int()
+    .min(0)
+    .describe('0-based position the rule takes; the rules between shift by one (0 = checked first)'),
+});
+
+// ---------------------------------------------------------------------------
 // List query — pagination + search
 // ---------------------------------------------------------------------------
 
@@ -268,6 +285,7 @@ export const AccessListQuerySchema = z.object({
 export type CreateAccessListInput = z.infer<typeof CreateAccessListSchema>;
 export type UpdateAccessListInput = z.infer<typeof UpdateAccessListSchema>;
 export type AccessListQuery = z.infer<typeof AccessListQuerySchema>;
+export type MoveAccessListIpRuleInput = z.infer<typeof MoveAccessListIpRuleSchema>;
 export type AccessListUserInput = z.infer<typeof UserInputSchema>;
 export type LegacyIpRule = z.infer<typeof LegacyIpRuleSchema>;
 

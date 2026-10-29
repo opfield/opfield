@@ -1,6 +1,7 @@
 import { isIP } from 'node:net';
 import type { AccessRule, AccessSignInMethod } from '@/db/schema/access-lists.js';
-import type { LegacyIpRule } from './access-list.schemas.js';
+import { AppError } from '@/middleware/error-handler.js';
+import type { LegacyIpRule, MoveAccessListIpRuleInput } from './access-list.schemas.js';
 
 /**
  * The fields published API clients and scripts sent before sign-in based lists (ipRules, basicAuthEnabled,
@@ -176,4 +177,31 @@ export function legacyAccessFieldsOf(list: AccessListRules): LegacyAccessFields 
   ];
   const fields = { ipRules, basicAuthEnabled };
   return sameRules(legacyAccessRules(fields), list) ? fields : null;
+}
+
+/**
+ * POST /api/access-lists/:id/ip-rules/move of clients written before sign-in based lists: the rule moves in the list's
+ * legacy view (deny rules first, then allow rules) and the result is converted again, so a deny rule moved after an
+ * allow rule stops excluding what that allow rule covers. A list the legacy fields cannot express is refused.
+ */
+export function movedLegacyIpRules(list: AccessListRules, { fromIndex, toIndex }: MoveAccessListIpRuleInput) {
+  const fields = legacyAccessFieldsOf(list);
+  if (!fields) {
+    throw new AppError(
+      409,
+      'ACCESS_LIST_NOT_LEGACY',
+      'This access list uses sign-in rules that IP rules cannot express; edit it with the sign-in fields instead'
+    );
+  }
+  const rules = [...fields.ipRules];
+  if (fromIndex >= rules.length || toIndex >= rules.length) {
+    throw new AppError(
+      400,
+      'IP_RULE_INDEX_OUT_OF_RANGE',
+      `The access list has ${rules.length} IP rule(s); fromIndex and toIndex are 0-based positions below that`
+    );
+  }
+  const [moved] = rules.splice(fromIndex, 1);
+  rules.splice(toIndex, 0, moved!);
+  return { ...fields, ipRules: rules, moved: moved! };
 }

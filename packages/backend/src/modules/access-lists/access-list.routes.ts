@@ -11,12 +11,14 @@ import {
   deleteAccessListRoute,
   getAccessListRoute,
   listAccessListsRoute,
+  moveAccessListIpRuleRoute,
   updateAccessListRoute,
 } from './access-list.docs.js';
 import {
   AccessListQuerySchema,
   assertAccessListFields,
   CreateAccessListSchema,
+  MoveAccessListIpRuleSchema,
   UpdateAccessListSchema,
 } from './access-list.schemas.js';
 import { AccessListService } from './access-list.service.js';
@@ -87,6 +89,19 @@ accessListRoutes.openapi(
     assertAccessListFields(body);
     const input = UpdateAccessListSchema.parse(body);
     const accessList = await accessListService.update(id, input, user.id);
+    return c.json({ data: accessList });
+  }
+);
+
+// Move one IP rule in the legacy fields (clients written before sign-in based lists)
+accessListRoutes.openapi(
+  { ...moveAccessListIpRuleRoute, middleware: requireScopeForResource('acl:edit', 'id') },
+  async (c) => {
+    const accessListService = container.resolve(AccessListService);
+    const user = c.get('user')!;
+    const id = c.req.param('id')!;
+    const input = MoveAccessListIpRuleSchema.parse(await c.req.json());
+    const accessList = await accessListService.moveIpRule(id, input, user.id);
     return c.json({ data: accessList });
   }
 );

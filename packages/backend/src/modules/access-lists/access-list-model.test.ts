@@ -1,6 +1,7 @@
 import bcrypt from 'bcryptjs';
 import { describe, expect, it } from 'vitest';
 import { CreateAccessListSchema, UpdateAccessListSchema } from './access-list.schemas.js';
+import { movedLegacyIpRules } from './access-list-legacy.js';
 import { type AccessListModel, nextAccessListModel, presentAccessList, revokedSignIns } from './access-list-model.js';
 
 const create = (body: Record<string, unknown>) => nextAccessListModel(CreateAccessListSchema.parse(body), null);
@@ -202,5 +203,39 @@ describe('sign-ins a password change ends', () => {
     expect(revokedSignIns(list, next)).toEqual({ shared: true, usernames: ['maya', 'olga'] });
     const cleared = await update({ sharedPassword: null, signInMethods: ['password'] }, list);
     expect(revokedSignIns(list, cleared).shared).toBe(true);
+  });
+});
+
+describe('legacy IP rule move (POST /api/access-lists/:id/ip-rules/move, MCP move_rule)', () => {
+  it('moves a rule of the legacy view and converts it again', async () => {
+    const blocklist = await create({
+      name: 'Office',
+      ipRules: [
+        { type: 'deny', value: '10.0.0.5' },
+        { type: 'allow', value: '10.0.0.0/8' },
+      ],
+    });
+    // The deny moved after the allow that covers it: nginx let 10.0.0.5 in, so nothing is excluded any more.
+    const moved = movedLegacyIpRules(blocklist, { fromIndex: 0, toIndex: 1 });
+    expect(moved.ipRules).toEqual([
+      { type: 'allow', value: '10.0.0.0/8' },
+      { type: 'deny', value: '10.0.0.5' },
+    ]);
+    expect(await update({ ipRules: moved.ipRules, basicAuthEnabled: moved.basicAuthEnabled }, blocklist)).toMatchObject(
+      {
+        skipIpRanges: ['10.0.0.0/8'],
+        excludeRules: [],
+      }
+    );
+    expect(() => movedLegacyIpRules(blocklist, { fromIndex: 0, toIndex: 2 })).toThrow(
+      expect.objectContaining({ code: 'IP_RULE_INDEX_OUT_OF_RANGE' })
+    );
+  });
+
+  it('refuses a list the legacy fields cannot express', async () => {
+    const sso = await create({ name: 'SSO', signInMethods: ['opfield'], includeRules: [{ selector: 'everyone' }] });
+    expect(() => movedLegacyIpRules(sso, { fromIndex: 0, toIndex: 0 })).toThrow(
+      expect.objectContaining({ code: 'ACCESS_LIST_NOT_LEGACY' })
+    );
   });
 });

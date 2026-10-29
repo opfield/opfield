@@ -67,7 +67,8 @@ const MODEL_PROPERTIES = {
   },
   sessionTtlSeconds: {
     type: ['number', 'null'],
-    description: 'How long a sign-in lasts, 300 to 31536000 seconds; null: the default of the sign-in settings.',
+    description:
+      'How long a sign-in lasts, 300 to 2592000 seconds (30 days); null: the default of the sign-in settings.',
   },
 };
 
@@ -132,15 +133,17 @@ export const ACCESS_LIST_AI_TOOLS: AIToolDefinition[] = [
   },
   {
     name: 'manage_access_list',
-    description: `Get or update an access list. Operations: get; update (name, description and the sign-in fields; omitted fields keep their value, an array replaces the whole array). ${MODEL_FIELDS_NOTE} Routes and Pages previews that use the list follow the change.`,
+    description: `Get or update an access list. Operations: get; update (name, description and the sign-in fields; omitted fields keep their value, an array replaces the whole array). ${MODEL_FIELDS_NOTE} Routes and Pages previews that use the list follow the change. move_rule (fromIndex, toIndex, 0-based) is kept for agents written before sign-in based lists: it moves one rule of the list's legacy ipRules view and works only on a list without sign-in methods other than basic or identity rules.`,
     parameters: {
       type: 'object',
       properties: {
-        operation: { type: 'string', enum: ['get', 'update'] },
+        operation: { type: 'string', enum: ['get', 'update', 'move_rule'] },
         accessListId: { type: 'string' },
         name: { type: 'string' },
         description: { type: ['string', 'null'] },
         ...MODEL_PROPERTIES,
+        fromIndex: { type: 'number', description: 'move_rule: 0-based position of the rule to move.' },
+        toIndex: { type: 'number', description: 'move_rule: 0-based position the rule takes (0 = checked first).' },
       },
       required: ['operation', 'accessListId'],
     },
