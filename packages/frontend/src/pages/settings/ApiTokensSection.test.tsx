@@ -102,6 +102,46 @@ describe("token internal registry access", () => {
     });
   });
 
+  it("lists repositories instead of offering all of them to a user with folder grants only", async () => {
+    const folder = "folder/0b3d7f0e-1111-4c1a-9d2e-3f4a5b6c7d8e";
+    render(
+      <ApiTokensSection
+        user={
+          {
+            id: "user-1",
+            scopes: [`docker:containers:view:${folder}`, `docker:containers:edit:${folder}`],
+          } as User
+        }
+        nodesList={[]}
+        proxyHostsList={[]}
+        databasesList={[]}
+        loggingSchemasList={[]}
+      />
+    );
+    await userEvent.click(await screen.findByRole("button", { name: "Create Token" }));
+    await userEvent.type(screen.getByPlaceholderText("e.g., CI/CD Pipeline"), "ci-push");
+    await userEvent.click(
+      await screen.findByRole("combobox", { name: "Internal registry access" })
+    );
+    await userEvent.click(await screen.findByRole("option", { name: "Pull and push" }));
+
+    await userEvent.click(screen.getByRole("combobox", { name: "Pull repositories" }));
+    expect(
+      await screen.findByRole("option", { name: "Selected repositories" })
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "All repositories" })).toBeNull();
+    await userEvent.keyboard("{Escape}");
+    const [pull, push] = screen.getAllByRole("textbox", { name: "Repository 1" });
+    await userEvent.type(pull!, "team/app");
+    await userEvent.type(push!, "team/app");
+    await userEvent.click(screen.getAllByRole("button", { name: "Create Token" }).at(-1)!);
+
+    await waitFor(() => expect(api.createToken).toHaveBeenCalledTimes(1));
+    expect(api.createToken).toHaveBeenCalledWith(
+      expect.objectContaining({ registryAccess: { pull: ["team/app"], push: ["team/app"] } })
+    );
+  });
+
   it.each([
     ["external registry access is off", { externalAccess: false, licensed: true }],
     ["the license does not include it", { externalAccess: true, licensed: false }],

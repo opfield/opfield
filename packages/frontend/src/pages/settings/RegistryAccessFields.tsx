@@ -6,7 +6,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { hasScopeBase } from "@/lib/scope-utils";
+import { hasScopeBase, scopeMatches } from "@/lib/scope-utils";
 import { hasLicenseFeature } from "@/stores/license-paywall";
 import type { TokenRegistryAccess } from "@/types";
 
@@ -25,9 +25,18 @@ const REGISTRY_ACCESS_BASIS: Record<RegistryAction, readonly string[]> = {
   push: ["docker:containers:edit", "docker:containers:manage", "docker:compose:manage"],
 };
 
+function registryScopes(action: RegistryAction): string[] {
+  return [...REGISTRY_ACCESS_BASIS[action], `docker:registries:internal:${action}`];
+}
+
+/** Some grant of the action: enough for listed repositories of workloads the user may see or change. */
 function mayGive(userScopes: readonly string[], action: RegistryAction): boolean {
-  const scopes = [...REGISTRY_ACCESS_BASIS[action], `docker:registries:internal:${action}`];
-  return scopes.some((scope) => hasScopeBase(userScopes, scope));
+  return registryScopes(action).some((scope) => hasScopeBase(userScopes, scope));
+}
+
+/** Every repository needs the scope unqualified: one folder, node or workload is not all of them. */
+function mayGiveAll(userScopes: readonly string[], action: RegistryAction): boolean {
+  return registryScopes(action).some((scope) => scopeMatches(userScopes, scope));
 }
 
 function levelOf(access: TokenRegistryAccess): RegistryLevel {
@@ -83,8 +92,9 @@ const LEVEL_LABELS: Record<RegistryLevel, string> = {
 
 /**
  * Internal registry access of an API token (`docker login` with the token). Pull is offered to
- * users who can view a Docker workload or image, push to users who can change a workload; either
- * may be narrowed to repositories.
+ * users who can view a Docker workload or image, push to users who can change a workload. All
+ * repositories need that access unqualified; otherwise the token lists the repositories of the
+ * user's workloads.
  */
 export function RegistryAccessFields({
   value,
@@ -105,10 +115,22 @@ export function RegistryAccessFields({
     ...(canPull || level !== "none" ? (["pull"] as const) : []),
     ...(canPush || level === "push" ? (["push"] as const) : []),
   ];
+  const allowAll = {
+    pull: mayGiveAll(userScopes, "pull"),
+    push: mayGiveAll(userScopes, "push"),
+  };
+  // A new action starts as all repositories only where the user may give that, else as a list.
+  const initial = (action: RegistryAction): "all" | string[] => (allowAll[action] ? "all" : []);
   const changeLevel = (next: RegistryLevel) => {
     if (next === "none") onChange({});
-    else if (next === "pull") onChange({ pull: value.pull ?? "all" });
-    else onChange({ pull: value.pull ?? "all", push: value.push ?? value.pull ?? "all" });
+    else if (next === "pull") onChange({ pull: value.pull ?? initial("pull") });
+    else {
+      const pullRepositories = value.pull === "all" && !allowAll.push ? undefined : value.pull;
+      onChange({
+        pull: value.pull ?? initial("pull"),
+        push: value.push ?? pullRepositories ?? initial("push"),
+      });
+    }
   };
   const actions = (["pull", "push"] as const).filter((action) => value[action] !== undefined);
 
@@ -130,7 +152,8 @@ export function RegistryAccessFields({
         </Select>
         <p className="text-xs text-muted-foreground">
           What docker login with this token may do. Pull needs view access to a Docker workload or
-          image; push needs edit or manage on a workload.
+          image; push needs edit or manage on a workload. All repositories needs that access
+          everywhere, otherwise list the repositories your workloads use.
         </p>
       </div>
       {actions.map((action) => {
@@ -152,7 +175,9 @@ export function RegistryAccessFields({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All repositories</SelectItem>
+                {allowAll[action] || !selected ? (
+                  <SelectItem value="all">All repositories</SelectItem>
+                ) : null}
                 <SelectItem value="selected">Selected repositories</SelectItem>
               </SelectContent>
             </Select>
