@@ -3,7 +3,7 @@ import { getCookie } from 'hono/cookie';
 import { HTTPException } from 'hono/http-exception';
 import { container } from '@/container.js';
 import { hasScopeBase } from '@/lib/permissions.js';
-import { getClientIpForContext } from '@/lib/request-ip.js';
+import { getClientIpForContext, resolveRequestOriginForContext } from '@/lib/request-ip.js';
 import type { TokenRequestContext } from '@/lib/token-limits.js';
 import { hasTokenPrefix } from '@/lib/token-prefixes.js';
 import { AppError } from '@/middleware/error-handler.js';
@@ -18,7 +18,6 @@ import { SessionService } from '@/services/session.service.js';
 import type { AppEnv, SessionData, User } from '@/types.js';
 import { sessionAllowedForCookie } from './legacy-session-cookie.js';
 import {
-  getSessionCookiePublicUrl,
   LEGACY_SESSION_COOKIE_NAME,
   reissueLegacySessionCookie,
   type SelectedSessionCookie,
@@ -42,7 +41,7 @@ type AuthenticatedBearer = {
 
 type RequestCredential =
   | { type: Exclude<CredentialType, 'session'>; value: string }
-  | { type: 'session'; value: string; cookie: SelectedSessionCookie; publicUrl: string };
+  | { type: 'session'; value: string; cookie: SelectedSessionCookie };
 
 async function extractCredential(c: Context<AppEnv>): Promise<RequestCredential | null> {
   const authHeader = c.req.header('Authorization');
@@ -58,9 +57,12 @@ async function extractCredential(c: Context<AppEnv>): Promise<RequestCredential 
 
   const cookieHeader = c.req.header('Cookie');
   if (!cookieHeader) return null;
-  const publicUrl = await getSessionCookiePublicUrl();
-  const cookie = selectSessionCookie((name) => getCookie(c, name), publicUrl, cookieHeader);
-  return cookie ? { type: 'session', value: cookie.value, cookie, publicUrl } : null;
+  const cookie = selectSessionCookie(
+    (name) => getCookie(c, name),
+    await resolveRequestOriginForContext(c),
+    cookieHeader
+  );
+  return cookie ? { type: 'session', value: cookie.value, cookie } : null;
 }
 
 /**
@@ -77,7 +79,7 @@ async function getCredentialSession(
 /** A session that arrived under a legacy cookie name continues under the current one (see selectSessionCookie). */
 function moveLegacySessionCookie(c: Context<AppEnv>, credential: RequestCredential, session: SessionData): void {
   if (credential.type !== 'session') return;
-  reissueLegacySessionCookie(c, credential.cookie, credential.publicUrl, session.expiresAt);
+  reissueLegacySessionCookie(c, credential.cookie, session.expiresAt);
 }
 
 function requiresCsrf(method: string): boolean {

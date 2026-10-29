@@ -485,10 +485,13 @@ describe('authMiddleware browser session credentials', () => {
   });
 });
 
-describe('authMiddleware session cookies of an HTTPS console (R1-10)', () => {
+describe('authMiddleware session cookies of HTTPS requests (R1-10)', () => {
   const unprefixedHttpsCookie = () => getSessionCookieName('https').replace('__Host-', '');
 
-  function useHttpsPublicUrl(publicUrl = 'https://opfield.example.com') {
+  const HTTPS = 'https://opfield.example.com';
+
+  /** The saved public URL; the cookie rules follow the request's protocol, not this. */
+  function useHttpsPublicUrl(publicUrl = HTTPS) {
     container.registerInstance(GeneralSettingsService, {
       getPublicUrl: vi.fn().mockResolvedValue(publicUrl),
     } as unknown as GeneralSettingsService);
@@ -507,7 +510,7 @@ describe('authMiddleware session cookies of an HTTPS console (R1-10)', () => {
     const sessionService = registerSession();
     useHttpsPublicUrl();
 
-    const response = await createApp().request('/read', {
+    const response = await createApp().request(`${HTTPS}/read`, {
       headers: {
         Cookie: `${unprefixedHttpsCookie()}=planted-session; session_id=planted-session; ${getSessionCookieName('https')}=own-session`,
       },
@@ -524,7 +527,7 @@ describe('authMiddleware session cookies of an HTTPS console (R1-10)', () => {
     useHttpsPublicUrl();
     await useHostCookieSince(Date.now() + 60_000);
 
-    const response = await createApp().request('/read', {
+    const response = await createApp().request(`${HTTPS}/read`, {
       headers: { Cookie: `${unprefixedHttpsCookie()}=session-1` },
     });
 
@@ -544,7 +547,7 @@ describe('authMiddleware session cookies of an HTTPS console (R1-10)', () => {
     useHttpsPublicUrl();
     await useHostCookieSince(Date.now() - 60_000);
 
-    const response = await createApp().request('/read', {
+    const response = await createApp().request(`${HTTPS}/read`, {
       headers: { Cookie: `${unprefixedHttpsCookie()}=planted-session` },
     });
 
@@ -556,9 +559,40 @@ describe('authMiddleware session cookies of an HTTPS console (R1-10)', () => {
     const sessionService = registerSession();
     useHttpsPublicUrl();
 
-    const response = await createApp().request('/read', { headers: { Cookie: 'session_id=session-1' } });
+    const response = await createApp().request(`${HTTPS}/read`, { headers: { Cookie: 'session_id=session-1' } });
 
     expect(response.status).toBe(401);
     expect(sessionService.getSession).not.toHaveBeenCalled();
+  });
+
+  it('keeps the HTTP cookie of a setup wizard over http://<ip>:3000 when the public URL is HTTPS (mixed setup)', async () => {
+    const sessionService = registerSession({ session: { ...SESSION, createdAt: Date.now() } });
+    useHttpsPublicUrl();
+    await useHostCookieSince(Date.now() - 60_000);
+
+    const response = await createApp().request('http://203.0.113.5:3000/read', {
+      headers: { Cookie: `${getSessionCookieName('http')}=setup-browser-session` },
+    });
+
+    expect(response.status).toBe(200);
+    expect(sessionService.getSession).toHaveBeenCalledWith('setup-browser-session');
+    expect(response.headers.get('set-cookie')).toBeNull();
+  });
+
+  it('keeps signed-in browsers when the public URL is switched from HTTP to HTTPS (HTTP→HTTPS switch)', async () => {
+    const sessionService = registerSession({ session: { ...SESSION, createdAt: Date.now() } });
+    await useHostCookieSince(Date.now() - 60_000);
+    const cookie = { Cookie: `${getSessionCookieName('http')}=http-session` };
+
+    // Saved as HTTPS while the console still answers over plain HTTP: the same cookie keeps working.
+    useHttpsPublicUrl();
+    const stillHttp = await createApp().request('http://opfield.example.com/read', { headers: cookie });
+    expect(stillHttp.status).toBe(200);
+    expect(sessionService.getSession).toHaveBeenCalledWith('http-session');
+
+    // Once the browser arrives over HTTPS the HTTP-named cookie of a session from this release is not taken (a
+    // sibling host could have planted it): that browser signs in once more and gets the __Host- cookie.
+    const overHttps = await createApp().request(`${HTTPS}/read`, { headers: cookie });
+    expect(overHttps.status).toBe(401);
   });
 });

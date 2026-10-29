@@ -8,7 +8,11 @@ import { container, TOKENS } from '@/container.js';
 import type { DrizzleClient } from '@/db/client.js';
 import { users } from '@/db/schema/index.js';
 import { openApiValidationHook } from '@/lib/openapi.js';
-import { getClientIpForContext, getDistinctClientIpForContext } from '@/lib/request-ip.js';
+import {
+  getClientIpForContext,
+  getDistinctClientIpForContext,
+  resolveRequestOriginForContext,
+} from '@/lib/request-ip.js';
 import { AppError } from '@/middleware/error-handler.js';
 import { AuditService } from '@/modules/audit/audit.service.js';
 import { setAuditSubjectUser } from '@/modules/audit/audit-request-context.js';
@@ -72,7 +76,6 @@ import { getPublicAuthMethods } from './public-auth-methods.js';
 import {
   clearSessionCookies,
   getSessionCookieNameForUrl,
-  getSessionCookiePublicUrl,
   isLoopbackUrl,
   LEGACY_SESSION_COOKIE_NAME,
   selectSessionCookie,
@@ -134,8 +137,8 @@ async function getPublicUrl(): Promise<string> {
 }
 
 async function getRequestSessionId(c: any): Promise<string | null> {
-  const publicUrl = await getSessionCookiePublicUrl();
-  const cookie = selectSessionCookie((name) => getCookie(c, name), publicUrl, c.req.header('Cookie') ?? '');
+  const requestOrigin = await resolveRequestOriginForContext(c);
+  const cookie = selectSessionCookie((name) => getCookie(c, name), requestOrigin, c.req.header('Cookie') ?? '');
   if (!cookie?.legacy) return cookie?.value ?? null;
   const session = await container.resolve(SessionService).getSession(cookie.value);
   return session && sessionAllowedForCookie(cookie, session) ? cookie.value : null;
