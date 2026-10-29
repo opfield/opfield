@@ -323,6 +323,12 @@ export class GrantRefreshPendingError extends Error {
 
 const GRANT_REFRESH_FAILURE_NODES_NAMED = 3;
 const GRANT_REFRESH_FAILURE_REASONS_NAMED = 3;
+/** Daemon and gRPC errors can carry whole cause chains: each reason is cut to this many characters. */
+const GRANT_REFRESH_FAILURE_REASON_LENGTH = 200;
+
+function truncated(text: string, length: number): string {
+  return text.length > length ? `${text.slice(0, length - 1)}…` : text;
+}
 
 /**
  * Daemons named per distinct refusal: the same reason from many daemons (a key rotation) is listed once, a reason
@@ -331,7 +337,7 @@ const GRANT_REFRESH_FAILURE_REASONS_NAMED = 3;
 export function describeGrantRefreshFailures(failures: Array<{ nodeId: string; reason: string }>): string {
   const byReason = new Map<string, string[]>();
   for (const failure of failures) {
-    const reason = withoutNodeId(failure.reason, failure.nodeId);
+    const reason = truncated(withoutNodeId(failure.reason, failure.nodeId), GRANT_REFRESH_FAILURE_REASON_LENGTH);
     let nodeIds = byReason.get(reason);
     if (!nodeIds) byReason.set(reason, (nodeIds = []));
     nodeIds.push(failure.nodeId);

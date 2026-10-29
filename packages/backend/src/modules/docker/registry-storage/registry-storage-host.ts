@@ -236,21 +236,26 @@ export class RegistryStorageHost {
     return result.output;
   }
 
-  /** Whether the running registry was created from another definition than docker-compose.yml holds now. */
-  async registryDefinitionChanged(context: RegistryStorageHostContext): Promise<boolean> {
+  /**
+   * Recreates the registry when it was created from another definition than docker-compose.yml holds now (Compose's
+   * config hash), as a registry an older release created was: updates start it with --no-recreate. Returns whether it
+   * did; a host that is not installer-managed has no definition to apply. The caller drains writes and waits for it.
+   */
+  async applyChangedDefinition(): Promise<boolean> {
+    const context = await this.context().catch((error) => {
+      if (error instanceof AppError && error.code === 'REGISTRY_STORAGE_UNMANAGED') return null;
+      throw error;
+    });
+    if (!context) return false;
     const [output, registry] = await Promise.all([
       this.compose(context, ['config', '--hash', 'registry']),
       this.docker.inspectManagedRegistry(),
     ]);
     const hash = /^registry\s+([0-9a-f]+)\s*$/m.exec(output)?.[1];
     if (!hash) throw new Error('docker compose printed no definition hash for the registry');
-    return hash !== registry.Config.Labels?.['com.docker.compose.config-hash'];
-  }
-
-  /** Recreates the registry from docker-compose.yml and waits until it serves. */
-  async applyRegistryDefinition(context: RegistryStorageHostContext, registryUrl: string): Promise<void> {
+    if (hash === registry.Config.Labels?.['com.docker.compose.config-hash']) return false;
     await this.compose(context, ['up', '-d', '--no-deps', 'registry']);
-    await this.waitUntilReady(registryUrl);
+    return true;
   }
 
   /** Validates the rewritten files, recreates the registry from them and waits until it serves. */

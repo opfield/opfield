@@ -98,7 +98,9 @@ export function createDockerRegistryMaintenanceExecutor(
   tokenService: DockerRegistryTokenService,
   registryUrl = process.env.OPFIELD_INTERNAL_REGISTRY_URL || 'http://registry:5000',
   wait: (milliseconds: number) => Promise<void> = (milliseconds) =>
-    new Promise((resolve) => setTimeout(resolve, milliseconds))
+    new Promise((resolve) => setTimeout(resolve, milliseconds)),
+  /** Recreates the registry when docker-compose.yml defines it differently; whether it did. */
+  applyChangedDefinition: () => Promise<boolean> = async () => false
 ): DockerRegistryMaintenanceExecutor {
   const waitUntilRegistryReady = async () => {
     const deadline = Date.now() + 30_000;
@@ -214,7 +216,9 @@ export function createDockerRegistryMaintenanceExecutor(
     pauseAdmissions: async () => undefined,
     drainUploads: async () => {
       await wait(REGISTRY_WRITE_DRAIN_GRACE_MS);
-      await docker.restartManagedRegistry();
+      // The restart that ends open uploads also takes up a definition the running registry predates (its log
+      // rotation and level, say): updates never recreate the registry.
+      if (!(await applyChangedDefinition())) await docker.restartManagedRegistry();
       await waitUntilRegistryReady();
     },
     deleteManifest: async (repository, digest) => {

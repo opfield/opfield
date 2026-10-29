@@ -245,7 +245,9 @@ async function legacyUsageWindowStart(
   since?: Date
 ): Promise<Date | null> {
   // A window can be open now only from an entry within its duration: without one there is nothing to walk, which
-  // keeps the walk off the hot path for a user with old entries and no persisted window (read-only overviews).
+  // keeps the walk off the hot path for a user with old entries and no persisted window (read-only overviews). A
+  // recent subscription entry comes from an admitted request, and admission persists every window, so the full walk
+  // remains only for entries older than persisted windows (the first days after upgrading from such a release).
   const recent = await database
     .select({ id: inferenceUsageLedger.id })
     .from(inferenceUsageLedger)

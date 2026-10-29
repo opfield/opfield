@@ -40,13 +40,11 @@ export const loggerMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
   const duration = Date.now() - start;
   const status = c.res.status;
 
-  // A feature switched off is an expected answer, not an error of this server (see the error handler).
+  // A feature switched off is an expected answer, not an error of this server (see the error handler): it is
+  // tallied with the client errors (any 4xx counts alike).
   const featureOff = c.get('featureOffRefusal') === true;
   // A protocol switch (WebSocket) is not a request that completes, so it would skew latency.
-  if (status !== 101) {
-    if (featureOff) requestStats.recordFeatureOff(matchedRoutePath(c), duration);
-    else requestStats.record(matchedRoutePath(c), status, duration);
-  }
+  if (status !== 101) requestStats.record(matchedRoutePath(c), featureOff ? 400 : status, duration);
 
   const logLevel = featureOff ? 'debug' : status >= 500 ? 'error' : status >= 400 ? 'warn' : 'info';
 

@@ -142,6 +142,7 @@ import { dockerSourceCommercialRuntime } from '@/modules/docker/docker-source-co
 import { DockerTaskService } from '@/modules/docker/docker-task.service.js';
 import { DockerWebhookService } from '@/modules/docker/docker-webhook.service.js';
 import { DockerRegistryStorageService } from '@/modules/docker/registry-storage/registry-storage.service.js';
+import { RegistryStorageHost } from '@/modules/docker/registry-storage/registry-storage-host.js';
 import { DomainsService } from '@/modules/domains/domain.service.js';
 import { DomainFolderService } from '@/modules/domains/domain-folders.service.js';
 import { GroupService } from '@/modules/groups/group.service.js';
@@ -2161,8 +2162,11 @@ export async function initializeContainer(): Promise<void> {
 
   // Docker service (kept for self-update and image pruning only)
   const dockerService = new DockerService('/var/run/docker.sock', '');
+  const registryHost = new RegistryStorageHost(dockerService, env.COMPOSE_PROJECT_DIR);
   dockerInternalRegistryService.setExecutor(
-    createDockerRegistryMaintenanceExecutor(dockerService, dockerRegistryTokenService)
+    createDockerRegistryMaintenanceExecutor(dockerService, dockerRegistryTokenService, undefined, undefined, () =>
+      registryHost.applyChangedDefinition()
+    )
   );
   const dockerRegistryStorageService = new DockerRegistryStorageService({
     db,
@@ -2178,8 +2182,6 @@ export async function initializeContainer(): Promise<void> {
     await dockerInternalRegistryService.recoverInterruptedMaintenance().catch((error) => {
       logger.error('Failed to recover interrupted internal registry maintenance', { error });
     });
-    // In the background: the registry keeps serving unless its definition changed.
-    void dockerRegistryStorageService.applyDefinitionAfterStart();
   }
   container.registerInstance(DockerService, dockerService);
   container.registerInstance(DockerRegistryStorageService, dockerRegistryStorageService);
