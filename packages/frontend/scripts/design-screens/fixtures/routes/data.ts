@@ -135,43 +135,46 @@ const cert = (name: string) => certificates.find((item) => item.name === name)!;
 
 // ── Access lists ────────────────────────────────────────────────────────
 
+const OPEN_LIST = {
+  signInMethods: [],
+  users: [],
+  hasSharedPassword: false,
+  skipIpRanges: [],
+  includeRules: [],
+  requireRules: [],
+  excludeRules: [],
+  sessionTtlSeconds: null,
+} satisfies Partial<AccessList>;
+
 export const accessLists: AccessList[] = [
   {
+    ...OPEN_LIST,
     id: uuid(21201),
     name: "Office VPN",
     description: "Headquarters and VPN egress ranges",
-    ipRules: [
-      { type: "allow", value: "198.51.100.0/24" },
-      { type: "allow", value: "203.0.113.64/27" },
-      { type: "deny", value: "all" },
-    ],
-    basicAuthEnabled: false,
-    basicAuthUsers: [],
+    skipIpRanges: ["198.51.100.0/24", "203.0.113.64/27"],
     createdAt: ago(200, "d"),
     updatedAt: ago(12, "d"),
     usageCount: 2,
   },
   {
+    ...OPEN_LIST,
     id: uuid(21202),
     name: "Staff basic auth",
     description: "Shared login for internal tools",
-    ipRules: [],
-    basicAuthEnabled: true,
-    basicAuthUsers: [{ username: "ops" }, { username: "support" }],
+    signInMethods: ["basic"],
+    users: [{ username: "ops" }, { username: "support" }],
+    includeRules: [{ selector: "everyone", values: [] }],
     createdAt: ago(160, "d"),
     updatedAt: ago(40, "d"),
     usageCount: 0,
   },
   {
+    ...OPEN_LIST,
     id: uuid(21203),
     name: "Partner API allowlist",
     description: "Payment and logistics partners",
-    ipRules: [
-      { type: "allow", value: "192.0.2.0/25" },
-      { type: "deny", value: "all" },
-    ],
-    basicAuthEnabled: false,
-    basicAuthUsers: [],
+    skipIpRanges: ["192.0.2.0/25"],
     createdAt: ago(90, "d"),
     updatedAt: ago(90, "d"),
     usageCount: 0,

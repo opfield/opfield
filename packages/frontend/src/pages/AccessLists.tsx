@@ -1,4 +1,4 @@
-import { FolderPlus, MoreVertical, Pencil, Plus, Trash2 } from "lucide-react";
+import { FolderPlus, MoreVertical, Pencil, Plus, Settings2, Trash2 } from "lucide-react";
 import { type SyntheticEvent, useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { confirm } from "@/components/common/ConfirmDialog";
@@ -24,10 +24,27 @@ import { toastApiError } from "@/lib/api-error-toast";
 import { hasCreationDestination } from "@/lib/creation-folders";
 import { api } from "@/services/api";
 import { useAuthStore } from "@/stores/auth";
-import type { AccessList } from "@/types";
+import type { AccessIdentityProvider, AccessList } from "@/types";
 import { AccessListDialog } from "./access-lists/AccessListDialog";
+import { signInMethodTitle } from "./access-lists/access-options";
+import { SignInSettingsDialog } from "./access-lists/SignInSettingsDialog";
 
 const stopRowEvent = (event: SyntheticEvent) => event.stopPropagation();
+
+/** "Opfield account, Google" plus the addresses that skip sign-in; "Nobody" for a closed list. */
+function signInSummary(al: AccessList, providers: AccessIdentityProvider[] | null): string {
+  const methods = (al.signInMethods ?? []).map((key) => signInMethodTitle(key, providers));
+  const skip = al.skipIpRanges?.length ?? 0;
+  const parts = [
+    ...methods,
+    ...(skip > 0 ? [`${skip} ${skip === 1 ? "address skips" : "addresses skip"} sign-in`] : []),
+  ];
+  return parts.length > 0 ? parts.join(", ") : "Nobody";
+}
+
+/** Include, Require and Exclude rules together. */
+const ruleCount = (al: AccessList) =>
+  (al.includeRules?.length ?? 0) + (al.requireRules?.length ?? 0) + (al.excludeRules?.length ?? 0);
 
 export function AccessLists() {
   const { hasScope, user } = useAuthStore();
@@ -36,6 +53,10 @@ export function AccessLists() {
   const canEditAccessList = (id: string) => hasScope(`acl:edit:${id}`);
   const canDeleteAccessList = (id: string) => hasScope(`acl:delete:${id}`);
   const canManageFolders = useCanManageSomeFolders("acl:folders:manage");
+  // Sign-in settings: the domain and providers need admin:system, service tokens acl:edit.
+  const canOpenSignInSettings = hasScope("admin:system") || hasScope("acl:edit");
+  const [signInSettingsOpen, setSignInSettingsOpen] = useState(false);
+  const [providers, setProviders] = useState<AccessIdentityProvider[] | null>(null);
   const cachedAccessLists = api.getCached<{ data: AccessList[] }>("access-lists:list");
   const [accessLists, setAccessLists] = useState<AccessList[]>(cachedAccessLists?.data ?? []);
   const [isLoading, setIsLoading] = useState(!cachedAccessLists);
@@ -55,9 +76,18 @@ export function AccessLists() {
     }
   }, []);
 
+  // Provider names for the Sign-in column; without them a provider shows as "Identity provider".
+  const loadProviders = useCallback(() => {
+    api
+      .listAccessIdentityProviders()
+      .then(setProviders)
+      .catch(() => setProviders(null));
+  }, []);
+
   useEffect(() => {
     loadAccessLists();
-  }, [loadAccessLists]);
+    loadProviders();
+  }, [loadAccessLists, loadProviders]);
 
   useRealtime("access-list.changed", () => {
     loadAccessLists();
@@ -117,34 +147,31 @@ export function AccessLists() {
       ),
     },
     {
-      id: "ip-rules",
-      label: "IP Rules",
-      align: "right",
-      width: "7rem",
-      renderCell: (al) => (
-        <Badge variant="secondary" className="gap-1">
-          <span>{(al.ipRules || []).length}</span>
-          <span>rules</span>
-        </Badge>
-      ),
+      id: "sign-in",
+      label: "Sign-in",
+      renderCell: (al) => {
+        const summary = signInSummary(al, providers);
+        return (
+          <p className="truncate text-sm text-muted-foreground" title={summary}>
+            {summary}
+          </p>
+        );
+      },
     },
     {
-      id: "auth-users",
-      label: "Auth Users",
+      id: "rules",
+      label: "Rules",
       align: "right",
-      width: "8rem",
-      renderCell: (al) => (
-        <Badge variant={al.basicAuthEnabled ? "secondary" : "outline"} className="gap-1">
-          {al.basicAuthEnabled ? (
-            <>
-              <span>{(al.basicAuthUsers || []).length}</span>
-              <span>users</span>
-            </>
-          ) : (
-            <span>Disabled</span>
-          )}
-        </Badge>
-      ),
+      width: "7rem",
+      renderCell: (al) => {
+        const count = ruleCount(al);
+        return (
+          <Badge variant={count > 0 ? "secondary" : "outline"} className="gap-1">
+            <span>{count}</span>
+            <span>{count === 1 ? "rule" : "rules"}</span>
+          </Badge>
+        );
+      },
     },
     {
       id: "usage",
@@ -200,9 +227,11 @@ export function AccessLists() {
       <PageHeader
         leading={<LiteModeBackButton />}
         title="Access Lists"
-        description="Manage IP rules and basic authentication"
+        description="Decide who can open routes and Pages"
         actions={
-          canCreateAccessList || (canManageFolders && createFolderAction) ? (
+          canCreateAccessList ||
+          canOpenSignInSettings ||
+          (canManageFolders && createFolderAction) ? (
             <ResponsiveHeaderActions
               actions={[
                 ...(canManageFolders && createFolderAction
@@ -211,6 +240,15 @@ export function AccessLists() {
                         label: "Add Folder",
                         icon: <FolderPlus className="h-4 w-4" />,
                         onClick: createFolderAction,
+                      },
+                    ]
+                  : []),
+                ...(canOpenSignInSettings
+                  ? [
+                      {
+                        label: "Sign-in settings",
+                        icon: <Settings2 className="h-4 w-4" />,
+                        onClick: () => setSignInSettingsOpen(true),
                       },
                     ]
                   : []),
@@ -229,6 +267,12 @@ export function AccessLists() {
                 <Button variant="outline" onClick={() => createFolderAction()}>
                   <FolderPlus className="h-4 w-4" />
                   Add Folder
+                </Button>
+              )}
+              {canOpenSignInSettings && (
+                <Button variant="outline" onClick={() => setSignInSettingsOpen(true)}>
+                  <Settings2 className="h-4 w-4" />
+                  Sign-in settings
                 </Button>
               )}
               {canCreateAccessList && (
@@ -281,6 +325,11 @@ export function AccessLists() {
           onOpenChange={setDialogOpen}
           accessList={editing}
           onSaved={loadAccessLists}
+        />
+        <SignInSettingsDialog
+          open={signInSettingsOpen}
+          onOpenChange={setSignInSettingsOpen}
+          onProvidersChanged={loadProviders}
         />
       </HubTabPanel>
     </div>

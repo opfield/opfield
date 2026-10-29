@@ -27,6 +27,7 @@ import type {
 } from "@/types";
 import type { AIScenario, PageContext } from "@/types/ai";
 import type { FileEntry } from "@/types/docker";
+import { withAccessSignInApi } from "./api-access";
 import { withAIStatusApi } from "./api-ai-status";
 import { withAppsApi } from "./api-apps";
 import { withAuthApi } from "./api-auth";
@@ -71,7 +72,9 @@ class ApiClient extends withAppsApi(
                                   withProxyApi(
                                     withHostingApi(
                                       withAvailabilitySetsApi(
-                                        withConfigurationTransferApi(ApiClientBase)
+                                        withAccessSignInApi(
+                                          withConfigurationTransferApi(ApiClientBase)
+                                        )
                                       )
                                     )
                                   )
