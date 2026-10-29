@@ -10,6 +10,15 @@ export function dns01RecordNameForDomain(domain: string): string {
   return `_acme-challenge.${normalized}`;
 }
 
+/**
+ * The local check that a challenge is in place before the CA is asked to validate it. acme-client retries it for about
+ * three minutes by default, which held the request open that long for a name the CA can never reach.
+ */
+const SELF_CHECK_BACKOFF = { backoffAttempts: 3, backoffMin: 2000, backoffMax: 4000 } as const;
+const SELF_CHECK_TIMEOUT_MS = 30_000;
+
+type ChallengeCheckArgs = Parameters<acme.Client['verifyChallenge']>;
+
 export interface ACMEServiceOptions {
   /** ACME directory used instead of Let's Encrypt (production or staging), e.g. a test CA. */
   directoryUrl?: string;
@@ -55,7 +64,26 @@ export class ACMEService {
   /**
    * Request a certificate via HTTP-01 challenge (fully automatic).
    */
-  async requestCertHTTP01(
+  requestCertHTTP01(...args: Parameters<ACMEService['orderHTTP01']>): ReturnType<ACMEService['orderHTTP01']> {
+    return this.issuing(args[0], () => this.orderHTTP01(...args));
+  }
+
+  /**
+   * Start DNS-01 challenge — returns records user must create.
+   * Does NOT verify yet; user must create TXT records first.
+   */
+  requestCertDNS01Start(...args: Parameters<ACMEService['startDNS01']>): ReturnType<ACMEService['startDNS01']> {
+    return this.issuing(args[0], () => this.startDNS01(...args));
+  }
+
+  /**
+   * Complete DNS-01 challenge after user creates TXT records.
+   */
+  requestCertDNS01Verify(...args: Parameters<ACMEService['completeDNS01']>): ReturnType<ACMEService['completeDNS01']> {
+    return this.issuing(args[2], () => this.completeDNS01(...args));
+  }
+
+  private async orderHTTP01(
     domains: string[],
     staging?: boolean,
     contactEmail?: string,
@@ -118,7 +146,7 @@ export class ACMEService {
         logger.debug('Challenge token written', { domain: authz.identifier.value, token: challenge.token });
 
         // 6. Verify and complete challenge
-        await client.verifyChallenge(authz, challenge);
+        await this.selfCheck(accountKey, staging, authz, challenge);
         await client.completeChallenge(challenge);
         await client.waitForValidStatus(challenge);
       }
@@ -165,11 +193,7 @@ export class ACMEService {
     }
   }
 
-  /**
-   * Start DNS-01 challenge — returns records user must create.
-   * Does NOT verify yet; user must create TXT records first.
-   */
-  async requestCertDNS01Start(
+  private async startDNS01(
     domains: string[],
     staging?: boolean,
     contactEmail?: string
@@ -232,10 +256,7 @@ export class ACMEService {
     };
   }
 
-  /**
-   * Complete DNS-01 challenge after user creates TXT records.
-   */
-  async requestCertDNS01Verify(
+  private async completeDNS01(
     accountKeyPem: string,
     orderUrl: string,
     domains: string[],
@@ -251,9 +272,10 @@ export class ACMEService {
     logger.info('Completing ACME DNS-01 verification', { domains });
 
     // 1. Recreate ACME client with saved account key
+    const accountKey = Buffer.from(accountKeyPem);
     const client = new acme.Client({
       directoryUrl: this.getDirectoryUrl(staging),
-      accountKey: Buffer.from(accountKeyPem),
+      accountKey,
     });
 
     await this.createAccount(client, contactEmail);
@@ -270,7 +292,7 @@ export class ACMEService {
         throw new Error(`No DNS-01 challenge found for ${authz.identifier.value}`);
       }
 
-      await client.verifyChallenge(authz, challenge);
+      await this.selfCheck(accountKey, staging, authz, challenge);
       await client.completeChallenge(challenge);
       await client.waitForValidStatus(challenge);
     }
@@ -304,6 +326,56 @@ export class ACMEService {
   // ---------------------------------------------------------------------------
   // Private helpers
   // ---------------------------------------------------------------------------
+
+  /** Errors of the CA or of the challenge flow reach the caller with a code and the reason, not as a bare 500. */
+  private async issuing<T>(domains: string[], run: () => Promise<T>): Promise<T> {
+    try {
+      return await run();
+    } catch (error) {
+      if (error instanceof AppError) throw error;
+      const reason = error instanceof Error ? error.message : String(error);
+      logger.warn('ACME certificate request failed', { domains, error: reason });
+      throw new AppError(
+        400,
+        'ACME_ISSUANCE_FAILED',
+        `Certificate for ${domains.join(', ')} was not issued: ${reason}`
+      );
+    }
+  }
+
+  /** Checks the challenge is in place, as the CA will see it, within a short budget. */
+  private async selfCheck(
+    accountKey: Buffer,
+    staging: boolean | undefined,
+    authz: ChallengeCheckArgs[0],
+    challenge: ChallengeCheckArgs[1]
+  ): Promise<void> {
+    const checker = new acme.Client({ directoryUrl: this.getDirectoryUrl(staging), accountKey, ...SELF_CHECK_BACKOFF });
+    let timer: NodeJS.Timeout | undefined;
+    try {
+      await Promise.race([
+        checker.verifyChallenge(authz, challenge),
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(
+            () => reject(new Error(`no answer within ${SELF_CHECK_TIMEOUT_MS / 1000} s`)),
+            SELF_CHECK_TIMEOUT_MS
+          );
+        }),
+      ]);
+    } catch (error) {
+      const name = authz.identifier.value;
+      const reason = error instanceof Error ? error.message : String(error);
+      throw new AppError(
+        400,
+        'ACME_CHALLENGE_NOT_REACHABLE',
+        challenge.type === 'dns-01'
+          ? `The TXT record ${dns01RecordNameForDomain(name)} is not visible yet: ${reason}`
+          : `${name} does not serve its ACME challenge at http://${name}/.well-known/acme-challenge/ (${reason}). The name must resolve to a public address of an ingress node that answers on port 80.`
+      );
+    } finally {
+      clearTimeout(timer);
+    }
+  }
 
   private getDirectoryUrl(staging?: boolean): string {
     if (this.options.directoryUrl) return this.options.directoryUrl;
