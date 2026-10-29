@@ -1,4 +1,5 @@
 import { hasScopeBase } from '@/lib/permissions.js';
+import { ACCESS_LIST_DOCS } from './ai.docs.access-lists.js';
 import { APP_DOCS } from './ai.docs.apps.js';
 import { CONNECTIVITY_DOCS } from './ai.docs.connectivity.js';
 import { FOUNDATION_DOCS } from './ai.docs.foundation.js';
@@ -11,6 +12,7 @@ import { PLATFORM_DOCS } from './ai.docs.platform.js';
 
 export const INTERNAL_DOCS: Record<string, string> = {
   ...FOUNDATION_DOCS,
+  ...ACCESS_LIST_DOCS,
   ...INGRESS_GROUP_DOCS,
   ...APP_DOCS,
   ...INFRASTRUCTURE_DOCS,

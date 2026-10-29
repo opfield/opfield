@@ -1,3 +1,4 @@
+import { ACCESS_LIST_AI_TOOLS } from './ai.access-list-tool-definitions.js';
 import type { AIToolDefinition } from './ai.types.js';
 
 export const INGRESS_AI_TOOLS: AIToolDefinition[] = [
@@ -167,7 +168,7 @@ export const INGRESS_AI_TOOLS: AIToolDefinition[] = [
           description: 'URL rewrite rules applied before proxying, in order: the first rule that matches redirects',
         },
         advancedConfig: { type: 'string', description: 'Advanced nginx snippet; requires proxy:advanced.' },
-        accessListId: { type: 'string', description: 'Access list UUID for IP/auth restrictions' },
+        accessListId: { type: 'string', description: 'Access list UUID: who may open the route (topic access-lists)' },
         folderId: { type: 'string', description: 'Folder UUID for organizing this route' },
         nginxTemplateId: { type: 'string', description: 'Custom nginx config template UUID' },
         templateVariables: { type: 'object', description: 'Variables for the nginx template (key-value pairs)' },
@@ -758,115 +759,5 @@ export const INGRESS_AI_TOOLS: AIToolDefinition[] = [
   },
 
   // ── Access Lists ──
-  {
-    name: 'list_access_lists',
-    description:
-      'List IP access control and basic authentication lists. Each carries folderId (null: ungrouped) and sortOrder, in the order of the access list page (folders in tree order, then ungrouped); list_resource_folders with access_lists names the folders, manage_resource_folder moves lists between them.',
-    parameters: {
-      type: 'object',
-      properties: {
-        search: { type: 'string' },
-        folderId: { type: 'string', description: 'Only the access lists in this folder (not its subfolders)' },
-        page: { type: 'number' },
-        limit: { type: 'number' },
-      },
-    },
-    destructive: false,
-    category: 'Access Lists',
-    requiredScope: 'acl:view',
-    invalidateStores: [],
-  },
-  {
-    name: 'create_access_list',
-    description: 'Create a new access list with IP allow/deny rules and optional basic auth.',
-    parameters: {
-      type: 'object',
-      properties: {
-        name: { type: 'string', description: 'Access list name' },
-        description: { type: 'string', description: 'Optional description' },
-        allowIps: { type: 'array', items: { type: 'string' }, description: 'Allowed IP ranges (CIDR)' },
-        denyIps: { type: 'array', items: { type: 'string' }, description: 'Denied IP ranges (CIDR)' },
-        ipRules: {
-          type: 'array',
-          items: {
-            type: 'object',
-            properties: { type: { type: 'string', enum: ['allow', 'deny'] }, value: { type: 'string' } },
-            required: ['type', 'value'],
-          },
-          description:
-            'Ordered allow/deny rules (first match wins; addresses that match no rule are denied); placed before allowIps, then denyIps',
-        },
-        basicAuthEnabled: { type: 'boolean', description: 'Enable HTTP basic authentication (default: false)' },
-        basicAuthUsers: {
-          type: 'array',
-          items: {
-            type: 'object',
-            properties: {
-              username: { type: 'string' },
-              password: { type: 'string' },
-            },
-            required: ['username', 'password'],
-          },
-          description: 'Basic auth users (requires basicAuthEnabled)',
-        },
-        folderId: {
-          type: ['string', 'null'],
-          description:
-            'Destination access list folder UUID (list_resource_folders access_lists); omitted or null: ungrouped. acl:create on that folder is enough to create there.',
-        },
-      },
-      required: ['name'],
-    },
-    destructive: true,
-    category: 'Access Lists',
-    requiredScope: 'acl:create',
-    invalidateStores: ['accessLists'],
-  },
-  {
-    name: 'delete_access_list',
-    description: 'Delete an access list. Refused while a route or a Pages project uses it: detach it from them first.',
-    parameters: {
-      type: 'object',
-      properties: {
-        accessListId: { type: 'string', description: 'Access list UUID to delete' },
-      },
-      required: ['accessListId'],
-    },
-    destructive: true,
-    category: 'Access Lists',
-    requiredScope: 'acl:delete',
-    invalidateStores: ['accessLists'],
-  },
-  {
-    name: 'manage_access_list',
-    description:
-      'Get or update an access list. Operations: get; update (name, description, ipRules, basicAuthEnabled, basicAuthUsers; ipRules replaces the whole ordered list); move_rule (fromIndex, toIndex: move one IP rule, 0-based, the rules between shift by one). nginx checks IP rules in order, the first match wins, and every address that matches no rule is denied. get, update and move_rule return ipRuleWarnings: rules that never match because an earlier rule covers them (shadowed, with coveredByIndex) and deny rules with no effect because no later rule allows those addresses. index, coveredByIndex and the indexes in the message are 0-based, like move_rule (the UI numbers rows from 1). Fix a shadowed rule with move_rule or remove it with update.',
-    parameters: {
-      type: 'object',
-      properties: {
-        operation: { type: 'string', enum: ['get', 'update', 'move_rule'] },
-        accessListId: { type: 'string' },
-        name: { type: 'string' },
-        description: { type: ['string', 'null'] },
-        ipRules: {
-          type: 'array',
-          items: {
-            type: 'object',
-            properties: { type: { type: 'string', enum: ['allow', 'deny'] }, value: { type: 'string' } },
-            required: ['type', 'value'],
-          },
-          description: 'update: every IP rule in the order nginx checks them (IP, CIDR or "all"); first match wins.',
-        },
-        basicAuthEnabled: { type: 'boolean' },
-        basicAuthUsers: { type: 'array', items: { type: 'object' } },
-        fromIndex: { type: 'number', description: 'move_rule: 0-based position of the rule to move.' },
-        toIndex: { type: 'number', description: 'move_rule: 0-based position the rule takes (0 = checked first).' },
-      },
-      required: ['operation', 'accessListId'],
-    },
-    destructive: true,
-    category: 'Access Lists',
-    requiredScope: 'acl:view',
-    invalidateStores: ['accessLists'],
-  },
+  ...ACCESS_LIST_AI_TOOLS,
 ];

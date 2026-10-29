@@ -234,7 +234,16 @@ describe('NginxTemplateService template content', () => {
         ...host,
         advancedConfig: null,
         pagesRouteIncludePath: `${LEGACY_NGINX_DIR}/pages/routes/a.conf`,
-        accessList: { id: TEMPLATE, ipRules: [], basicAuthEnabled: true },
+        accessList: {
+          id: TEMPLATE,
+          authRequest: false,
+          signInMethods: ['basic'],
+          hasUsers: true,
+          skipIpRanges: [],
+          includeRules: [{ selector: 'everyone', values: [] }],
+          requireRules: [],
+          excludeRules: [],
+        },
       },
       TEMPLATE
     );

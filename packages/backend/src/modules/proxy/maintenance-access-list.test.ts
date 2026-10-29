@@ -3,9 +3,10 @@ import '@/db/schema/index.js';
 import { describe, expect, it } from 'vitest';
 import { ConfigValidatorService } from '@/services/config-validator.service.js';
 import type { ProxyHostConfig } from '@/services/nginx-config-generator.service.js';
+import { maintenanceAccessListDirectives, type NginxAccessList } from './nginx-access-list.js';
 import { type NginxConfigDirective, parseNginxConfig } from './nginx-config-tree.js';
 import { renderMaintenanceFlagGuard } from './nginx-maintenance-flag-guard.js';
-import { maintenanceAccessListDirectives, NginxTemplateService } from './nginx-template.service.js';
+import { NginxTemplateService } from './nginx-template.service.js';
 
 // A client the route's access list denies got the 503 maintenance page (and could read the maintenance state) while
 // the route was in maintenance, because the guard answers from its own locations before `location /` with the
@@ -13,13 +14,16 @@ import { maintenanceAccessListDirectives, NginxTemplateService } from './nginx-t
 const HOST_ID = '11111111-1111-4111-8111-111111111111';
 const ROUTE =
   'server {\n    listen 80;\n    location / {\n        allow 10.0.0.0/8;\n        deny all;\n        proxy_set_header Host $host;\n        proxy_pass http://10.0.0.5;\n    }\n}\n';
+// A basic authentication list from the networks 10.0.0.0/8, except 192.0.2.7 (a list migration 0277 converted).
 const accessList: NonNullable<ProxyHostConfig['accessList']> = {
   id: '22222222-2222-4222-8222-222222222222',
-  ipRules: [
-    { type: 'allow', value: '10.0.0.0/8' },
-    { type: 'deny', value: '192.0.2.7' },
-  ],
-  basicAuthEnabled: true,
+  authRequest: true,
+  signInMethods: ['basic'],
+  hasUsers: true,
+  skipIpRanges: [],
+  includeRules: [{ selector: 'everyone', values: [] }],
+  requireRules: [{ selector: 'ip', values: ['10.0.0.0/8'] }],
+  excludeRules: [{ selector: 'ip', values: ['192.0.2.7'] }],
 };
 
 function guardLocations(config: string): Map<string, string[]> {
@@ -45,7 +49,7 @@ function guardLocations(config: string): Map<string, string[]> {
   return result;
 }
 
-const RULES = ['allow 10.0.0.0/8', 'deny 192.0.2.7', 'deny all'];
+const RULES = ['deny 192.0.2.7', 'allow 10.0.0.0/8', 'deny all'];
 
 /**
  * `return` runs in nginx's rewrite phase, before allow/deny: a guard location with access rules must answer through
@@ -77,10 +81,21 @@ function expectAnswersAfterAccess(config: string) {
 }
 
 describe('maintenance behind the access list', () => {
-  it('takes the allow/deny rules of the list, without its basic authentication', () => {
-    expect(maintenanceAccessListDirectives(accessList)).toEqual(['allow 10.0.0.0/8;', 'deny 192.0.2.7;', 'deny all;']);
+  it('takes the address rules of the list, without its sign-in', () => {
+    expect(maintenanceAccessListDirectives(accessList)).toEqual(['deny 192.0.2.7;', 'allow 10.0.0.0/8;', 'deny all;']);
     expect(maintenanceAccessListDirectives(null)).toEqual([]);
-    expect(maintenanceAccessListDirectives({ ...accessList, ipRules: [] })).toEqual([]);
+    // Anyone may sign in: only the excluded addresses are turned away by address.
+    expect(maintenanceAccessListDirectives({ ...accessList, signInMethods: ['opfield'], requireRules: [] })).toEqual([
+      'deny 192.0.2.7;',
+    ]);
+    // Without sign-in only the skip ranges get in.
+    const ipOnly: NginxAccessList = {
+      ...accessList,
+      signInMethods: [],
+      requireRules: [],
+      skipIpRanges: ['10.0.0.0/8'],
+    };
+    expect(maintenanceAccessListDirectives(ipOnly)).toEqual(['deny 192.0.2.7;', 'allow 10.0.0.0/8;', 'deny all;']);
   });
 
   it('guards every location of the flag-based guard', () => {
@@ -98,11 +113,6 @@ describe('maintenance behind the access list', () => {
     ]);
     for (const [name, rules] of locations) expect(rules, name).toEqual(RULES);
     expectAnswersAfterAccess(guarded);
-  });
-
-  it('emits "deny all" once when the list ends in its own', () => {
-    const own = { ...accessList, ipRules: [...accessList.ipRules, { type: 'deny' as const, value: 'all' }] };
-    expect(maintenanceAccessListDirectives(own)).toEqual(['allow 10.0.0.0/8;', 'deny 192.0.2.7;', 'deny all;']);
   });
 
   it('guards every location of the reload-based guard, with and without team access', () => {

@@ -1,6 +1,6 @@
 ---
 name: ingress-and-domains
-description: Expose and troubleshoot services through Opfield ingress, including Domains and DNS, Routes (proxy hosts) to Docker, Pages, or manual upstreams, SSL certificates from ACME, upload, or internal PKI, Access Lists, Additional Routes, Secure Links, nginx templates, and maintenance mode. Use when asked to put a service on a hostname, add HTTPS, restrict access by IP or basic auth, put a Route into maintenance, or find out why a Route, Domain, or certificate is not working. Use after using-opfield has confirmed the Opfield MCP connection.
+description: Expose and troubleshoot services through Opfield ingress, including Domains and DNS, Routes (proxy hosts) to Docker, Pages, or manual upstreams, SSL certificates from ACME, upload, or internal PKI, Access Lists, Additional Routes, Secure Links, nginx templates, and maintenance mode. Use when asked to put a service on a hostname, add HTTPS, restrict access by IP, sign-in or basic auth, put a Route into maintenance, or find out why a Route, Domain, or certificate is not working. Use after using-opfield has confirmed the Opfield MCP connection.
 ---
 
 # Ingress and Domains
@@ -29,8 +29,8 @@ Enable WebSockets, redirects, Access Lists, headers, caching, rate limits, maint
 
 ## Access Lists and maintenance
 
-- An Access List combines ordered IP allow/deny rules (first match wins; addresses that match no rule are denied) with optional HTTP basic auth. Reorder rules with `manage_access_list` `move_rule` and check `ipRuleWarnings` for rules an earlier rule shadows. It attaches to Routes through `accessListId` and to Pages previews through the Page Project; editing a shared list updates everything that uses it.
-- Never invent, request, or relay basic-auth passwords in chat. Prefer IP rules for lists you create; for basic auth, let the user add users in the Opfield Console, then attach the list by ID.
+- An Access List decides who gets in: excluded addresses are denied, skip ranges get in without signing in, everyone else signs in (Opfield account, identity provider, list users, shared password, basic authentication) or sends a service token and must pass the Include, Require and Exclude rules. It attaches to Routes through `accessListId` and to Pages previews through the Page Project; editing a shared list updates everything that uses it. Details: [TLS and Access Lists](references/tls-and-access-lists.md).
+- Never invent, request, or relay passwords in chat. Prefer skip ranges, Opfield accounts or an identity provider for lists you create; for passwords, let the user set them in the Opfield Console, then attach the list by ID.
 - `set_route_maintenance({ routeId, enabled })` serves HTTP 503 while keeping the vhosts listening and pausing managed health checks. Use it instead of disabling the Route or editing its config, so the change stays audited and reaches notification rules and status pages. It works on enabled, non-raw Routes only.
 
 ## Ingress groups (several sites)

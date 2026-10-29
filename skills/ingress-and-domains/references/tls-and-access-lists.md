@@ -16,12 +16,12 @@ Every source produces an **SSL certificate** entity whose ID is a Route's `sslCe
 
 ## Access Lists
 
-- `create_access_list` takes `allowIps` and `denyIps` string arrays plus `basicAuthUsers`; pass ordered `ipRules` instead when the order matters.
-- `manage_access_list({ operation: "get" | "update", accessListId, ... })` updates `name`, `description`, ordered `ipRules: [{ type: "allow" | "deny", value }]` (the whole list), `basicAuthEnabled`, and `basicAuthUsers: [{ username, password }]`. Passwords are stored as bcrypt hashes and deployed to Nodes as htpasswd files.
-- nginx checks IP rules in order and the first match wins; when a list has rules, every address that matches none is denied. `deny all` before `allow 203.0.113.7` blocks that address too. To block a few addresses and let everyone else in, list the deny rules and end with `allow all`.
-- `manage_access_list({ operation: "move_rule", accessListId, fromIndex, toIndex })` moves one rule (0-based; the rules between shift by one) against the stored list.
-- Every access list response carries `ipRuleWarnings`: `shadowed` rules never match because an earlier rule (`coveredByIndex`) matches all their addresses; `no_effect` deny rules change nothing because no later rule allows those addresses. Fix them with `move_rule` or remove them with `update` before reporting the list as done.
+Read `read_opfield_documentation({ topic: "access-lists" })` before creating or changing one; sign-in settings, identity providers and service tokens are topic `access-sign-in`.
+
+- A request is decided in this order: an address in an `ip` Exclude rule is denied; an address in `skipIpRanges` gets in; everyone else signs in with one of `signInMethods` (`opfield`, `password`, `basic`, `shared`, `idp:<providerId>`) or sends a service token, and must match one Include rule, every Require rule and no Exclude rule.
+- Rules are `{ selector, values }`: `everyone`, `ip`, `email`, `email_domain`, `opfield_user`, `opfield_group`, `sso_group`, `method`, `service_token`. A list with sign-in methods needs an Include rule.
+- `create_access_list` and `manage_access_list({ operation: "get" | "update", accessListId, ... })` take `name`, `description`, `signInMethods`, `users`, `sharedPassword`, `skipIpRanges`, `includeRules`, `requireRules`, `excludeRules`, `sessionTtlSeconds`. An update keeps omitted fields; an array replaces the whole array. A user sent without `password` keeps their password.
 - `list_access_lists`; `delete_access_list` is refused while a Route or Page Project uses the list, so detach it first.
 - One list can serve many Routes and Page Projects; an edit applies to all of them at once, so check who uses a list before changing it.
 
-Credentials: never generate, request, or relay basic-auth passwords in chat. Create lists with IP rules, reuse an existing list, or let the user add basic-auth users in the Opfield Console and then attach the list by ID. An agent cannot fetch a basic-auth-protected URL without credentials; a 401 response is the expected evidence that protection applies.
+Credentials: never generate, request, or relay passwords (list users, the shared password) in chat. Prefer lists that need none: skip ranges, Opfield accounts, an identity provider. For password, basic or shared sign-in, reuse an existing list, or let the user set the passwords in the Opfield Console and then attach the list by ID. An agent cannot fetch a protected URL without signing in; a redirect to the sign-in page, a 401 or a 403 is the expected evidence that protection applies.

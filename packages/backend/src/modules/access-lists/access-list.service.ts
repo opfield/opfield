@@ -1,15 +1,15 @@
-import bcrypt from 'bcryptjs';
 import { and, count, eq, ilike, inArray, isNull, max } from 'drizzle-orm';
 import type { DrizzleClient } from '@/db/client.js';
-import type { BasicAuthUser, IPRule } from '@/db/schema/access-lists.js';
-import { accessListFolders, accessLists, nodes, pageProjects } from '@/db/schema/index.js';
+import { accessIdentityProviders, accessListFolders, accessLists, pageProjects } from '@/db/schema/index.js';
 import { proxyHosts } from '@/db/schema/proxy-hosts.js';
 import { createChildLogger } from '@/lib/logger.js';
 import { transactionWithScopeCleanup } from '@/lib/resource-scope-cleanup.js';
 import { buildWhere, escapeLike } from '@/lib/utils.js';
 import { AppError } from '@/middleware/error-handler.js';
+import { scheduleAccessPolicySync } from '@/modules/access-signin/access-policy-sync.js';
 import type { AuditService } from '@/modules/audit/audit.service.js';
-import { resolveIngressNodes, resolveIngressNodesForMany } from '@/modules/ingress-groups/ingress-nodes.js';
+import { resolveIngressNodes } from '@/modules/ingress-groups/ingress-nodes.js';
+import { nginxAccessListOf, usesFallbackBasicAuth } from '@/modules/proxy/nginx-access-list.js';
 import type { NginxTemplateService } from '@/modules/proxy/nginx-template.service.js';
 import { accessListLockKey, runOutsideProxyLocks, withProxyLocks } from '@/modules/proxy/proxy-host-lock.js';
 import { folderListOrder, folderTreeOrder } from '@/modules/resource-folders/resource-folder-order.js';
@@ -18,35 +18,23 @@ import type { NginxCertificateDistributionService } from '@/services/nginx-certi
 import type { NginxConfigGenerator } from '@/services/nginx-config-generator.service.js';
 import type { NodeDispatchService } from '@/services/node-dispatch.service.js';
 import type { PaginatedResponse } from '@/types.js';
-import type {
-  AccessListQuery,
-  CreateAccessListInput,
-  MoveAccessListIpRuleInput,
-  UpdateAccessListInput,
-} from './access-list.schemas.js';
-import { analyzeAccessListIpRules } from './ip-rule-analysis.js';
+import type { AccessListQuery, CreateAccessListInput, UpdateAccessListInput } from './access-list.schemas.js';
+import { removeAccessListHtpasswd } from './access-list-credentials.js';
+import {
+  type AccessListModel,
+  accessListModelOf,
+  nextAccessListModel,
+  type PresentedAccessList,
+  presentAccessList,
+} from './access-list-model.js';
 
 const logger = createChildLogger('AccessListService');
-const BCRYPT_ROUNDS = 10;
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
 type AccessListRow = typeof accessLists.$inferSelect;
-
-/**
- * The API shape of a list: usernames only (password hashes never leave the server) and the rules that cannot
- * change the outcome, so a person, an API client and an agent see the same warnings.
- */
-function presentAccessList<T extends Pick<AccessListRow, 'ipRules' | 'basicAuthUsers'>>(row: T) {
-  return {
-    ...row,
-    basicAuthUsers: ((row.basicAuthUsers as BasicAuthUser[]) ?? []).map((user) => ({ username: user.username })),
-    // API and MCP callers act on the 0-based index (move_rule), so the message names it.
-    ipRuleWarnings: analyzeAccessListIpRules((row.ipRules as IPRule[]) ?? [], 'index'),
-  };
-}
 
 // ---------------------------------------------------------------------------
 // Service
@@ -85,11 +73,9 @@ export class AccessListService {
   // -----------------------------------------------------------------------
 
   async create(input: CreateAccessListInput, userId: string) {
-    if (input.basicAuthEnabled && input.basicAuthUsers.length === 0) {
-      throw new AppError(400, 'BASIC_AUTH_USERS_REQUIRED', 'Add at least one user to enable basic authentication');
-    }
-    // 1. Hash basic auth passwords before storing
-    const hashedUsers = input.basicAuthUsers.length > 0 ? await this.hashPasswords(input.basicAuthUsers) : [];
+    // 1. The complete list (passwords hashed), validated before anything is written
+    const model = await nextAccessListModel(input, null);
+    await this.assertIdentityProviders(model);
 
     // 2. Insert into DB, at the end of its folder (or of the ungrouped lists)
     const folderId = input.folderId ?? null;
@@ -104,19 +90,13 @@ export class AccessListService {
         sortOrder: last?.sortOrder == null ? 0 : last.sortOrder + 1,
         name: input.name,
         description: input.description?.trim() || null,
-        ipRules: input.ipRules,
-        basicAuthEnabled: input.basicAuthEnabled,
-        basicAuthUsers: hashedUsers,
+        ...model,
         createdById: userId,
       })
       .returning();
+    scheduleAccessPolicySync();
 
-    // 3. Write htpasswd file for nginx if basic auth enabled
-    if (input.basicAuthEnabled && hashedUsers.length > 0) {
-      await this.writeHtpasswd(accessList.id, hashedUsers);
-    }
-
-    // 4. Audit log
+    // 3. Audit log
     await this.auditService.log({
       userId,
       action: 'access_list.create',
@@ -135,48 +115,14 @@ export class AccessListService {
   // Update
   // -----------------------------------------------------------------------
 
-  async update(id: string, input: UpdateAccessListInput, userId: string) {
+  async update(id: string, input: UpdateAccessListInput, userId: string): Promise<PresentedAccessList> {
     // Serialize edits of one list so two updates cannot interleave their
     // re-apply and rollback phases.
     const updated = await withProxyLocks([accessListLockKey(id)], () => this.updateLocked(id, input, userId));
     return presentAccessList(updated);
   }
 
-  /**
-   * Moves one IP rule to another position (both 0-based; the rules between shift by one), under the same lock as
-   * an update, so the move applies to the rules as they are now and not to a copy a client read earlier. The
-   * routes and Pages previews that use the list are re-applied like on any other edit.
-   */
-  async moveIpRule(id: string, input: MoveAccessListIpRuleInput, userId: string) {
-    const updated = await withProxyLocks([accessListLockKey(id)], async () => {
-      const existing = await this.db.query.accessLists.findFirst({ where: eq(accessLists.id, id) });
-      if (!existing) throw new AppError(404, 'ACCESS_LIST_NOT_FOUND', 'Access list not found');
-      const rules = [...((existing.ipRules as IPRule[]) ?? [])];
-      const { fromIndex, toIndex } = input;
-      if (fromIndex >= rules.length || toIndex >= rules.length) {
-        throw new AppError(
-          400,
-          'IP_RULE_INDEX_OUT_OF_RANGE',
-          `The access list has ${rules.length} IP rule(s); fromIndex and toIndex are 0-based positions below that`
-        );
-      }
-      if (fromIndex === toIndex) return existing;
-      const [moved] = rules.splice(fromIndex, 1);
-      rules.splice(toIndex, 0, moved);
-      return this.updateLocked(id, { ipRules: rules }, userId, {
-        action: 'access_list.move_ip_rule',
-        details: { fromIndex, toIndex, rule: moved },
-      });
-    });
-    return presentAccessList(updated);
-  }
-
-  private async updateLocked(
-    id: string,
-    input: UpdateAccessListInput,
-    userId: string,
-    audit?: { action: string; details: Record<string, unknown> }
-  ) {
+  private async updateLocked(id: string, input: UpdateAccessListInput, userId: string) {
     // 1. Get existing access list
     const existing = await this.db.query.accessLists.findFirst({
       where: eq(accessLists.id, id),
@@ -184,47 +130,11 @@ export class AccessListService {
     if (!existing) throw new AppError(404, 'ACCESS_LIST_NOT_FOUND', 'Access list not found');
 
     // 2. Build and validate the complete next state before any side effect.
-    const updateData: Record<string, unknown> = {
-      updatedAt: new Date(),
-    };
-
+    const model = await nextAccessListModel(input, accessListModelOf(existing));
+    await this.assertIdentityProviders(model);
+    const updateData: Partial<typeof accessLists.$inferInsert> = { ...model, updatedAt: new Date() };
     if (input.name !== undefined) updateData.name = input.name;
     if (input.description !== undefined) updateData.description = input.description?.trim() || null;
-    if (input.ipRules !== undefined) updateData.ipRules = input.ipRules;
-    if (input.basicAuthEnabled !== undefined) updateData.basicAuthEnabled = input.basicAuthEnabled;
-
-    const existingBasicAuthUsers = (existing.basicAuthUsers as BasicAuthUser[]) ?? [];
-    let nextBasicAuthUsers = existingBasicAuthUsers;
-    if (input.basicAuthUsers !== undefined) {
-      const hashedUsers: BasicAuthUser[] = [];
-
-      for (const user of input.basicAuthUsers) {
-        if (user.password) {
-          hashedUsers.push({
-            username: user.username,
-            passwordHash: await bcrypt.hash(user.password, BCRYPT_ROUNDS),
-          });
-          continue;
-        }
-
-        const existingUser = existingBasicAuthUsers.find((candidate) => candidate.username === user.username);
-        if (!existingUser) {
-          throw new AppError(
-            400,
-            'BASIC_AUTH_PASSWORD_REQUIRED',
-            `Password required for basic auth user "${user.username}"`
-          );
-        }
-        hashedUsers.push(existingUser);
-      }
-
-      updateData.basicAuthUsers = hashedUsers;
-      nextBasicAuthUsers = hashedUsers;
-    }
-    const nextBasicAuthEnabled = input.basicAuthEnabled ?? existing.basicAuthEnabled;
-    if (nextBasicAuthEnabled && nextBasicAuthUsers.length === 0) {
-      throw new AppError(400, 'BASIC_AUTH_USERS_REQUIRED', 'Add at least one user to enable basic authentication');
-    }
 
     const affectedHosts = await this.db.query.proxyHosts.findMany({
       where: and(eq(proxyHosts.accessListId, id), eq(proxyHosts.enabled, true)),
@@ -235,9 +145,11 @@ export class AccessListService {
     }
 
     // 3. Commit, then re-apply every enabled host through the normal proxy
-    // build/apply path. That path also deploys the list's credentials to the
-    // host's node before the config that references them.
+    // build/apply path. A node with the access socket checks the synced policy;
+    // an older node gets the fallback config, and the apply deploys the list's
+    // htpasswd file to it before the config that references it.
     const [updated] = await this.db.update(accessLists).set(updateData).where(eq(accessLists.id, id)).returning();
+    scheduleAccessPolicySync();
 
     if (affectedHosts.length > 0) {
       logger.info('Re-applying routes that use the updated access list', {
@@ -293,18 +205,17 @@ export class AccessListService {
     // Remove credentials only after every affected host config has stopped
     // referencing the file. Removing first creates an avoidable 403 window if
     // config application is delayed or fails.
-    const basicAuthUsers = updated.basicAuthUsers as BasicAuthUser[];
-    if (!(updated.basicAuthEnabled && basicAuthUsers.length > 0)) {
-      await this.removeHtpasswd(id);
+    if (!usesFallbackBasicAuth(nginxAccessListOf(updated))) {
+      await removeAccessListHtpasswd(this.db, this.nodeDispatch, id);
     }
 
     // 4. Audit log
     await this.auditService.log({
       userId,
-      action: audit?.action ?? 'access_list.update',
+      action: 'access_list.update',
       resourceType: 'access_list',
       resourceId: id,
-      details: audit?.details ?? { changes: Object.keys(input) },
+      details: { changes: Object.keys(input) },
     });
 
     logger.info('Updated access list', { id });
@@ -342,9 +253,7 @@ export class AccessListService {
         .set({
           name: existing.name,
           description: existing.description,
-          ipRules: existing.ipRules,
-          basicAuthEnabled: existing.basicAuthEnabled,
-          basicAuthUsers: existing.basicAuthUsers,
+          ...accessListModelOf(existing),
           updatedAt: existing.updatedAt,
         })
         .where(eq(accessLists.id, existing.id));
@@ -352,6 +261,7 @@ export class AccessListService {
       logger.error('Failed to roll back access list after apply failure', { accessListId: existing.id, error });
       return;
     }
+    scheduleAccessPolicySync();
     for (const host of hosts) {
       try {
         await this.hostRuntime?.reapplyHostConfig(host.id);
@@ -407,10 +317,11 @@ export class AccessListService {
     }
 
     // 3. Remove htpasswd file
-    await this.removeHtpasswd(id);
+    await removeAccessListHtpasswd(this.db, this.nodeDispatch, id);
 
     // 4. Delete from DB
     await transactionWithScopeCleanup(this.db, (tx) => tx.delete(accessLists).where(eq(accessLists.id, id)));
+    scheduleAccessPolicySync();
 
     // 5. Audit log
     await this.auditService.log({
@@ -451,7 +362,10 @@ export class AccessListService {
   // List
   // -----------------------------------------------------------------------
 
-  async list(query: AccessListQuery, options?: { allowedIds?: string[] }): Promise<PaginatedResponse<AccessListRow>> {
+  async list(
+    query: AccessListQuery,
+    options?: { allowedIds?: string[] }
+  ): Promise<PaginatedResponse<PresentedAccessList>> {
     const conditions = [];
 
     if (options?.allowedIds) {
@@ -488,11 +402,9 @@ export class AccessListService {
 
     const total = Number(totalCount);
 
-    // Strip password hashes from list responses
-    const sanitizedEntries = entries.map(presentAccessList);
-
     return {
-      data: sanitizedEntries as unknown as AccessListRow[],
+      // Password hashes never leave the server.
+      data: entries.map(presentAccessList),
       pagination: {
         page: query.page,
         limit: query.limit,
@@ -503,88 +415,27 @@ export class AccessListService {
   }
 
   // -----------------------------------------------------------------------
-  // Helpers — htpasswd file management
+  // Helpers
   // -----------------------------------------------------------------------
 
-  /**
-   * Write htpasswd file for nginx basic auth.
-   * Format: username:$2y$... (bcrypt hash)
-   * Writes to: {configPath}/htpasswd/access-list-{id}
-   */
-  private async writeHtpasswd(accessListId: string, users: BasicAuthUser[]): Promise<void> {
-    const content = `${users.map((u) => `${u.username}:${u.passwordHash}`).join('\n')}\n`;
-
-    // Deploy htpasswd to all nodes that have hosts using this access list
-    const hostsUsingList = await this.db
-      .select({ nodeId: proxyHosts.nodeId, ingressGroupId: proxyHosts.ingressGroupId })
-      .from(proxyHosts)
-      .where(eq(proxyHosts.accessListId, accessListId));
-
-    // Every serving node, including every member of a route's ingress group.
-    const nodeIds = [...new Set([...(await resolveIngressNodesForMany(this.db, hostsUsingList)).values()].flat())];
-
-    for (const nodeId of nodeIds) {
-      const result = await this.nodeDispatch.deployHtpasswd(nodeId, accessListId, content);
-      if (!result.success) {
-        throw new AppError(
-          502,
-          'HTPASSWD_DEPLOY_FAILED',
-          result.error || `Failed to deploy access list credentials to node ${nodeId}`
-        );
-      }
+  /** A list offers only identity providers that exist (`idp:<id>`). */
+  private async assertIdentityProviders(model: AccessListModel): Promise<void> {
+    const providerIds = model.signInMethods
+      .filter((method) => method.startsWith('idp:'))
+      .map((method) => method.slice(4));
+    if (providerIds.length === 0) return;
+    const found = await this.db
+      .select({ id: accessIdentityProviders.id })
+      .from(accessIdentityProviders)
+      .where(inArray(accessIdentityProviders.id, providerIds));
+    const missing = providerIds.filter((providerId) => !found.some((provider) => provider.id === providerId));
+    if (missing.length > 0) {
+      throw new AppError(
+        400,
+        'IDENTITY_PROVIDER_NOT_FOUND',
+        `Unknown identity provider: ${missing.map((providerId) => `idp:${providerId}`).join(', ')}`,
+        { providerIds: missing }
+      );
     }
-    logger.debug('Htpasswd deployed to nodes', { accessListId, nodeCount: nodeIds.length });
-  }
-
-  /**
-   * Remove the list's credentials once no route config references them (basic auth turned off, or the list
-   * deleted) from every connected Nginx node: a node keeps them from routes that moved away or dropped the list
-   * earlier, so the routes using the list now do not name every node that holds them. A node that is not connected
-   * drops them in its reconnect sync, which removes the credentials no config of the node references.
-   */
-  private async removeHtpasswd(accessListId: string): Promise<void> {
-    // Pages previews render the same htpasswd file on their Project's node(s);
-    // removing it there would break a protected preview.
-    const pagesUsingList = await this.db.query.pageProjects.findMany({
-      where: (projects, { eq: equals }) => equals(projects.accessListId, accessListId),
-      columns: { nodeId: true, migrationTargetNodeId: true },
-    });
-    const pagesNodeIds = new Set(
-      pagesUsingList.flatMap((project) => [project.nodeId, project.migrationTargetNodeId]).filter(Boolean)
-    );
-
-    const nginxNodes = await this.db.select({ id: nodes.id }).from(nodes).where(eq(nodes.type, 'nginx'));
-    const nodeIds = nginxNodes
-      .map((node) => node.id)
-      .filter((nodeId) => !pagesNodeIds.has(nodeId) && this.nodeDispatch.isNodeConnected(nodeId));
-
-    for (const nodeId of nodeIds) {
-      try {
-        const result = await this.nodeDispatch.removeHtpasswd(nodeId, accessListId);
-        if (!result.success) {
-          logger.warn('Failed to remove stale htpasswd file from node', {
-            accessListId,
-            nodeId,
-            error: result.error,
-          });
-        }
-      } catch (error) {
-        logger.warn('Failed to remove stale htpasswd file from node', { accessListId, nodeId, error });
-      }
-    }
-    logger.debug('Htpasswd removed from nodes', { accessListId });
-  }
-
-  // -----------------------------------------------------------------------
-  // Helpers — password hashing
-  // -----------------------------------------------------------------------
-
-  private async hashPasswords(users: { username: string; password: string }[]): Promise<BasicAuthUser[]> {
-    return Promise.all(
-      users.map(async (u) => ({
-        username: u.username,
-        passwordHash: await bcrypt.hash(u.password, BCRYPT_ROUNDS),
-      }))
-    );
   }
 }

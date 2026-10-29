@@ -117,6 +117,8 @@ export class ConfigValidatorService {
     'deny',
     'auth_basic',
     'auth_basic_user_file',
+    'auth_request',
+    'auth_request_set',
     'content_by_lua',
   ];
 

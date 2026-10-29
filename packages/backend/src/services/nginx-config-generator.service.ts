@@ -1,5 +1,10 @@
 import { createChildLogger } from '@/lib/logger.js';
 import { formatHostPort, isValidUpstreamHost } from '@/lib/network-endpoint.js';
+import {
+  accessListDirectives,
+  type NginxAccessList,
+  withAccessAuthLocations,
+} from '@/modules/proxy/nginx-access-list.js';
 import * as availabilityUpstream from '@/modules/proxy/nginx-availability-upstream.js';
 import type { ConfigValidatorService } from './config-validator.service.js';
 import { injectAccessListIntoAdvancedLocations } from './nginx-advanced-location.js';
@@ -50,11 +55,8 @@ export interface ProxyHostConfig {
   rateLimitOptions: Record<string, unknown> | null;
   customRewrites: { source: string; destination: string; type: string }[];
   advancedConfig: string | null;
-  accessList: {
-    id: string;
-    ipRules: { type: string; value: string }[];
-    basicAuthEnabled: boolean;
-  } | null;
+  /** The route's access list, rendered for the node the config goes to (nginx-access-list.ts). */
+  accessList: NginxAccessList | null;
   sslCertPath: string | null;
   sslKeyPath: string | null;
   sslChainPath: string | null;
@@ -111,25 +113,6 @@ export class NginxConfigGenerator {
 
   private sanitizeNginxValue(value: string): string {
     return value.replace(/[\n\r;'"{}`$#]/g, '');
-  }
-
-  private buildAccessListDirectives(accessList: ProxyHostConfig['accessList']): string[] {
-    if (!accessList) return [];
-
-    const directives = accessList.ipRules.map((rule) => {
-      const safeType = this.sanitizeNginxValue(rule.type);
-      const safeValue = this.sanitizeNginxValue(rule.value);
-      return `${safeType} ${safeValue};`;
-    });
-    // A list that ends in its own "deny all" needs no second one.
-    if (accessList.ipRules.length > 0 && directives.at(-1) !== 'deny all;') directives.push('deny all;');
-    if (accessList.basicAuthEnabled) {
-      directives.push('auth_basic "Restricted Access";');
-      directives.push(
-        `auth_basic_user_file /etc/nginx/opfield/htpasswd/access-list-${this.sanitizeNginxValue(accessList.id)};`
-      );
-    }
-    return directives;
   }
 
   private validateForwardHost(host: string): string {
@@ -220,6 +203,7 @@ export class NginxConfigGenerator {
       lines.push('    location /.well-known/acme-challenge/ {');
       lines.push('        alias /var/www/acme-challenge/.well-known/acme-challenge/;');
       lines.push('        auth_basic off;');
+      if (host.accessList?.authRequest) lines.push('        auth_request off;');
       lines.push('    }');
       lines.push('');
       lines.push('    location / {');
@@ -261,13 +245,14 @@ export class NginxConfigGenerator {
       lines.push('    location /.well-known/acme-challenge/ {');
       lines.push('        alias /var/www/acme-challenge/.well-known/acme-challenge/;');
       lines.push('        auth_basic off;');
+      if (host.accessList?.authRequest) lines.push('        auth_request off;');
       lines.push('    }');
       lines.push('');
     }
 
     lines.push('    location / {');
 
-    for (const directive of this.buildAccessListDirectives(host.accessList)) {
+    for (const directive of accessListDirectives(host.accessList)) {
       lines.push(`        ${directive}`);
     }
     if (host.accessList) lines.push('');
@@ -349,7 +334,7 @@ export class NginxConfigGenerator {
       lines.push('    # Advanced custom config');
       const protectedAdvancedConfig = injectAccessListIntoAdvancedLocations(
         host.advancedConfig,
-        this.buildAccessListDirectives(host.accessList)
+        accessListDirectives(host.accessList)
       );
       for (const line of protectedAdvancedConfig.split('\n')) {
         lines.push(`    ${line}`);
@@ -358,7 +343,7 @@ export class NginxConfigGenerator {
 
     lines.push('}');
 
-    return `${lines.join('\n')}\n`;
+    return withAccessAuthLocations(`${lines.join('\n')}\n`, host.accessList);
   }
 
   // -----------------------------------------------------------------------

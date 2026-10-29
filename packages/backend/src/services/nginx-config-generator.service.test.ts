@@ -1,5 +1,18 @@
 import { describe, expect, it } from 'vitest';
+import type { NginxAccessList } from '@/modules/proxy/nginx-access-list.js';
 import { NginxConfigGenerator, type ProxyHostConfig } from './nginx-config-generator.service.js';
+
+/** A list that only offers basic authentication, rendered for a node without the access socket. */
+const basicOnly: NginxAccessList = {
+  id: 'basic-only',
+  authRequest: false,
+  signInMethods: ['basic'],
+  hasUsers: true,
+  skipIpRanges: [],
+  includeRules: [{ selector: 'everyone', values: [] }],
+  requireRules: [],
+  excludeRules: [],
+};
 
 const proxyHost: ProxyHostConfig = {
   id: '11111111-1111-4111-8111-111111111111',
@@ -22,7 +35,7 @@ const proxyHost: ProxyHostConfig = {
   rateLimitOptions: null,
   customRewrites: [],
   advancedConfig: null,
-  accessList: { id: 'basic-only', ipRules: [], basicAuthEnabled: true },
+  accessList: basicOnly,
   sslCertPath: '/etc/nginx/certs/origin/fullchain.pem',
   sslKeyPath: '/etc/nginx/certs/origin/privkey.pem',
   sslChainPath: '/etc/nginx/certs/origin/chain.pem',
@@ -113,7 +126,7 @@ describe('NginxConfigGenerator proxy TLS and ACL rendering', () => {
       advancedConfig: `location /api/ {
     proxy_pass http://127.0.0.1:9000;
 }`,
-      accessList: { id: 'ip-only', ipRules: [{ type: 'allow', value: '192.0.2.0/24' }], basicAuthEnabled: true },
+      accessList: { ...basicOnly, id: 'ip-only', requireRules: [{ selector: 'ip', values: ['192.0.2.0/24'] }] },
     });
     const upstreamLocation = rendered.lastIndexOf('location / {');
     const advancedLocation = rendered.indexOf('location /api/ {');
@@ -136,6 +149,29 @@ describe('NginxConfigGenerator proxy TLS and ACL rendering', () => {
     }
     expect(acmeConfig).toContain('auth_basic off;');
     expect(acmeConfig).not.toContain('deny all;');
+  });
+
+  it('asks the access socket on a node that has it, in the route and in advanced locations', () => {
+    const rendered = new NginxConfigGenerator({} as never).generateConfig({
+      ...proxyHost,
+      advancedConfig: 'location /api/ {\n    proxy_pass http://127.0.0.1:9000;\n}',
+      accessList: { ...basicOnly, authRequest: true, signInMethods: ['opfield'] },
+    });
+    const root = rendered.slice(rendered.lastIndexOf('location / {'), rendered.indexOf('location /api/ {'));
+    const advanced = rendered.slice(rendered.indexOf('location /api/ {'));
+    const acme = rendered.slice(rendered.indexOf('location /.well-known/acme-challenge/ {'));
+
+    for (const location of [root, advanced]) {
+      expect(location).toContain('auth_request /_opfield/access/check;');
+      expect(location).toContain('error_page 401 = @opfield_access_challenge;');
+      expect(location).toContain('proxy_set_header Opfield-Access-Email $opfield_access_email;');
+    }
+    expect(root).toContain('proxy_set_header Host $host;');
+    expect(acme.slice(0, acme.indexOf('}'))).toContain('auth_request off;');
+    expect(rendered).not.toContain('auth_basic "Restricted Access";');
+    expect(rendered.match(/location = \/_opfield\/access\/check \{/g)).toHaveLength(1);
+    expect(rendered).toContain('proxy_set_header X-Opfield-Access-List "basic-only";');
+    expect(rendered).toContain('location @opfield_access_challenge {');
   });
 
   it.each(['redirect', '404'] as const)('uses the same shared TLS policy for %s hosts', (type) => {
