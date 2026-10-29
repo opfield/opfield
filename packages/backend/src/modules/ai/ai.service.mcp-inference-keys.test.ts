@@ -20,4 +20,14 @@ describe('AIService.executeTool through remote MCP', () => {
     );
     expect(result.error).toMatch(/browser session/);
   });
+
+  it.each(['create', 'update'])('refuses to %s an access service token', async (operation) => {
+    const result = await service.executeTool(
+      user,
+      'manage_access_sign_in',
+      { resource: 'service_tokens', operation, name: 'ci', id: 'token-1' },
+      { source: 'mcp' }
+    );
+    expect(result.error).toMatch(/browser session/);
+  });
 });

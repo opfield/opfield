@@ -43,10 +43,18 @@ async function secureCookies(): Promise<boolean> {
   return new URL(origin).protocol === 'https:';
 }
 
+/** Over HTTPS the sign-in cookies carry the __Host- prefix: no sibling subdomain can plant or shadow them. */
+async function signInCookies(): Promise<{ secure: boolean; session: string; state: string }> {
+  const secure = await secureCookies();
+  const prefix = secure ? '__Host-' : '';
+  return { secure, session: `${prefix}${ACCESS_SESSION_COOKIE}`, state: `${prefix}${ACCESS_SIGN_IN_STATE_COOKIE}` };
+}
+
 async function setSessionCookie(c: Context<AppEnv>, signed: SignedIn) {
-  setCookie(c, ACCESS_SESSION_COOKIE, signed.cookie, {
+  const cookies = await signInCookies();
+  setCookie(c, cookies.session, signed.cookie, {
     httpOnly: true,
-    secure: await secureCookies(),
+    secure: cookies.secure,
     sameSite: 'Lax',
     path: '/',
     maxAge: signed.maxAge,
@@ -54,11 +62,12 @@ async function setSessionCookie(c: Context<AppEnv>, signed: SignedIn) {
 }
 
 async function bindState(c: Context<AppEnv>, state: string) {
-  setCookie(c, ACCESS_SIGN_IN_STATE_COOKIE, hashSignInState(state), {
+  const cookies = await signInCookies();
+  setCookie(c, cookies.state, hashSignInState(state), {
     httpOnly: true,
-    secure: await secureCookies(),
+    secure: cookies.secure,
     sameSite: 'Lax',
-    path: '/access',
+    path: '/',
     maxAge: PENDING_SIGN_IN_TTL_SECONDS,
   });
 }
@@ -93,7 +102,7 @@ accessSignInApiRoutes.get('/context', async (c) => {
   const target = targetFromQuery(c);
   if (!target) throw new AppError(400, 'VALIDATION_ERROR', 'list, host and n are required');
   c.header('Cache-Control', 'no-store');
-  return c.json(await flow().context(target, getCookie(c, ACCESS_SESSION_COOKIE), await visitor(c)));
+  return c.json(await flow().context(target, getCookie(c, (await signInCookies()).session), await visitor(c)));
 });
 
 accessSignInApiRoutes.post('/password', accessSignInRateLimitMiddleware, async (c) => {
@@ -111,8 +120,8 @@ accessSignInApiRoutes.post('/shared', accessSignInRateLimitMiddleware, async (c)
 });
 
 accessSignInApiRoutes.post('/sign-out', async (c) => {
-  await flow().signOut(getCookie(c, ACCESS_SESSION_COOKIE));
-  deleteCookie(c, ACCESS_SESSION_COOKIE, { path: '/', secure: await secureCookies() });
+  await flow().signOut(getCookie(c, (await signInCookies()).session));
+  deleteCookie(c, (await signInCookies()).session, { path: '/', secure: await secureCookies() });
   return c.json({ success: true });
 });
 
@@ -149,7 +158,11 @@ accessSignInBrowserRoutes.get('/sign-in', async (c, next) => {
   const target = targetFromQuery(c);
   if (target) {
     try {
-      const redirect = await flow().sessionRedirect(target, getCookie(c, ACCESS_SESSION_COOKIE), await visitor(c));
+      const redirect = await flow().sessionRedirect(
+        target,
+        getCookie(c, (await signInCookies()).session),
+        await visitor(c)
+      );
       if (redirect) {
         c.header('Cache-Control', 'no-store');
         return c.redirect(redirect, 302);
@@ -182,11 +195,11 @@ accessSignInBrowserRoutes.get('/idp/:providerId/callback', async (c) => {
     const signed = await external().finishIdp(
       c.req.param('providerId'),
       query,
-      getCookie(c, ACCESS_SIGN_IN_STATE_COOKIE),
+      getCookie(c, (await signInCookies()).state),
       await visitor(c)
     );
     await setSessionCookie(c, signed);
-    deleteCookie(c, ACCESS_SIGN_IN_STATE_COOKIE, { path: '/access' });
+    deleteCookie(c, (await signInCookies()).state, { path: '/', secure: await secureCookies() });
     return c.redirect(signed.redirect, 302);
   } catch (error) {
     return failBrowserRoute(c, error, target);
@@ -212,11 +225,11 @@ accessSignInBrowserRoutes.get('/opfield/callback', async (c) => {
     const signed = await external().finishOpfield(
       c.req.query('code') ?? '',
       state,
-      getCookie(c, ACCESS_SIGN_IN_STATE_COOKIE),
+      getCookie(c, (await signInCookies()).state),
       await visitor(c)
     );
     await setSessionCookie(c, signed);
-    deleteCookie(c, ACCESS_SIGN_IN_STATE_COOKIE, { path: '/access' });
+    deleteCookie(c, (await signInCookies()).state, { path: '/', secure: await secureCookies() });
     return c.redirect(signed.redirect, 302);
   } catch (error) {
     return failBrowserRoute(c, error, target);

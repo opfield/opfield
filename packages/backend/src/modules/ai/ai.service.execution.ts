@@ -199,6 +199,18 @@ export abstract class AIServiceExecution extends AIServiceRuntimeSupport {
         invalidateStores: [],
       };
     }
+    if (
+      options.source === 'mcp' &&
+      toolName === 'manage_access_sign_in' &&
+      args.resource === 'service_tokens' &&
+      (args.operation === 'create' || args.operation === 'update')
+    ) {
+      return {
+        error:
+          'Access service tokens are created and changed from a browser session; remote MCP can list and delete them',
+        invalidateStores: [],
+      };
+    }
 
     const activePlan =
       options.source !== 'mcp' && options.conversationId && this.planService
