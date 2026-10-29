@@ -31,7 +31,7 @@ import (
 //
 // Any local process may connect to a loopback port, so a connection is served
 // only when its peer socket belongs to the managed nginx workers' uid
-// (sock_diag, secureLinkLoopbackPeerUID).
+// (sock_diag, loopbackpeer.UID).
 //
 // A served connection carries SO_LINGER 0 from its accept on: closing it, by
 // this process or by the kernel when the process dies, resets it. Only a

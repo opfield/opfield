@@ -177,7 +177,8 @@ export function registerDockerComposeRoutes(router: OpenAPIHono<AppEnv>) {
         c.req.param('nodeId')!,
         c.req.param('projectId')!,
         ComposeAdoptInputSchema.parse(await c.req.json()),
-        c.get('user')!.id
+        c.get('user')!.id,
+        c.get('effectiveScopes') ?? []
       );
     return c.json({ data }, 201);
   });
@@ -221,7 +222,8 @@ export function registerDockerComposeRoutes(router: OpenAPIHono<AppEnv>) {
           c.req.param('nodeId')!,
           c.req.param('projectId')!,
           ComposeRevisionCreateInputSchema.parse(await c.req.json()),
-          c.get('user')!.id
+          c.get('user')!.id,
+          c.get('effectiveScopes') ?? []
         );
       return c.json({ data }, 201);
     }
@@ -267,7 +269,9 @@ export function registerDockerComposeRoutes(router: OpenAPIHono<AppEnv>) {
         c.req.param('projectId')!,
         action,
         ComposeOperationInputSchema.parse(await c.req.json()),
-        c.get('user')!.id
+        c.get('user')!.id,
+        false,
+        { actorScopes: c.get('effectiveScopes') ?? [] }
       );
     return c.json({ data }, 201);
   });

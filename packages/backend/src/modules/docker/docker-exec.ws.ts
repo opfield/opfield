@@ -631,7 +631,7 @@ async function authenticateAndCreateExec(
     void drainOutput(ws, state, nodeId);
   };
   state.outputHandler = outputHandler;
-  registry.registerExecHandler(execId, outputHandler);
+  registry.registerExecHandler(execId, outputHandler, nodeId);
 
   send(ws, { type: 'connected', execId, shell: usedShell, isNew });
   state.session = { nodeId, containerId, execId, auth: initialAuth, openedAt: Date.now() };

@@ -119,7 +119,7 @@ func startIngressHealthResponder(plugin *NginxPlugin, logger *slog.Logger) (*ing
 	// The endpoint only reports health; any local process (nginx workers run as another user) may read it. The
 	// socket the previous process kept is taken over (service_sockets.go).
 	socketPath := nginx.IngressHealthSocketPath()
-	listener, keptName, err := listenServiceSocket(socketPath)
+	listener, keptName, err := listenServiceSocket(socketPath, 0o666)
 	if err != nil {
 		return nil, err
 	}

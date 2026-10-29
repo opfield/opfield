@@ -86,9 +86,8 @@ describe('node setup commands', () => {
       `curl -fsSL -o opfield-node-installers.sha256 ${RELEASE}/opfield-node-installers.sha256`,
       "grep ' setup-storage-node.sh$' opfield-node-installers.sha256 | sha256sum -c -",
       [
-        'sudo bash setup-storage-node.sh \\',
+        'OPFIELD_NODE_TOKEN=gw_node_v2_token sudo --preserve-env=OPFIELD_NODE_TOKEN bash setup-storage-node.sh \\',
         '  --opfield gw.example.com:9443 \\',
-        '  --token gw_node_v2_token \\',
         `  --opfield-cert-sha256 ${CERT} \\`,
         '  --version v2.11.0',
       ].join('\n'),
@@ -97,12 +96,36 @@ describe('node setup commands', () => {
     expect(publicCommand?.wget).toContain(
       `wget -qO opfield-node-installers.sha256 ${RELEASE}/opfield-node-installers.sha256`
     );
-    expect(publicCommand?.wget).toContain('| sha256sum -c - && \\\nsudo bash setup-storage-node.sh');
+    expect(publicCommand?.wget).toContain(
+      '| sha256sum -c - && \\\nOPFIELD_NODE_TOKEN=gw_node_v2_token sudo --preserve-env=OPFIELD_NODE_TOKEN bash setup-storage-node.sh'
+    );
     // An IPv6 target is quoted so no shell expands the brackets.
     expect(localCommand?.curl).toContain("--opfield '[fd00::1]:9443' \\");
     for (const command of [publicCommand, localCommand].flatMap((entry) => [entry?.curl, entry?.wget])) {
       expect(command).not.toMatch(/raw\.githubusercontent|releases\/latest|\/main\//);
     }
+  });
+
+  it('pass the enrollment token in the environment, never on the command line of the installer (R3-04)', () => {
+    for (const release of ['v2.11.0', null]) {
+      for (const command of storageCommands(release).flatMap((entry) => [entry.curl, entry.wget])) {
+        expect(command).not.toContain('--token');
+        // Assigned for the sudo command alone: nothing stays exported in the shell that ran the command (L-05).
+        expect(command).not.toContain('export ');
+        expect(command).toMatch(
+          /(^|[|&] |\n)OPFIELD_NODE_TOKEN=gw_node_v2_token sudo --preserve-env=OPFIELD_NODE_TOKEN bash /
+        );
+      }
+    }
+    // A token that needs quoting is quoted for the shell.
+    const [quoted] = nodeInstallCommands({
+      nodeType: 'nginx',
+      release: 'v2.11.0',
+      token: "tok'en",
+      opfieldCertSha256: CERT,
+      targets: { public: { label: 'Public node', address: 'gw.example.com:9443' } },
+    });
+    expect(quoted?.curl).toContain("OPFIELD_NODE_TOKEN='tok'\\''en' sudo --preserve-env=OPFIELD_NODE_TOKEN bash ");
   });
 
   it('keep running the installers from main on an unreleased build', () => {
@@ -112,7 +135,7 @@ describe('node setup commands', () => {
 
     const [command] = storageCommands(null);
     expect(command?.curl).toMatch(
-      /^curl -sSL https:\/\/raw\.githubusercontent\.com\/opfield\/opfield\/main\/scripts\/setup-storage-node\.sh \| sudo bash -s -- \\\n {2}--opfield /
+      /^curl -sSL https:\/\/raw\.githubusercontent\.com\/opfield\/opfield\/main\/scripts\/setup-storage-node\.sh \| OPFIELD_NODE_TOKEN=gw_node_v2_token sudo --preserve-env=OPFIELD_NODE_TOKEN bash -s -- \\\n {2}--opfield /
     );
     expect(command?.wget).toMatch(
       /^wget -qO- https:\/\/raw\.githubusercontent\.com\/.*\/main\/scripts\/setup-storage-node\.sh \|/
@@ -136,8 +159,9 @@ describe('node setup commands', () => {
     expect(commands[0]?.curl).toContain('/download/v2.12.1/setup-relay-node.sh');
     expect(commands[0]?.curl).toContain('/download/v2.12.1/opfield-node-installers.sha256');
     expect(commands[0]?.curl).toMatch(
-      /--opfield opfield\.example\.com:9443 \\\n.*\n.*\n {2}--advertise-address relay\.example\.com \\\n {2}--service-port 9444 \\\n {2}--version v2\.12\.1-rc\.3$/
+      /--opfield opfield\.example\.com:9443 \\\n.*\n {2}--advertise-address relay\.example\.com \\\n {2}--service-port 9444 \\\n {2}--version v2\.12\.1-rc\.3$/
     );
+    expect(commands[0]?.curl).not.toContain('--token');
     expect(commands[0]?.curl).toContain(`--opfield-cert-sha256 ${CERT}`);
     expect(commands[0]?.curl).not.toContain(LEGACY_ADDRESS_FLAG);
   });
@@ -160,6 +184,9 @@ describe('node setup commands', () => {
     expect(command?.curl).toContain(`${LEGACY_ADDRESS_FLAG} opfield.example.com:9443`);
     expect(command?.curl).toContain(`${LEGACY_CERT_FLAG} ${CERT}`);
     expect(command?.curl).toMatch(/--version 2\.12\.0$/);
+    // That installer reads the token only from --token.
+    expect(command?.curl).toContain('--token opf_node_v2_token');
+    expect(command?.curl).not.toContain('OPFIELD_NODE_TOKEN');
   });
 
   it('give no node without an enrollment address a command', () => {

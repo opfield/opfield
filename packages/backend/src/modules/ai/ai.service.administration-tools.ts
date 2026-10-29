@@ -51,9 +51,10 @@ import {
   DEFAULT_ENVIRONMENT_SETTINGS,
   EnvironmentSettingsService,
 } from '@/modules/settings/environment-settings.service.js';
+import { registryRepositoryWorkloads } from '@/modules/tokens/token-registry-workloads.js';
 import { CreateTokenSchema, UpdateTokenSchema } from '@/modules/tokens/tokens.schemas.js';
 import {
-  authorizeRequestedRegistryAccess,
+  authorizeRequestedRegistryAccessForWorkloads,
   resolveRequestedTokenScopes,
   TokensService,
 } from '@/modules/tokens/tokens.service.js';
@@ -306,7 +307,12 @@ export abstract class AIServiceAdministrationTools extends AIServiceInteractionT
               allowedIps: a.allowedIps,
             });
             const input = { ...parsed, scopes: resolveRequestedTokenScopes(parsed.scopes, user.scopes, 'create') };
-            if (!isScopeSubset(authorizeRequestedRegistryAccess(input, user.scopes), user.scopes)) {
+            const delegated = await authorizeRequestedRegistryAccessForWorkloads(
+              input,
+              user.scopes,
+              registryRepositoryWorkloads
+            );
+            if (!isScopeSubset(delegated, user.scopes)) {
               throw new Error('Cannot create a token with scopes you do not possess');
             }
             return tokensService.createToken(user.id, input);
@@ -327,7 +333,11 @@ export abstract class AIServiceAdministrationTools extends AIServiceInteractionT
                 ? { scopes: resolveRequestedTokenScopes(parsed.scopes, user.scopes, 'update') }
                 : {}),
             };
-            const delegated = authorizeRequestedRegistryAccess(input, user.scopes);
+            const delegated = await authorizeRequestedRegistryAccessForWorkloads(
+              input,
+              user.scopes,
+              registryRepositoryWorkloads
+            );
             if (input.scopes !== undefined && !isScopeSubset(delegated, user.scopes)) {
               throw new Error('Cannot update a token with scopes you do not possess');
             }

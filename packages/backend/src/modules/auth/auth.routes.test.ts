@@ -17,6 +17,7 @@ import { LocalAuthService } from './local-auth.service.js';
 import { MfaService } from './mfa.service.js';
 import { OidcSettingsService } from './oidc-settings.service.js';
 import { PasskeyService } from './passkey.service.js';
+import { getSessionCookieName } from './session-cookie.js';
 
 process.env.DATABASE_URL ||= 'http://localhost/db';
 process.env.REDIS_URL ||= 'redis://localhost:6379';
@@ -37,7 +38,6 @@ const USER: User = {
 const SESSION: SessionData = {
   userId: USER.id,
   user: USER,
-  accessToken: 'oidc-access-token',
   createdAt: Date.now(),
   expiresAt: Date.now() + 60_000,
   csrfToken: 'csrf-token',
@@ -274,6 +274,7 @@ describe('browser-session routes', () => {
 
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ csrfToken: 'recovery-csrf-token' });
+    expect(response.headers.get('cache-control')).toBe('no-store');
   });
 });
 
@@ -481,6 +482,8 @@ describe('logout', () => {
     expect(await response.json()).toEqual({ message: 'Logged out successfully' });
     expect(logout).toHaveBeenCalledWith('current-session-id');
     expect(response.headers.get('set-cookie')).toContain('session_id=;');
+    // The __Host- cookie can only be cleared with Secure set (R1-10).
+    expect(response.headers.getSetCookie().find((cookie) => cookie.startsWith('__Host-'))).toMatch(/; Secure/);
   });
 });
 
@@ -760,5 +763,88 @@ describe('sign-in audit entries name the account', () => {
     expect(auditLog).toHaveBeenCalledWith(
       expect.objectContaining({ userId: USER.id, action: 'auth.password_login', resourceType: 'session' })
     );
+  });
+});
+
+describe('session cookies follow the request protocol, not the public URL (AUTH-2)', () => {
+  const HTTP_PUBLIC_URL = 'http://opfield.example.com';
+  const viaHttpsProxy = { 'X-Forwarded-Proto': 'https' };
+
+  function usePublicUrl(publicUrl: string) {
+    container.registerInstance(GeneralSettingsService, {
+      requirePublicUrl: vi.fn().mockResolvedValue(publicUrl),
+      getPublicUrl: vi.fn().mockResolvedValue(publicUrl),
+    } as unknown as GeneralSettingsService);
+  }
+
+  it('signs in with the __Host- Secure cookie over HTTPS while the public URL says http', async () => {
+    registerDependencies();
+    usePublicUrl(HTTP_PUBLIC_URL);
+    container.registerInstance(SessionService, {
+      createSession: vi.fn().mockResolvedValue({ sessionId: 'new-session', expiresAt: Date.now() + 60_000 }),
+    } as unknown as SessionService);
+    container.registerInstance(AuthService, {
+      recordSuccessfulSignIn: vi.fn().mockResolvedValue(undefined),
+    } as unknown as AuthService);
+    container.registerInstance(LocalAuthService, {
+      authenticatePassword: vi.fn().mockResolvedValue({ ...USER, authMethod: 'password' }),
+    } as unknown as LocalAuthService);
+    container.registerInstance(MfaService, {
+      getStatus: vi.fn().mockResolvedValue({ totpConfigured: false, passkeyCount: 0 }),
+      isOpfieldMfaRequired: vi.fn().mockResolvedValue(false),
+    } as unknown as MfaService);
+    const app = new Hono<AppEnv>();
+    app.onError(errorHandler);
+    app.route('/auth', authRoutes);
+
+    const response = await app.request(`${HTTP_PUBLIC_URL}/auth/password/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...viaHttpsProxy },
+      body: JSON.stringify({ email: USER.email, password: 'right' }),
+    });
+
+    expect(response.status).toBe(200);
+    const session = response.headers.getSetCookie().find((value) => value.includes('new-session'));
+    expect(session).toMatch(new RegExp(`^${getSessionCookieName('https')}=new-session`));
+    expect(session).toMatch(/; Secure/);
+  });
+
+  it('returns to the administrator session with the __Host- cookie when impersonation stops over HTTPS', async () => {
+    const actor = { ...USER, id: 'actor-1' };
+    const impersonationSession = {
+      ...SESSION,
+      purpose: 'impersonation' as const,
+      impersonation: { actorUserId: actor.id, originalSessionId: 'original-session' },
+    };
+    container.registerInstance(SessionService, {
+      getSession: vi.fn().mockResolvedValue(impersonationSession),
+      validateCsrfToken: vi.fn().mockResolvedValue(true),
+      getOriginalSessionForImpersonation: vi.fn().mockResolvedValue({
+        sessionId: 'original-session',
+        session: { ...SESSION, userId: actor.id, user: actor, purpose: 'user', expiresAt: Date.now() + 60_000 },
+      }),
+      destroySession: vi.fn().mockResolvedValue(undefined),
+    } as unknown as SessionService);
+    container.registerInstance(AuthService, {
+      getUserById: vi.fn().mockResolvedValue(actor),
+    } as unknown as AuthService);
+    container.registerInstance(AuditService, { log: vi.fn().mockResolvedValue(true) } as unknown as AuditService);
+    usePublicUrl(HTTP_PUBLIC_URL);
+    const app = new Hono<AppEnv>();
+    app.route('/auth', authRoutes);
+
+    const response = await app.request(`${HTTP_PUBLIC_URL}/auth/impersonation/stop`, {
+      method: 'POST',
+      headers: {
+        ...viaHttpsProxy,
+        Cookie: `${getSessionCookieName('https')}=impersonation-session`,
+        'X-CSRF-Token': 'csrf-token',
+      },
+    });
+
+    expect(response.status).toBe(200);
+    const original = response.headers.getSetCookie().find((value) => value.includes('original-session'));
+    expect(original).toMatch(new RegExp(`^${getSessionCookieName('https')}=original-session`));
+    expect(original).toMatch(/; Secure/);
   });
 });

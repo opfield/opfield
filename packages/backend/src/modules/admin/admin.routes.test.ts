@@ -10,7 +10,9 @@ import { AuthService } from '@/modules/auth/auth.service.js';
 import { AuthSettingsService } from '@/modules/auth/auth.settings.service.js';
 import { AuthMailService } from '@/modules/auth/auth-mail.service.js';
 import { LocalAuthService } from '@/modules/auth/local-auth.service.js';
+import { MfaService } from '@/modules/auth/mfa.service.js';
 import { OidcSettingsService } from '@/modules/auth/oidc-settings.service.js';
+import { getSessionCookieName } from '@/modules/auth/session-cookie.js';
 import { CloudLinkService } from '@/modules/cloud-link/cloud-link.service.js';
 import { groupRoutes } from '@/modules/groups/group.routes.js';
 import { GroupService } from '@/modules/groups/group.service.js';
@@ -55,7 +57,6 @@ const USER: User = {
 const SESSION: SessionData = {
   userId: USER.id,
   user: USER,
-  accessToken: 'oidc-access-token',
   createdAt: Date.now(),
   expiresAt: Date.now() + 60_000,
   csrfToken: 'csrf-token',
@@ -76,6 +77,15 @@ function createApp() {
   app.onError(errorHandler);
   app.route('/api/admin', adminRoutes);
   return app;
+}
+
+/** The target's second factors as MfaService reports them (none by default). */
+function registerMfaStatus(
+  status: { totpConfigured?: boolean; passkeyCount?: number; recoveryCodeCount?: number } = {}
+) {
+  container.registerInstance(MfaService, {
+    getStatus: vi.fn().mockResolvedValue({ totpConfigured: false, passkeyCount: 0, recoveryCodeCount: 0, ...status }),
+  } as unknown as MfaService);
 }
 
 function registerSession(scopes: string[], user: User = USER) {
@@ -291,6 +301,7 @@ describe('admin user email onboarding', () => {
 
   it('sends the same onboarding email when an existing user is switched to email-code sign-in', async () => {
     registerSession(['admin:users', 'nodes:details:node-1']);
+    registerMfaStatus();
     const updatedUser = { ...TARGET_USER, authMethod: 'email_otp' as const };
     const updateUserAuthMethod = vi.fn().mockResolvedValue(updatedUser);
     const sendEmailOtpOnboarding = vi.fn().mockResolvedValue(undefined);
@@ -314,8 +325,42 @@ describe('admin user email onboarding', () => {
     });
 
     expect(response.status).toBe(200);
-    expect(updateUserAuthMethod).toHaveBeenCalledWith(TARGET_USER.id, 'email_otp');
+    expect(updateUserAuthMethod).toHaveBeenCalledWith(TARGET_USER.id, 'email_otp', { actorUserId: USER.id });
     expect(sendEmailOtpOnboarding).toHaveBeenCalledWith(updatedUser.email);
+  });
+
+  // L-01: the change removes the user's second factors, which only a system administrator may reset.
+  it('requires admin:system to change the sign-in method of a user with second factors', async () => {
+    const changeMethod = async (scopes: string[]) => {
+      registerSession(scopes);
+      registerMfaStatus({ passkeyCount: 1 });
+      const updateUserAuthMethod = vi.fn().mockResolvedValue({ ...TARGET_USER, authMethod: 'oidc' });
+      container.registerInstance(AuthService, {
+        getUserById: vi.fn().mockResolvedValue({ ...TARGET_USER, authMethod: 'password' }),
+        updateUserAuthMethod,
+      } as unknown as AuthService);
+      container.registerInstance(AuditService, {
+        log: vi.fn().mockResolvedValue(undefined),
+      } as unknown as AuditService);
+      const response = await createApp().request(`/api/admin/users/${TARGET_USER.id}/auth-method`, {
+        method: 'PATCH',
+        headers: sessionHeaders(),
+        body: JSON.stringify({ authMethod: 'oidc' }),
+      });
+      return { response, updateUserAuthMethod };
+    };
+
+    const delegated = await changeMethod(['admin:users', 'nodes:details:node-1']);
+    expect(delegated.response.status).toBe(403);
+    await expect(delegated.response.json()).resolves.toMatchObject({
+      code: 'FORBIDDEN',
+      message: 'Missing required scope: admin:system',
+    });
+    expect(delegated.updateUserAuthMethod).not.toHaveBeenCalled();
+
+    const system = await changeMethod(['admin:system', 'admin:users', 'nodes:details:node-1']);
+    expect(system.response.status).toBe(200);
+    expect(system.updateUserAuthMethod).toHaveBeenCalledWith(TARGET_USER.id, 'oidc', { actorUserId: USER.id });
   });
 });
 
@@ -368,6 +413,32 @@ describe('admin user impersonation', () => {
       'session-1',
       expect.objectContaining({ userAgent: undefined })
     );
+  });
+
+  // AUTH-2: the cookie follows the protocol the request came over, not a public URL that still says http://.
+  it('sets the __Host- impersonation cookie for an HTTPS request when the public URL says http', async () => {
+    registerImpersonationDependencies(TARGET_USER);
+    container.registerInstance(GeneralSettingsService, {
+      requirePublicUrl: vi.fn().mockResolvedValue('http://opfield.example.com'),
+      getPublicUrl: vi.fn().mockResolvedValue('http://opfield.example.com'),
+    } as unknown as GeneralSettingsService);
+
+    const response = await createApp().request(
+      `http://opfield.example.com/api/admin/users/${TARGET_USER.id}/impersonate`,
+      {
+        method: 'POST',
+        headers: {
+          ...sessionHeaders(),
+          'X-Forwarded-Proto': 'https',
+          Cookie: `${getSessionCookieName('https')}=session-1`,
+        },
+      }
+    );
+
+    expect(response.status).toBe(200);
+    const cookie = response.headers.getSetCookie().find((value) => value.includes('impersonation-session'));
+    expect(cookie).toMatch(new RegExp(`^${getSessionCookieName('https')}=impersonation-session`));
+    expect(cookie).toMatch(/; Secure/);
   });
 
   it('keeps starting impersonation browser-session-only for bearer tokens', async () => {
@@ -651,7 +722,7 @@ describe('admin Opfield settings route permissions', () => {
   });
 
   it('returns a human-readable conflict when OIDC is enabled before it is configured', async () => {
-    registerSession(['settings:opfield:edit']);
+    registerSession(['settings:opfield:edit', 'admin:system']);
     const updateConfig = vi.fn();
     container.registerInstance(AuthSettingsService, { updateConfig } as unknown as AuthSettingsService);
     container.registerInstance(McpSettingsService, {} as McpSettingsService);
@@ -676,7 +747,7 @@ describe('admin Opfield settings route permissions', () => {
   });
 
   it('returns a human-readable conflict when email sign-in is enabled before SMTP is verified', async () => {
-    registerSession(['settings:opfield:edit']);
+    registerSession(['settings:opfield:edit', 'admin:system']);
     const updateConfig = vi.fn();
     container.registerInstance(AuthSettingsService, { updateConfig } as unknown as AuthSettingsService);
     container.registerInstance(McpSettingsService, {} as McpSettingsService);
@@ -1482,10 +1553,25 @@ describe('identity-trust settings require admin:system', () => {
     senderName: 'Opfield',
     senderEmail: 'security@example.com',
   };
+  const currentAuth = {
+    oidcRequireVerifiedEmail: true,
+    oidcAutoCreateUsers: false,
+    oidcDefaultGroupId: '',
+    mfaExistingSessionGracePeriodDays: 3,
+    methods: { oidc: true, password: true, emailOtp: false, passkeyLogin: false },
+  };
+  const currentNetwork = {
+    clientIpSource: 'reverse_proxy' as const,
+    trustedProxyCidrs: ['10.0.0.0/8'],
+    trustCloudflareHeaders: false,
+  };
+  const currentWebhookPolicy = { allowPrivateNetworks: false, allowedPrivateCidrs: ['10.1.0.0/16'] };
   const current = {
     smtp: async () => currentSmtp,
     generalSettings: async () => ({ publicUrl: 'https://opfield.example.com' }),
-    authSettings: async () => ({ oidcRequireVerifiedEmail: true }),
+    authSettings: async () => currentAuth,
+    networkSecurity: async () => currentNetwork,
+    outboundWebhookPolicy: async () => currentWebhookPolicy,
   };
   const smtpInput = {
     host: 'smtp.example.com',
@@ -1535,6 +1621,80 @@ describe('identity-trust settings require admin:system', () => {
         current
       )
     ).resolves.toEqual([]);
+  });
+
+  it('flags client IP trust, the webhook policy, auto-provisioning, sign-in methods and the MFA grace period', async () => {
+    await expect(
+      findIdentityTrustChanges({ networkSecurity: { trustedProxyCidrs: ['0.0.0.0/0'] } }, current)
+    ).resolves.toEqual(['client IP trust']);
+    await expect(findIdentityTrustChanges({ networkSecurity: { clientIpSource: 'direct' } }, current)).resolves.toEqual(
+      ['client IP trust']
+    );
+    await expect(
+      findIdentityTrustChanges({ outboundWebhookPolicy: { allowPrivateNetworks: true } }, current)
+    ).resolves.toEqual(['the outbound webhook policy']);
+    await expect(findIdentityTrustChanges({ oidcAutoCreateUsers: true }, current)).resolves.toEqual([
+      'OIDC user auto-creation',
+    ]);
+    await expect(
+      findIdentityTrustChanges({ oidcDefaultGroupId: '0b3d7f0e-1111-4c1a-9d2e-3f4a5b6c7d8e' }, current)
+    ).resolves.toEqual(['OIDC user auto-creation']);
+    await expect(findIdentityTrustChanges({ methods: { emailOtp: true } }, current)).resolves.toEqual([
+      'the sign-in methods',
+    ]);
+    await expect(findIdentityTrustChanges({ mfaExistingSessionGracePeriodDays: 7 }, current)).resolves.toEqual([
+      'the MFA grace period',
+    ]);
+  });
+
+  it('allows the settings form to resubmit the security settings unchanged', async () => {
+    await expect(
+      findIdentityTrustChanges(
+        {
+          networkSecurity: { ...currentNetwork, trustedProxyCidrs: [' 10.0.0.0/8 '] },
+          outboundWebhookPolicy: currentWebhookPolicy,
+          oidcAutoCreateUsers: false,
+          oidcDefaultGroupId: undefined,
+          methods: { oidc: true, password: true },
+          mfaExistingSessionGracePeriodDays: 3,
+          passwordPolicy: { minLength: 14 },
+        },
+        current
+      )
+    ).resolves.toEqual([]);
+  });
+
+  it('rejects a client IP trust change from a settings:opfield:edit holder before anything is saved', async () => {
+    registerSession(['settings:opfield:edit']);
+    const updateNetwork = vi.fn();
+    container.registerInstance(AuthSettingsService, { updateConfig: vi.fn() } as unknown as AuthSettingsService);
+    container.registerInstance(AuthMailService, {} as AuthMailService);
+    container.registerInstance(GeneralSettingsService, {} as GeneralSettingsService);
+    container.registerInstance(NetworkSettingsService, {
+      getConfig: vi
+        .fn()
+        .mockResolvedValue({ clientIpSource: 'auto', trustedProxyCidrs: [], trustCloudflareHeaders: false }),
+      updateConfig: updateNetwork,
+    } as unknown as NetworkSettingsService);
+    for (const service of [McpSettingsService, OutboundWebhookPolicyService, GroupService]) {
+      container.registerInstance(service as never, {} as never);
+    }
+    container.registerInstance(AuditService, { log: vi.fn() } as unknown as AuditService);
+
+    const response = await createApp().request('/api/admin/auth-settings', {
+      method: 'PUT',
+      headers: sessionHeaders(),
+      body: JSON.stringify({
+        networkSecurity: { clientIpSource: 'reverse_proxy', trustedProxyCidrs: ['0.0.0.0/0'] },
+      }),
+    });
+
+    expect(response.status).toBe(403);
+    expect(await response.json()).toMatchObject({
+      code: 'ADMIN_SYSTEM_REQUIRED',
+      message: expect.stringContaining('client IP trust'),
+    });
+    expect(updateNetwork).not.toHaveBeenCalled();
   });
 
   it('rejects an SMTP change from a settings:opfield:edit holder before anything is saved', async () => {
@@ -1810,6 +1970,7 @@ describe('what a managed installation keeps', () => {
 
   it('lets the owner of a managed installation move to password sign-in like on any installation', async () => {
     registerSession(['admin:users', 'nodes:details:node-1']);
+    registerMfaStatus();
     managed();
     container.registerInstance(FinalizeSetupService, {
       isOwner: vi.fn().mockResolvedValue(true),
@@ -1834,7 +1995,7 @@ describe('what a managed installation keeps', () => {
       body: JSON.stringify({ authMethod: 'password' }),
     });
     expect(response.status).toBe(200);
-    expect(updateUserAuthMethod).toHaveBeenCalledWith(TARGET_USER.id, 'password');
+    expect(updateUserAuthMethod).toHaveBeenCalledWith(TARGET_USER.id, 'password', { actorUserId: USER.id });
   });
 });
 
@@ -2031,7 +2192,9 @@ describe('sign-in on a managed installation', () => {
         {
           smtp: async () => ({}) as never,
           generalSettings: async () => ({ publicUrl: null }),
-          authSettings: async () => ({ oidcRequireVerifiedEmail: true }),
+          authSettings: async () => ({}) as never,
+          networkSecurity: async () => ({}) as never,
+          outboundWebhookPolicy: async () => ({}) as never,
         }
       )
     ).resolves.toEqual(['the OIDC provider']);

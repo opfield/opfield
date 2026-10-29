@@ -41,6 +41,8 @@ export interface RequestLimitSettings {
 
 export interface SessionSettings {
   expirySeconds: number;
+  /** Longest a session lives from sign-in, renewals included; null: no limit. */
+  absoluteLifetimeSeconds: number | null;
 }
 
 export interface PkiDefaultSettings {

@@ -45,17 +45,25 @@ type maintenanceAccessServer struct {
 	listener net.Listener
 	keptName string
 	server   *http.Server
+	done     chan struct{}
 }
 
-func startMaintenanceAccessServer(conn *grpc.ClientConn, logger interface{ Warn(string, ...any) }) (*maintenanceAccessServer, error) {
+// maintenanceAccessGroupRetry is how often the socket's group is tried again while the nginx workers' group is unknown.
+const maintenanceAccessGroupRetry = 5 * time.Second
+
+// startMaintenanceAccessServer serves the maintenance access socket. Only nginx's workers post to it (the route
+// configs proxy the maintenance page's form there): the socket is 0660 and belongs to their group (workerGID).
+func startMaintenanceAccessServer(conn *grpc.ClientConn, logger interface{ Warn(string, ...any) }, workerGID func() (int, error)) (*maintenanceAccessServer, error) {
 	if err := os.MkdirAll(filepath.Dir(maintenanceAccessSocketPath), 0o755); err != nil {
 		return nil, err
 	}
 	// The socket the previous process kept is taken over (service_sockets.go).
-	listener, keptName, err := listenServiceSocket(maintenanceAccessSocketPath)
+	listener, keptName, err := listenServiceSocket(maintenanceAccessSocketPath, 0o660)
 	if err != nil {
 		return nil, err
 	}
+	done := make(chan struct{})
+	go grantSocketToGroup(maintenanceAccessSocketPath, workerGID, maintenanceAccessGroupRetry, done, logger)
 
 	mux := maintenanceAccessHandler(pb.NewMaintenanceAccessClient(conn), logger)
 	server := &http.Server{Handler: mux, ReadHeaderTimeout: 5 * time.Second}
@@ -64,7 +72,41 @@ func startMaintenanceAccessServer(conn *grpc.ClientConn, logger interface{ Warn(
 			logger.Warn("maintenance access socket stopped", "error", err)
 		}
 	}()
-	return &maintenanceAccessServer{listener: listener, keptName: keptName, server: server}, nil
+	return &maintenanceAccessServer{listener: listener, keptName: keptName, server: server, done: done}, nil
+}
+
+// grantSocketToGroup gives the socket at path to the group gid names, trying again every retry until it succeeds or
+// done closes. Until then only the daemon's user reaches the 0660 socket; the nginx workers' group is unknown only
+// while nginx does not run, when no worker could connect anyway. A daemon that runs as a user outside that group
+// cannot give the socket to it: the socket goes back to 0666, as before, so the maintenance form keeps working (a
+// redemption still needs its one-time code), and the daemon says so once.
+func grantSocketToGroup(path string, gid func() (int, error), retry time.Duration, done <-chan struct{}, logger interface{ Warn(string, ...any) }) {
+	for attempt := 0; ; attempt++ {
+		group, err := gid()
+		if err == nil {
+			err = os.Chown(path, -1, group)
+			if errors.Is(err, os.ErrPermission) {
+				if chmodErr := os.Chmod(path, 0o666); chmodErr != nil {
+					err = chmodErr
+				} else {
+					logger.Warn("maintenance access socket is open to every local user: the daemon's user is not in the nginx workers' group",
+						"group", group, "error", err)
+					return
+				}
+			}
+		}
+		if err == nil {
+			return
+		}
+		if attempt == 0 {
+			logger.Warn("maintenance access socket waits for the nginx workers' group", "error", err)
+		}
+		select {
+		case <-done:
+			return
+		case <-time.After(retry):
+		}
+	}
 }
 
 // close ends the server: for good, or, once the daemon handed its sockets to the next process (handedOver), only
@@ -72,6 +114,9 @@ func startMaintenanceAccessServer(conn *grpc.ClientConn, logger interface{ Warn(
 func (s *maintenanceAccessServer) close(handedOver bool) {
 	if s == nil {
 		return
+	}
+	if s.done != nil {
+		close(s.done)
 	}
 	remove := releaseServiceSocket(s.listener, maintenanceAccessSocketPath, s.keptName, handedOver)
 	_ = s.server.Close()

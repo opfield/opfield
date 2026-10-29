@@ -49,6 +49,8 @@ export function WebhookSection(props: WebhookSectionProps) {
   const [webhook, setWebhookState] = useState<DockerWebhook | null>(
     isDeployment ? (props.initialWebhook ?? null) : null
   );
+  // The server keeps only a hash of the token, so the URL exists only in the response that issued it.
+  const [issued, setIssued] = useState<{ webhookId: string; token: string } | null>(null);
   const [loading, setLoading] = useState(true);
 
   const [cleanup, setCleanup] = useState<DockerImageCleanupSettings | null>(null);
@@ -128,10 +130,13 @@ export function WebhookSection(props: WebhookSectionProps) {
   });
 
   const webhookEnabled = !!webhook?.enabled;
-  const webhookUrl = webhookEnabled
-    ? `${window.location.origin}/api/webhooks/docker/${webhook.token}`
-    : "";
-  const curlExample = webhookEnabled
+  const webhookToken =
+    webhook?.token ?? (issued && issued.webhookId === webhook?.id ? issued.token : null);
+  const webhookUrl =
+    webhookEnabled && webhookToken
+      ? `${window.location.origin}/api/webhooks/docker/${webhookToken}`
+      : "";
+  const curlExample = webhookUrl
     ? `curl -X POST ${webhookUrl} \\\n  -H "Content-Type: application/json" \\\n  -d '{"tag":"v1.0.0"}'`
     : "";
 
@@ -140,6 +145,7 @@ export function WebhookSection(props: WebhookSectionProps) {
       const data = isDeployment
         ? await api.upsertDeploymentWebhook(nodeId, targetName, { enabled: true })
         : await api.upsertContainerWebhook(nodeId, targetName, { enabled: true });
+      setIssued(data.token ? { webhookId: data.id, token: data.token } : null);
       setWebhook(data);
     } catch (err) {
       toastApiError(err, "Failed to enable webhook");
@@ -191,6 +197,7 @@ export function WebhookSection(props: WebhookSectionProps) {
       const data = isDeployment
         ? await api.regenerateDeploymentWebhookToken(nodeId, targetName)
         : await api.regenerateWebhookToken(nodeId, targetName);
+      setIssued(data.token ? { webhookId: data.id, token: data.token } : null);
       setWebhook(data);
       toast.success("Webhook URL regenerated");
     } catch (err) {
@@ -253,7 +260,9 @@ export function WebhookSection(props: WebhookSectionProps) {
               <div className="px-4 py-3">
                 <CopyValueField
                   label="Webhook URL"
-                  value={webhookUrl}
+                  value={webhookUrl || "Shown only when created or regenerated"}
+                  copyable={!!webhookUrl}
+                  valueClassName={webhookUrl ? undefined : "text-muted-foreground"}
                   actions={
                     <Button
                       variant="ghost"
@@ -269,9 +278,11 @@ export function WebhookSection(props: WebhookSectionProps) {
                 />
               </div>
 
-              <div className="px-4 py-3">
-                <CopyCodeBlock label="Example" value={curlExample} />
-              </div>
+              {curlExample ? (
+                <div className="px-4 py-3">
+                  <CopyCodeBlock label="Example" value={curlExample} />
+                </div>
+              ) : null}
             </div>
           ) : null}
         </PanelShell>

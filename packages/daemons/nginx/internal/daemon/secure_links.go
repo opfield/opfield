@@ -777,7 +777,10 @@ func (m *sourceLinkManager) accept(id string, binding *sourceLinkBinding, listen
 }
 
 // serve authorizes one accepted connection, drops it if its peer already went
-// away, and hands it to the opener.
+// away, and hands it to the opener. authorizePeer marks the managed endpoints
+// (Unix socket, 127.a.b.c loopback); the legacy 127.0.0.1 port that raw
+// configs may still reference is authorized all the same (the uid check of a
+// loopback endpoint): any local process can connect to it.
 func (m *sourceLinkManager) serve(id string, binding *sourceLinkBinding, connection net.Conn, authorizePeer bool) {
 	tracked := newTrackedConn(connection).(*trackedConn)
 	if _, isTCP := connection.(*net.TCPConn); isTCP && authorizePeer {
@@ -800,7 +803,7 @@ func (m *sourceLinkManager) serve(id string, binding *sourceLinkBinding, connect
 	if m.firstByteWait > 0 {
 		firstByteWait = m.firstByteWait
 	}
-	if authorizePeer && !m.authorizeWithin(connection, authorizeTimeout) {
+	if !m.authorizeWithin(connection, authorizeTimeout) {
 		_ = connection.Close()
 		return
 	}

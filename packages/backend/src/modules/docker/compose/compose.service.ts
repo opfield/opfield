@@ -254,7 +254,8 @@ export class DockerComposeService {
     _nodeId: string,
     _projectId: string,
     _input: ComposeRevisionCreateInput,
-    _userId: string
+    _userId: string,
+    _actorScopes?: readonly string[]
   ): Promise<{
     project: {
       id: string;
@@ -296,7 +297,8 @@ export class DockerComposeService {
     _nodeId: string,
     _projectId: string,
     _input: ComposeRevisionCreateInput,
-    _userId: string
+    _userId: string,
+    _actorScopes?: readonly string[]
   ): Promise<{
     id: string;
     createdAt: Date;
@@ -325,7 +327,8 @@ export class DockerComposeService {
       batchId: string;
       commitSha: string;
     },
-    _userId: string
+    _userId: string,
+    _actorScopes?: readonly string[]
   ): Promise<{
     id: string;
     createdAt: Date;
@@ -423,7 +426,7 @@ export class DockerComposeService {
     _input: ComposeOperationInput,
     _userId: string,
     _allowProjectDeleting?: boolean,
-    _options?: { appIncident?: boolean; keepStopped?: boolean }
+    _options?: { appIncident?: boolean; keepStopped?: boolean; actorScopes?: readonly string[] }
   ): Promise<OperationRow> {
     return commercialModuleUnavailable();
   }
@@ -703,7 +706,8 @@ export class DockerComposeService {
     _nodeId: string,
     _projectId: string,
     _input: { sourceYaml: string; promotedFromRevisionId: string },
-    _userId: string
+    _userId: string,
+    _actorScopes?: readonly string[]
   ): Promise<{ revisionId: string; revisionNumber: number; operationId: string | null }> {
     return commercialModuleUnavailable();
   }

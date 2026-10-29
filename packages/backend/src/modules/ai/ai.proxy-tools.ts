@@ -1,6 +1,7 @@
 import { container } from '@/container.js';
 import { createChildLogger } from '@/lib/logger.js';
 import { hasScope, hasScopeBase, hasScopeForCreation, hasScopeForResource } from '@/lib/permissions.js';
+import { resolveSlugVisibleTo } from '@/lib/slug-lookup.js';
 import { AppError } from '@/middleware/error-handler.js';
 import { assertRoutePlacementOnGroup } from '@/modules/ingress-groups/ingress-group-operations.js';
 import { LicensePolicyService } from '@/modules/license/license-policy.service.js';
@@ -428,8 +429,12 @@ async function manageRoute(context: ProxyToolContext, user: User, a: Record<stri
   if (a.operation === 'get_by_slug') {
     const slug = typeof a.slug === 'string' ? a.slug : '';
     if (!slug) throw new AppError(400, 'SLUG_REQUIRED', 'slug is required for get_by_slug');
-    const host = await context.proxyService.getProxyHostBySlug(slug);
-    requireRouteView(user, host.id);
+    // A Route the caller may not view answers like a missing slug.
+    const host = await resolveSlugVisibleTo(
+      'Route',
+      () => context.proxyService.getProxyHostBySlug(slug),
+      (id) => hasScopeForResource(user.scopes, 'proxy:view', id)
+    );
     return routeConfigForAgent(user, host);
   }
 

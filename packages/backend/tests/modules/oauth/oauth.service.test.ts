@@ -1256,3 +1256,83 @@ describe('OAuthService.revokeToken', () => {
     expect(accessRevocations.some((call) => call.values.revokedAt instanceof Date)).toBe(true);
   });
 });
+
+describe('OAuthService authorization code reuse (R1-14)', () => {
+  const verifier = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQ';
+  const request = {
+    grant_type: 'authorization_code' as const,
+    client_id: 'goc_client',
+    code: 'gwo_code',
+    redirect_uri: 'http://127.0.0.1:8765/callback',
+    code_verifier: verifier,
+  };
+
+  function setup() {
+    const code = {
+      id: 'code-1',
+      clientId: 'goc_client',
+      userId: USER.id,
+      redirectUri: 'http://127.0.0.1:8765/callback',
+      codeChallenge: s256(verifier),
+      scopes: ['nodes:details'],
+      resource: 'https://opfield.example.com/api',
+      usedAt: null as Date | null,
+      expiresAt: new Date(Date.now() + 60_000),
+    };
+    const harness = createService({
+      authorizationCode: code,
+      refreshToken: {
+        id: 'refresh-new',
+        clientId: 'goc_client',
+        userId: USER.id,
+        resource: 'https://opfield.example.com/api',
+      },
+    });
+    const store = new Map<string, unknown>();
+    harness.cacheGet.mockImplementation(async (key: string) => store.get(key) ?? null);
+    harness.cacheSet.mockImplementation(async (key: string, value: unknown) => void store.set(key, value));
+    return { ...harness, code, store };
+  }
+
+  const revoked = (calls: Array<{ table: unknown; values: Record<string, unknown> }>, table: unknown) =>
+    calls.some((call) => call.table === table && call.values.revokedAt instanceof Date);
+
+  it('revokes the tokens a code was exchanged for when the used code comes back', async () => {
+    const { service, code, db, updateCalls, auditLog } = setup();
+    await service.exchangeToken(request);
+    expect(revoked(updateCalls, oauthAccessTokens)).toBe(false);
+
+    code.usedAt = new Date();
+    db.query.oauthAuthorizationCodes.findFirst.mockResolvedValue(code);
+    await expect(service.exchangeToken(request)).rejects.toThrow('Invalid authorization code');
+
+    expect(revoked(updateCalls, oauthAccessTokens)).toBe(true);
+    expect(revoked(updateCalls, oauthRefreshTokens)).toBe(true);
+    expect(auditLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'oauth.authorization_revoke',
+        resourceId: 'goc_client',
+        details: expect.objectContaining({ reason: 'authorization_code_reuse', targetUserId: USER.id }),
+      })
+    );
+  });
+
+  it('revokes what an exchange issued when a replay of its code arrived meanwhile', async () => {
+    const { service, store, updateCalls } = setup();
+    store.set('oauth:code:code-1:reused', true);
+
+    await expect(service.exchangeToken(request)).rejects.toThrow('Authorization code already used');
+
+    expect(revoked(updateCalls, oauthAccessTokens)).toBe(true);
+    expect(revoked(updateCalls, oauthRefreshTokens)).toBe(true);
+  });
+
+  it('leaves tokens alone for an unknown code', async () => {
+    const { service, db, updateCalls } = setup();
+    db.query.oauthAuthorizationCodes.findFirst.mockResolvedValue(null);
+
+    await expect(service.exchangeToken(request)).rejects.toThrow('Invalid authorization code');
+
+    expect(updateCalls).toEqual([]);
+  });
+});

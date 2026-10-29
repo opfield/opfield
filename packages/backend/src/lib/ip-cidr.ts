@@ -24,6 +24,16 @@ export function normalizeIp(value: string | null | undefined): string | undefine
   return parseIp(ip) ? ip.toLowerCase() : undefined;
 }
 
+/**
+ * What a per-client limit counts for an address: an IPv4 address as is, an IPv6 address by its /64 (one subscriber
+ * network, which hands its hosts any number of addresses).
+ */
+export function clientLimitKey(ip: string): string {
+  const parsed = parseIp(ip);
+  if (!parsed || parsed.version === 4) return ip;
+  return `${(parsed.value >> 64n).toString(16).padStart(16, '0')}::/64`;
+}
+
 export function isValidCidr(cidr: string): boolean {
   const [range, bitsRaw] = cidr.split('/');
   if (!range || bitsRaw === undefined || cidr.split('/').length !== 2) return false;

@@ -1,20 +1,20 @@
+import { container } from '@/container.js';
 import { hasScope, hasScopeBase } from '@/lib/permissions.js';
 import { hasTokenPrefix } from '@/lib/token-prefixes.js';
 import { authenticateBearerToken } from '@/modules/auth/auth.middleware.js';
 import { requiresSessionMfaReauthentication, resolveLiveSessionUser } from '@/modules/auth/live-session-user.js';
 import { isDemoRealtimeCapabilityAllowed } from '@/modules/demo/demo-mode.js';
+import { SessionService } from '@/services/session.service.js';
 import type { User } from '@/types.js';
-import {
-  getAcceptedSessionCookieNames,
-  getSessionCookieNameForUrl,
-  hasInstallationSessionCookie,
-  LEGACY_SESSION_COOKIE_NAME,
-} from './session-cookie.js';
+import { sessionAllowedForCookie } from './legacy-session-cookie.js';
+import { selectSessionCookie } from './session-cookie.js';
 
 export type WebSocketCredential =
   | {
       type: 'session';
       value: string;
+      /** Read under a legacy cookie name: only a session from before the `__Host-` cookie counts. */
+      legacy?: true;
     }
   | {
       type: 'bearer';
@@ -47,31 +47,44 @@ export function getBearerToken(authorizationHeader: string | undefined): string 
   return hasTokenPrefix(token, 'api') || hasTokenPrefix(token, 'oauthAccess') ? token : '';
 }
 
+/**
+ * The browser session of a WebSocket upgrade from an allowed origin. The origin is the console the page was loaded
+ * from, so it decides the cookie names that count, the same way the public URL does for HTTP requests. A cookie under a
+ * legacy name is accepted here and moved to the current name by the next HTTP request.
+ */
 export function getSessionWebSocketCredential(
   cookieHeader: string | undefined,
   origin: string | undefined,
   isAllowedOrigin: (origin: string | undefined) => boolean
 ): WebSocketCredential | null {
   if (!isAllowedOrigin(origin)) return null;
-  if (hasInstallationSessionCookie(cookieHeader)) {
-    const preferredCookieName = origin ? getSessionCookieNameForUrl(origin) : null;
-    if (preferredCookieName) {
-      const preferredSessionId = getCookieValue(cookieHeader, preferredCookieName);
-      if (preferredSessionId) return { type: 'session', value: preferredSessionId };
-    }
-
-    const legacySessionId = getCookieValue(cookieHeader, LEGACY_SESSION_COOKIE_NAME);
-    if (legacySessionId) return { type: 'session', value: legacySessionId };
-
-    for (const cookieName of getAcceptedSessionCookieNames()) {
-      if (cookieName === preferredCookieName || cookieName === LEGACY_SESSION_COOKIE_NAME) continue;
-      const sessionId = getCookieValue(cookieHeader, cookieName);
-      if (sessionId) return { type: 'session', value: sessionId };
-    }
+  let consoleUrl = 'http://localhost';
+  try {
+    if (origin) consoleUrl = new URL(origin).origin;
+  } catch {
+    return null;
   }
-  const legacySessionId = getCookieValue(cookieHeader, LEGACY_SESSION_COOKIE_NAME);
-  if (legacySessionId) return { type: 'session', value: legacySessionId };
-  return null;
+  const cookie = selectSessionCookie(
+    (name) => getCookieValue(cookieHeader, name) || undefined,
+    consoleUrl,
+    cookieHeader ?? ''
+  );
+  if (!cookie) return null;
+  return cookie.legacy
+    ? { type: 'session', value: cookie.value, legacy: true }
+    : { type: 'session', value: cookie.value };
+}
+
+/**
+ * The session id of a WebSocket's session cookie for endpoints that authenticate by id (AI Workspace, events): ''
+ * when there is none, or when it came under a legacy cookie name and its session is not from before the `__Host-`
+ * cookie (sessionAllowedForCookie).
+ */
+export async function admitWebSocketSessionCookie(credential: WebSocketCredential | null): Promise<string> {
+  if (credential?.type !== 'session') return '';
+  if (!credential.legacy) return credential.value;
+  const session = await container.resolve(SessionService).getSession(credential.value);
+  return session && sessionAllowedForCookie({ legacy: true }, session) ? credential.value : '';
 }
 
 export function getProgrammaticWebSocketCredential(
@@ -114,11 +127,13 @@ export async function resolveWebSocketCredentialContext(
   credential: WebSocketCredential | null
 ): Promise<WebSocketAuthResult | null> {
   if (!credential) return null;
+  const legacyCookie = credential.type === 'session' && credential.legacy === true;
   const result =
     credential.type === 'session'
       ? await resolveLiveSessionUser(credential.value).then((value) => {
           if (
             !value ||
+            !sessionAllowedForCookie({ legacy: legacyCookie }, value.session) ||
             value.session.purpose === 'setup' ||
             (value.impersonation && !value.impersonation.authorized) ||
             (!value.impersonation && requiresSessionMfaReauthentication(value.user, value.session))

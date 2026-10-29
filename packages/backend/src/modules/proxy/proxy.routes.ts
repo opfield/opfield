@@ -2,6 +2,7 @@ import { OpenAPIHono } from '@hono/zod-openapi';
 import { container } from '@/container.js';
 import { openApiValidationHook } from '@/lib/openapi.js';
 import { getResourceScopedIds, hasScope, hasScopeBase, hasScopeForCreation } from '@/lib/permissions.js';
+import { resolveSlugVisibleTo } from '@/lib/slug-lookup.js';
 import { AppError } from '@/middleware/error-handler.js';
 import { authMiddleware, requireScopeBase, requireScopeForResource } from '@/modules/auth/auth.middleware.js';
 import { assertRoutePlacementOnGroup } from '@/modules/ingress-groups/ingress-group-operations.js';
@@ -127,11 +128,13 @@ proxyRoutes.openapi({ ...listRouteIngressNodesRoute, middleware: requireScopeBas
 
 proxyRoutes.openapi(getProxyHostBySlugRoute, async (c) => {
   const proxyService = container.resolve(ProxyService);
-  const host = await proxyService.getProxyHostBySlug(c.req.param('slug')!);
   const scopes = c.get('effectiveScopes') || [];
-  if (!hasScope(scopes, `proxy:view:${host.id}`)) {
-    throw new AppError(403, 'FORBIDDEN', `Missing required scope: proxy:view:${host.id}`);
-  }
+  // A Route the caller may not view answers like a missing slug.
+  const host = await resolveSlugVisibleTo(
+    'Route',
+    () => proxyService.getProxyHostBySlug(c.req.param('slug')!),
+    (id) => hasScope(scopes, `proxy:view:${id}`)
+  );
   const [withApp] = await proxyService.withAppField([host as any]);
   return c.json({ data: serializeProxyHostForBrowser(withApp, scopes, host.id) });
 });

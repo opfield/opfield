@@ -205,7 +205,38 @@ For local accounts, group MFA policy is enforced after the primary credential. T
 
 Opfield and daemon automatic updates require signed release manifests. Release CI must have `UPDATE_SIGNING_PRIVATE_KEY_PEM_B64` set to a base64-encoded Ed25519 private key PEM. The corresponding public key is compiled into Opfield and daemon binaries.
 
-If `UPDATE_SIGNING_PRIVATE_KEY_PEM_B64` is missing, Opfield and daemon release jobs fail instead of publishing unsigned automatic-update artifacts. To rotate the update signing key, generate a new key pair, update `config/update-trust/update-signing-public-key.pem`, deploy that release, then switch CI to the new private key.
+If `UPDATE_SIGNING_PRIVATE_KEY_PEM_B64` is missing, Opfield and daemon release jobs fail instead of publishing unsigned automatic-update artifacts.
+
+### Update signing trust and key rotation
+
+Every release trusts a list of key slots plus a list of revoked keys. A manifest verifies when any trusted key that is not revoked signed it; signing itself is unchanged (one private key in CI, the envelope's `keyId` stays `wiolett-update-v1` and names the update trust, not one key). The slots:
+
+- **primary**: the release signing key, `config/update-trust/update-signing-public-key.pem`.
+- **secondary**: the owner's standby key, kept offline. It is empty until the owner adds it.
+
+A key's id is the SHA-256 of its SubjectPublicKeyInfo DER, in hex (`openssl pkey -pubin -in key.pem -outform DER | sha256sum`, the fingerprint [Verifying releases](verify-releases.md#signed-update-manifests) lists). Revocation names keys by this id, never by the envelope's `keyId`, which whoever holds a key can write freely.
+
+The same slots and revocation list are kept in four places, one line each (the installers carry the primary key too, as `UPDATE_TRUST_PRIMARY`):
+
+| Where | Secondary slot | Revoked ids |
+|-------|----------------|-------------|
+| Backend (`packages/backend/src/lib/update-signing-trust.ts`) | `SECONDARY_UPDATE_SIGNING_PUBLIC_KEY` | `REVOKED_UPDATE_SIGNING_KEY_IDS` |
+| Daemons (`packages/daemons/shared/updateauth/trust.go`) | `secondaryPublicKey` | `revokedKeyIDs` |
+| Node installers (`scripts/setup-node.sh`, `setup-docker-node.sh`, `setup-monitoring-node.sh`, `setup-relay-node.sh`) | `UPDATE_TRUST_SECONDARY` | `UPDATE_TRUST_REVOKED` |
+| Server installer (`scripts/install.sh`, app and relay images) | `UPDATE_TRUST_SECONDARY` | `UPDATE_TRUST_REVOKED` |
+
+A slot holds the base64 body of the key's PEM block on one line: `openssl pkey -pubin -in standby.pem -outform DER | base64 -w0`.
+
+Adding the standby key (do this once, ahead of any need): put its one-line body into the secondary slot in each place and release. From that release on, Opfield, the daemons and the installers accept manifests signed by either key.
+
+Retiring the primary key (lost or leaked):
+
+1. Make sure the release that carries the standby key in its secondary slot is installed everywhere that must keep updating automatically. An installation or node on an older release trusts only the old key and must be updated by hand.
+2. Switch CI's `UPDATE_SIGNING_PRIVATE_KEY_PEM_B64` to the standby private key.
+3. In the same release, add the old key's id to the revoked list in each place and make the standby key the primary (`config/update-trust/update-signing-public-key.pem`, and the `UPDATE_TRUST_PRIMARY` of every installer, `scripts/install.sh` included); empty the secondary slot or fill it with a new standby key.
+4. Release. Installations and nodes that take this release refuse everything the old key signs, whatever `keyId` its envelope names.
+
+`scripts/sync-update-trust-anchor.sh` copies the primary key into the daemon and backend packages; run it after changing `config/update-trust/update-signing-public-key.pem`.
 
 Images are additionally signed with Sigstore keyless signing and carry SBOM attestations; see [Verifying releases](verify-releases.md) for the `cosign verify` commands and how to check a manifest by hand.
 
@@ -578,6 +609,12 @@ The registry cleans up after itself at every maintenance run (after builds and n
 The choice is kept in `.env` (`OPFIELD_REGISTRY_STORAGE` and `OPFIELD_REGISTRY_S3_*`), and `docker-compose.yml` reads it, so updates and restarts keep it. If you rotate the S3 keys, enter the new ones in the same panel. Installations that never change this setting keep the local volume.
 
 A configuration export carries the bucket settings and keys, like the other stored credentials, and the restored installation runs its registry on the same bucket. Do not keep the old installation running on that bucket: both registries would collect garbage in it.
+
+## Client IP Source
+
+**Settings > Network** decides which address Opfield treats as the client for rate limits, token and inference key address limits, and audit records. Changing it needs `admin:system`. **Reverse proxy** believes `X-Real-IP` / `X-Forwarded-For` only from the **Trusted proxy CIDRs** and needs at least one range; a save without one is refused.
+
+Upgrade note: earlier releases accepted Reverse proxy with an empty range list and then believed forwarded headers from any peer, so any client could choose its own address. An install upgraded with that setting keeps working behind its usual proxy: forwarded headers are believed only when the proxy connects from loopback or a private, unique-local or link-local address (`127.0.0.0/8`, `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, `169.254.0.0/16`, `::1`, `fc00::/7`, `fe80::/10`), never from a public address. The setting shows as Auto with a warning until you enter the proxy's ranges and choose Reverse proxy again.
 
 ## Security Notes
 

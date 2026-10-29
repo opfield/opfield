@@ -22,10 +22,12 @@ import type { User } from '@/types.js';
 import {
   AVAILABILITY_SET_CHANNEL,
   DATABASE_CHANNEL_SCOPE_BASES,
+  hasAvailabilityEventAccess,
   hasAvailabilitySetEventAccess,
   hasChannelAccess,
   hasHostingSnapshotEventAccess,
   hasIntegrationConnectorEventAccess,
+  isDefaultDeliverChannel,
   projectHostingSnapshotEvent,
   requiredScopeFor,
 } from './events-channel-access.js';
@@ -121,7 +123,12 @@ function hasDockerEventAccess(scopes: string[], baseScope: string, payload: unkn
   return hasDockerResourceScope(scopes, baseScope, nodeId, dockerEventResourceId(payload) ?? '');
 }
 
-function canReceiveChannelPayload(scopes: string[], channel: string, payload: unknown, userId?: string): boolean {
+export function canReceiveChannelPayload(
+  scopes: string[],
+  channel: string,
+  payload: unknown,
+  userId?: string
+): boolean {
   if (channel === 'domain.changed') {
     const event = payload as { id?: unknown; folderId?: unknown; action?: unknown } | undefined;
     if (typeof event?.id === 'string') return hasScope(scopes, `domains:view:${event.id}`);
@@ -145,6 +152,8 @@ function canReceiveChannelPayload(scopes: string[], channel: string, payload: un
     return hasHostingSnapshotEventAccess(scopes, payload);
   if (channel === 'integration.connector.changed') return hasIntegrationConnectorEventAccess(scopes, payload);
   if (channel === AVAILABILITY_SET_CHANNEL) return hasAvailabilitySetEventAccess(scopes, payload);
+  if (channel === 'docker.availability.changed' || channel === 'docker.availability.operation.changed')
+    return hasAvailabilityEventAccess(scopes, payload);
   const resourceChannelUserId = userResourceChannelUserId(channel);
   if (resourceChannelUserId) return resourceChannelUserId === userId;
   if (channel === 'system.update.changed') return true;
@@ -422,7 +431,9 @@ function canReceiveChannelPayload(scopes: string[], channel: string, payload: un
       !!(templateId && hasScope(scopes, `proxy:templates:view:${templateId}`))
     );
   }
-  return true;
+  // Anything not handled above is denied unless it is one of the channels that reach every
+  // subscriber who passed hasChannelAccess; a new channel is never delivered by default.
+  return isDefaultDeliverChannel(channel);
 }
 
 async function authenticate(token: string): Promise<{ user: User; scopes: string[] } | null> {

@@ -14,15 +14,20 @@ import type { GeneralSettingsService } from '@/modules/settings/general-settings
 import type { CacheService } from '@/services/cache.service.js';
 import type { SessionService } from '@/services/session.service.js';
 import type { User } from '@/types.js';
+import { AccountSignInThrottle, type SignInClient } from './account-sign-in-throttle.js';
 import type { AuthSettingsService } from './auth.settings.service.js';
 import type { AuthEmailRateSlot } from './auth-email-queue.service.js';
 import type { AuthMailService } from './auth-mail.service.js';
+import { EmailCodeIssuanceLimit } from './email-code-issuance-limit.js';
 
 const EMAIL_CHALLENGE_TTL_SECONDS = 10 * 60;
 const PASSWORD_LINK_TTL_SECONDS = 30 * 60;
 const PASSWORD_RESET_WINDOW_SECONDS = 60 * 60;
 const MAX_PASSWORD_RESETS_PER_WINDOW = 3;
 const MAX_CHALLENGE_ATTEMPTS = 5;
+// A bcrypt hash of a discarded random secret, cost 12 like stored passwords: compared when there is no account or no
+// password, so a refused sign-in takes as long whether the account exists or not. Matching it signs nobody in.
+const DUMMY_PASSWORD_HASH = '$2b$12$7VBzWZfYBjdpvOuw63qBdu/DPJ9T7PAx6ZXsKNldOATTz2RrwHRwy';
 
 const RESERVE_PASSWORD_RESET_SCRIPT = `
 local key = KEYS[1]
@@ -156,6 +161,9 @@ function normalizeEmail(email: string): string {
 
 @injectable()
 export class LocalAuthService {
+  private readonly signInThrottle: AccountSignInThrottle;
+  private readonly emailCodeLimit: EmailCodeIssuanceLimit;
+
   constructor(
     @inject(TOKENS.DrizzleClient) private readonly db: DrizzleClient,
     private readonly cacheService: CacheService,
@@ -164,23 +172,35 @@ export class LocalAuthService {
     private readonly authMailService: AuthMailService,
     private readonly auditService: AuditService,
     private readonly generalSettingsService?: GeneralSettingsService
-  ) {}
+  ) {
+    this.signInThrottle = new AccountSignInThrottle(cacheService);
+    this.emailCodeLimit = new EmailCodeIssuanceLimit(cacheService);
+  }
 
-  async authenticatePassword(email: string, password: string): Promise<User | null> {
+  async authenticatePassword(email: string, password: string, client: SignInClient = {}): Promise<User | null> {
     const methods = (await this.authSettingsService.getConfig()).methods;
-    if (!methods.password) return null;
-    const user = await this.db.query.users.findFirst({
-      where: and(eq(users.email, normalizeEmail(email)), eq(users.authMethod, 'password')),
-    });
-    if (!user || user.isBlocked) return null;
+    if (!methods.password) return this.refusePassword(password);
+    const user = await this.db.query.users.findFirst({ where: eq(users.email, normalizeEmail(email)) });
+    // Counted per account (an unknown email by itself) and client address, see AccountSignInThrottle.
+    const subject = user ? { userId: user.id } : { email };
+    await this.signInThrottle.beginAttempt(subject, 'password', client);
+    if (!user || user.isBlocked || user.authMethod !== 'password') return this.refusePassword(password);
     const credential = await this.db.query.userPasswordCredentials.findFirst({
       where: eq(userPasswordCredentials.userId, user.id),
     });
-    if (!credential || !(await bcrypt.compare(password, credential.passwordHash))) return null;
+    if (!credential) return this.refusePassword(password);
+    if (!(await bcrypt.compare(password, credential.passwordHash))) return null;
+    await this.signInThrottle.attemptSucceeded(subject, client);
     return resolveLiveUser(this.db, user.id);
   }
 
-  async beginEmailSignIn(email: string): Promise<EmailSignInContinuation> {
+  /** A refused password sign-in that took a bcrypt comparison, like a wrong password of an existing account does. */
+  private async refusePassword(password: string): Promise<null> {
+    await bcrypt.compare(password, DUMMY_PASSWORD_HASH);
+    return null;
+  }
+
+  async beginEmailSignIn(email: string, client: SignInClient = {}): Promise<EmailSignInContinuation> {
     const methods = (await this.authSettingsService.getConfig()).methods;
     if (!methods.password && !methods.emailOtp) {
       throw new AppError(409, 'EMAIL_SIGN_IN_DISABLED', 'Email sign-in is disabled');
@@ -192,33 +212,47 @@ export class LocalAuthService {
         })
       : null;
     if (otpUser && !otpUser.isBlocked) {
-      const challengeId = await this.requestEmailOtp(email);
+      const challengeId = await this.requestEmailOtp(email, client);
       return { method: 'email_otp', challengeId: challengeId ?? crypto.randomUUID() };
     }
 
-    // Password is the intentionally generic fallback when both methods are available.
-    // It keeps unknown and non-local accounts indistinguishable from password accounts.
+    // Password is the generic fallback when both methods are available: unknown, OIDC and password accounts all get
+    // it. An email-code account gets a challenge instead, so this answer does tell those accounts apart from the rest
+    // (accepted: a uniform answer would change the sign-in flow); EmailCodeIssuanceLimit bounds the emails it sends.
     if (methods.password) return { method: 'password' };
 
     return { method: 'email_otp', challengeId: crypto.randomUUID() };
   }
 
-  async requestEmailOtp(email: string): Promise<string | null> {
+  /**
+   * Emails a sign-in code; null when no email-code account has this address. Requesting one is unauthenticated, so it
+   * is limited per account and client (EmailCodeIssuanceLimit); over a limit it throws 429 for known and unknown
+   * addresses alike.
+   */
+  async requestEmailOtp(email: string, client: SignInClient = {}): Promise<string | null> {
     const methods = (await this.authSettingsService.getConfig()).methods;
     if (!methods.emailOtp) return null;
     const user = await this.db.query.users.findFirst({
       where: and(eq(users.email, normalizeEmail(email)), eq(users.authMethod, 'email_otp')),
     });
-    if (!user || user.isBlocked) return null;
+    const recipient = user && !user.isBlocked ? user : null;
+    await this.emailCodeLimit.reserve(recipient ? { userId: recipient.id } : { email }, client);
+    if (!recipient) return null;
     const code = randomInt(0, 1_000_000).toString().padStart(6, '0');
-    const challengeId = await this.createChallenge(user.id, 'email_otp', code, EMAIL_CHALLENGE_TTL_SECONDS);
-    await this.authMailService.sendSecurityEmail(user.email, { kind: 'email_otp', code });
+    const challengeId = await this.createChallenge(recipient.id, 'email_otp', code, EMAIL_CHALLENGE_TTL_SECONDS);
+    await this.authMailService.sendSecurityEmail(recipient.email, { kind: 'email_otp', code });
     return challengeId;
   }
 
-  async verifyEmailOtp(challengeId: string, code: string): Promise<User | null> {
+  async verifyEmailOtp(challengeId: string, code: string, client: SignInClient = {}): Promise<User | null> {
+    const challenge = await this.cacheService.get<AuthChallenge>(`local_auth:challenge:${challengeId}`);
+    if (challenge?.purpose !== 'email_otp') return null;
+    const subject = { userId: challenge.userId };
+    await this.signInThrottle.beginAttempt(subject, 'email_otp', client);
     const userId = await this.consumeChallenge(challengeId, 'email_otp', code);
-    return userId ? resolveLiveUser(this.db, userId) : null;
+    if (!userId) return null;
+    await this.signInThrottle.attemptSucceeded(subject, client);
+    return resolveLiveUser(this.db, userId);
   }
 
   async sendEmailOtpOnboarding(email: string): Promise<void> {
@@ -382,24 +416,27 @@ export class LocalAuthService {
     userId: string,
     purpose: PasswordLinkPurpose
   ): Promise<{ slot: AuthEmailRateSlot; retryAfterMs: 0 } | { slot: null; retryAfterMs: number }> {
+    return this.reserveWindowSlot(
+      `local_auth:${purpose}:${userId}`,
+      MAX_PASSWORD_RESETS_PER_WINDOW,
+      PASSWORD_RESET_WINDOW_SECONDS
+    );
+  }
+
+  /** One slot of a per-user hourly email limit (sliding window), or when the oldest slot frees up. */
+  private async reserveWindowSlot(
+    key: string,
+    limit: number,
+    windowSeconds: number
+  ): Promise<{ slot: AuthEmailRateSlot; retryAfterMs: 0 } | { slot: null; retryAfterMs: number }> {
     const now = Date.now();
-    const key = `local_auth:${purpose}:${userId}`;
     const member = nanoid(12);
     const reserved = await this.cacheService
       .getClient()
-      .eval(
-        RESERVE_PASSWORD_RESET_SCRIPT,
-        1,
-        key,
-        now - PASSWORD_RESET_WINDOW_SECONDS * 1000,
-        now,
-        member,
-        MAX_PASSWORD_RESETS_PER_WINDOW,
-        PASSWORD_RESET_WINDOW_SECONDS
-      );
+      .eval(RESERVE_PASSWORD_RESET_SCRIPT, 1, key, now - windowSeconds * 1000, now, member, limit, windowSeconds);
     const [allowed, retryAfterMs] = Array.isArray(reserved) ? reserved : [0, 0];
     if (Number(allowed) === 1) return { slot: { key, member }, retryAfterMs: 0 };
-    return { slot: null, retryAfterMs: Number(retryAfterMs) || PASSWORD_RESET_WINDOW_SECONDS * 1000 };
+    return { slot: null, retryAfterMs: Number(retryAfterMs) || windowSeconds * 1000 };
   }
 
   /** Gives a reserved slot back (the email did not go out). Never throws: the caller is already failing. */

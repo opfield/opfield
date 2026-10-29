@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import type { Readable } from 'node:stream';
+import { container } from '@/container.js';
 import {
   LEGACY_APP_DATA_DIR,
   LEGACY_VOLUME_APP_DATA,
@@ -10,8 +11,10 @@ import {
 } from '@/lib/legacy-compat.js';
 import { createChildLogger } from '@/lib/logger.js';
 import { issueOneTimeLink, type OneTimeLinkKind, takeOneTimeLink } from '@/lib/one-time-link.js';
+import { hasScope } from '@/lib/permissions.js';
 import { AppError } from '@/middleware/error-handler.js';
 import type { AuditService } from '@/modules/audit/audit.service.js';
+import { AuthService } from '@/modules/auth/auth.service.js';
 import type { LicenseService } from '@/modules/license/license.service.js';
 import type { LoggingSettingsService } from '@/modules/logging/logging-settings.service.js';
 import type { GeneralSettingsService } from '@/modules/settings/general-settings.service.js';
@@ -335,6 +338,15 @@ export class ConfigurationExportService {
     const ticket = grant ? this.tickets.get(grant.exportId) : undefined;
     if (!grant || !ticket || ticket.userId !== grant.userId || ticket.state !== 'ready' || !ticket.passphrase) {
       throw new AppError(404, 'CONFIGURATION_EXPORT_LINK_INVALID', 'Export link is invalid, expired or already used');
+    }
+    // The link outlives the request that made it: the issuer must still be allowed to export when it is used.
+    const issuer = await container.resolve(AuthService).getUserById(grant.userId);
+    if (!issuer || issuer.isBlocked || issuer.isDeleted || !hasScope(issuer.scopes, 'admin:system')) {
+      ticket.passphrase = null;
+      ticket.state = 'failed';
+      ticket.error = 'The account that prepared this export can no longer export the configuration';
+      ticket.finishedAt = new Date().toISOString();
+      throw new AppError(403, 'FORBIDDEN', 'The owner of this link can no longer use it');
     }
     const passphrase = ticket.passphrase;
     ticket.passphrase = null;

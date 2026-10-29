@@ -1160,7 +1160,8 @@
         "lifecycle storage dry-run",
         "feature installer.dry-run",
         "setup-database-node.sh --opfield",
-        "setup-database-node.sh --opfield-cert-sha256"
+        "setup-database-node.sh --opfield-cert-sha256",
+        "setup-relay-node.sh $OPFIELD_NODE_TOKEN"
       ],
       "preconditions": [
         "Linux CI runner; the test copies the installers, points their host paths at an empty directory and stubs docker, nginx and curl."
@@ -1255,7 +1256,10 @@
         "setup-monitoring-node.sh $OPFIELD_RELEASES_API_URL",
         "setup-monitoring-node.sh $OPFIELD_ARTIFACT_BASE_URL",
         "setup-relay-node.sh $OPFIELD_RELEASES_API_URL",
-        "setup-relay-node.sh $OPFIELD_ARTIFACT_BASE_URL"
+        "setup-relay-node.sh $OPFIELD_ARTIFACT_BASE_URL",
+        "setup-node.sh $OPFIELD_ALLOW_UNSIGNED_ARTIFACTS",
+        "setup-docker-node.sh $OPFIELD_ALLOW_UNSIGNED_ARTIFACTS",
+        "setup-monitoring-node.sh $OPFIELD_ALLOW_UNSIGNED_ARTIFACTS"
       ],
       "preconditions": [
         "A local HTTP server on the tool host mirrors the <candidate> GitHub release assets, the release feed answer for each component and the daemon artifact directories, with an access log.",
@@ -1266,14 +1270,16 @@
         "Replace the monitoring-daemon binary on the mirror with a modified copy and run the monitoring installer with the same variables; restore the binary.",
         "Install the relay of INS-RLY-01 for real with the same variables and no --version.",
         "Run setup-daemon.sh --type storage --dry-run and the piped setup-storage-node.sh (no sibling files) --dry-run with OPFIELD_RELEASE_DOWNLOAD_BASE=<mirror> and OPFIELD_SETUP_VERSION=<candidate>.",
-        "Replace setup-database-node.sh on the mirror with a modified copy and repeat the storage dry run."
+        "Replace setup-database-node.sh on the mirror with a modified copy and repeat the storage dry run.",
+        "Remove monitoring-daemon-linux-amd64.update.json from the mirror and run the monitoring installer --dry-run with the same variables, then again with OPFIELD_ALLOW_UNSIGNED_ARTIFACTS=1; restore the manifest."
       ],
       "expect": [
         "The dry runs resolve <candidate> from the mirror (its access log shows the feed requests) and exit 0.",
         "The modified daemon binary fails checksum verification with exit 1; /usr/local/bin/monitoring-daemon does not exist and no service was created.",
         "The relay downloads only from the mirror and is ready.",
         "The storage dry runs fetch setup-database-node.sh and setup-docker-node.sh from <mirror>/download/<candidate>/ and exit 0.",
-        "The modified installer stops with 'Checksum verification failed for setup-database-node.sh' and exit 1."
+        "The modified installer stops with 'Checksum verification failed for setup-database-node.sh' and exit 1.",
+        "Without the manifest the installer stops ('Could not download the signed release manifest ... nothing was installed') with exit 1; with OPFIELD_ALLOW_UNSIGNED_ARTIFACTS=1 it warns that the artifact is checked against checksums.txt only and the dry run exits 0. With the manifest in place the log shows 'Verifying the signed release manifest' for every daemon binary (on OpenSSL 1.1.1 hosts: a warning that the signature cannot be checked there)."
       ]
     },
     {

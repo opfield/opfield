@@ -1,4 +1,4 @@
-import { verify } from 'node:crypto';
+import type { KeyObject } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -9,6 +9,13 @@ import {
   LEGACY_MIN_VERSION_FIELD,
   LEGACY_UPDATE_KEY_ID,
 } from '@/lib/legacy-compat.js';
+import {
+  REVOKED_UPDATE_SIGNING_KEY_IDS,
+  SECONDARY_UPDATE_SIGNING_PUBLIC_KEY,
+  type SigningKey,
+  signedByTrustedKey,
+  trustedKeySet,
+} from '@/lib/update-signing-trust.js';
 
 /** Release lines of inference core builds, oldest first. */
 const OPENCODEX_VERSION_PATTERN = new RegExp(
@@ -17,8 +24,17 @@ const OPENCODEX_VERSION_PATTERN = new RegExp(
 
 export const UPDATE_SIGNING_KEY_ID = LEGACY_UPDATE_KEY_ID;
 
+/** The primary slot of the update trust: the release signing key. */
 export const UPDATE_SIGNING_PUBLIC_KEY_PEM = loadSigningPublicKey('update-signing-public-key.pem');
+/** Every update signing key that verifies: the slots without the revoked keys (update-signing-trust.ts). */
+export const UPDATE_SIGNING_TRUSTED_KEYS: readonly KeyObject[] = trustedKeySet(
+  [UPDATE_SIGNING_PUBLIC_KEY_PEM, SECONDARY_UPDATE_SIGNING_PUBLIC_KEY],
+  REVOKED_UPDATE_SIGNING_KEY_IDS
+);
 export const OPENCODEX_SIGNING_PUBLIC_KEY_PEM = loadSigningPublicKey('opencodex-signing-public-key.pem');
+
+/** One key or a list of keys a signed document may be signed by. */
+export type UpdateTrust = SigningKey | readonly SigningKey[];
 
 const UPDATE_SCHEMA_VERSION = 1;
 const SHA256_RE = /^[a-f0-9]{64}$/;
@@ -186,7 +202,7 @@ export interface OpenCodexImageManifestExpectation {
 export function verifyDaemonUpdateManifest(
   signedManifest: string,
   expected: DaemonUpdateManifestExpectation,
-  publicKey: string | Buffer = UPDATE_SIGNING_PUBLIC_KEY_PEM
+  publicKey: UpdateTrust = UPDATE_SIGNING_TRUSTED_KEYS
 ): TrustedDaemonUpdateArtifact {
   const payload = verifySignedPayload<DaemonUpdateManifestPayload>(signedManifest, publicKey);
   if (payload.kind !== 'daemon-binary') throw new UpdateArtifactTrustError('Update manifest kind is not daemon-binary');
@@ -218,7 +234,7 @@ export function verifyDaemonUpdateManifest(
 export function verifyOpfieldImageManifest(
   signedManifest: string,
   expected: OpfieldImageManifestExpectation,
-  publicKey: string | Buffer = UPDATE_SIGNING_PUBLIC_KEY_PEM
+  publicKey: UpdateTrust = UPDATE_SIGNING_TRUSTED_KEYS
 ): TrustedOpfieldUpdateArtifact {
   const payload = verifySignedPayload<OpfieldImageManifestPayload>(signedManifest, publicKey);
   if (payload.kind !== LEGACY_APP_IMAGE_MANIFEST_KIND)
@@ -257,7 +273,7 @@ export function verifyOpfieldImageManifest(
 export function verifyRelayImageManifest(
   signedManifest: string,
   expected: RelayImageManifestExpectation,
-  publicKey: string | Buffer = UPDATE_SIGNING_PUBLIC_KEY_PEM
+  publicKey: UpdateTrust = UPDATE_SIGNING_TRUSTED_KEYS
 ): TrustedRelayUpdateArtifact {
   const payload = verifySignedPayload<RelayImageManifestPayload>(signedManifest, publicKey);
   if (payload.kind !== 'relay-image') throw new UpdateArtifactTrustError('Update manifest kind is not relay-image');
@@ -310,7 +326,7 @@ export function verifyRelayImageManifest(
 export function verifyOpenCodexImageManifest(
   signedManifest: string,
   expected: OpenCodexImageManifestExpectation,
-  publicKey: string | Buffer = OPENCODEX_SIGNING_PUBLIC_KEY_PEM
+  publicKey: UpdateTrust = OPENCODEX_SIGNING_PUBLIC_KEY_PEM
 ): TrustedOpenCodexImageArtifact {
   const payload = verifySignedPayload<OpenCodexImageManifestPayload>(signedManifest, publicKey);
   if (payload.kind !== OPFIELD_INFERENCE_MANIFEST_KIND && payload.kind !== LEGACY_INFERENCE_CORE_MANIFEST_KIND)
@@ -397,7 +413,7 @@ export function normalizeGitLabApiUrl(value: string): string {
 
 export function verifySignedPayload<T>(
   signedManifest: string,
-  publicKey: string | Buffer = UPDATE_SIGNING_PUBLIC_KEY_PEM
+  publicKey: UpdateTrust = UPDATE_SIGNING_TRUSTED_KEYS
 ): T {
   let envelope: SignedUpdateEnvelope;
   try {
@@ -426,7 +442,9 @@ export function verifySignedPayload<T>(
     throw new UpdateArtifactTrustError('Update manifest contains invalid base64url data');
   }
 
-  if (!verify(null, payloadBytes, publicKey, signature)) {
+  // The release key passed on its own (callers that name it) stands for the whole update trust: every slot.
+  const keys = publicKey === UPDATE_SIGNING_PUBLIC_KEY_PEM ? UPDATE_SIGNING_TRUSTED_KEYS : publicKey;
+  if (!signedByTrustedKey(payloadBytes, signature, keys)) {
     throw new UpdateArtifactTrustError('Update manifest signature is invalid');
   }
 

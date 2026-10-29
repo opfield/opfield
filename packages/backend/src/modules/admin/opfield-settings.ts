@@ -331,6 +331,8 @@ export async function updateOpfieldSettings(
       smtp: () => authMailService.getPublicConfig(),
       generalSettings: () => generalSettingsService.getConfig(),
       authSettings: () => authSettingsService.getConfig(),
+      networkSecurity: () => networkSettingsService.getConfig(),
+      outboundWebhookPolicy: () => outboundWebhookPolicyService.getConfig(),
     });
     if (privilegedChanges.length > 0) {
       throw new AppError(

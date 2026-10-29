@@ -13,6 +13,19 @@ redis.call('DEL', KEYS[1])
 return value
 `;
 
+// Rewrites a key only while it still exists, so a writer that read it before a concurrent DEL cannot bring it back.
+// ARGV[2] > 0 sets a new TTL in seconds; otherwise the key keeps its remaining TTL.
+const SET_IF_EXISTS_SCRIPT = `
+if redis.call('EXISTS', KEYS[1]) == 0 then return 0 end
+local ttl = tonumber(ARGV[2])
+if ttl and ttl > 0 then
+  redis.call('SET', KEYS[1], ARGV[1], 'EX', ttl)
+else
+  redis.call('SET', KEYS[1], ARGV[1], 'KEEPTTL')
+end
+return 1
+`;
+
 export type RedisClient = Redis;
 
 export function createRedisClient(url: string): RedisClient {
@@ -93,6 +106,16 @@ export class CacheService {
     const serialized = typeof value === 'string' ? value : JSON.stringify(value);
     const result = await this.redis.set(key, serialized, 'EX', ttlSeconds, 'NX');
     return result === 'OK';
+  }
+
+  /**
+   * Writes `value` only when `key` still exists (atomically): with `ttlSeconds` the key gets that TTL, without it the
+   * key keeps the TTL it has. False when the key was gone and nothing was written.
+   */
+  async setIfExists<T>(key: string, value: T, ttlSeconds?: number): Promise<boolean> {
+    const serialized = typeof value === 'string' ? value : JSON.stringify(value);
+    const result = await this.redis.eval(SET_IF_EXISTS_SCRIPT, 1, key, serialized, ttlSeconds ?? 0);
+    return Number(result) === 1;
   }
 
   async delete(key: string): Promise<void> {

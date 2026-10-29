@@ -25,6 +25,7 @@ export type OAuthTokenResponse = {
 
 type IssuedTokens = {
   refreshTokenId: string | null;
+  accessTokenId: string | null;
   response: OAuthTokenResponse;
 };
 
@@ -204,21 +205,25 @@ export class OAuthTokenLifecycle {
       // Accepted MCP design: access-only, long-lived bearer token. MCP clients do
       // not use refresh-token rotation during normal operation; explicit
       // authorization/token revocation is the lifecycle boundary.
-      await db.insert(oauthAccessTokens).values({
-        tokenHash: hashSecret(accessToken),
-        tokenPrefix: accessToken.slice(0, 12),
-        clientId: input.clientId,
-        userId: input.userId,
-        refreshTokenId: null,
-        scopes,
-        resource: input.resource,
-        expiresAt: null,
-        ...limits,
-      });
+      const [access] = await db
+        .insert(oauthAccessTokens)
+        .values({
+          tokenHash: hashSecret(accessToken),
+          tokenPrefix: accessToken.slice(0, 12),
+          clientId: input.clientId,
+          userId: input.userId,
+          refreshTokenId: null,
+          scopes,
+          resource: input.resource,
+          expiresAt: null,
+          ...limits,
+        })
+        .returning({ id: oauthAccessTokens.id });
       await markOAuthClientGranted(this.deps.db, input.clientId);
 
       return {
         refreshTokenId: null,
+        accessTokenId: access?.id ?? null,
         response: {
           access_token: accessToken,
           token_type: 'Bearer',
@@ -241,21 +246,25 @@ export class OAuthTokenLifecycle {
         ...limits,
       })
       .returning();
-    await db.insert(oauthAccessTokens).values({
-      tokenHash: hashSecret(accessToken),
-      tokenPrefix: accessToken.slice(0, 12),
-      clientId: input.clientId,
-      userId: input.userId,
-      refreshTokenId: refresh.id,
-      scopes,
-      resource: input.resource,
-      expiresAt: new Date(now + ACCESS_TOKEN_TTL_SECONDS * 1000),
-      ...limits,
-    });
+    const [access] = await db
+      .insert(oauthAccessTokens)
+      .values({
+        tokenHash: hashSecret(accessToken),
+        tokenPrefix: accessToken.slice(0, 12),
+        clientId: input.clientId,
+        userId: input.userId,
+        refreshTokenId: refresh.id,
+        scopes,
+        resource: input.resource,
+        expiresAt: new Date(now + ACCESS_TOKEN_TTL_SECONDS * 1000),
+        ...limits,
+      })
+      .returning({ id: oauthAccessTokens.id });
     await markOAuthClientGranted(this.deps.db, input.clientId);
 
     return {
       refreshTokenId: refresh.id,
+      accessTokenId: access?.id ?? null,
       response: {
         access_token: accessToken,
         token_type: 'Bearer',
@@ -620,6 +629,25 @@ export class OAuthTokenLifecycle {
 
     const [authorization] = (await this.listUserAuthorizations(user.id)).filter((item) => item.id === grant.id);
     return authorization;
+  }
+
+  /**
+   * Revokes the tokens an authorization code was exchanged for, with every refresh token rotated from them: the code
+   * was presented again, so it may be in other hands (RFC 6749 section 4.1.2).
+   */
+  async revokeIssuedTokens(issued: { refreshTokenId: string | null; accessTokenId: string | null }): Promise<void> {
+    const now = new Date();
+    if (issued.accessTokenId) {
+      await this.deps.db
+        .update(oauthAccessTokens)
+        .set({ revokedAt: now })
+        .where(and(eq(oauthAccessTokens.id, issued.accessTokenId), isNull(oauthAccessTokens.revokedAt)));
+    }
+    if (!issued.refreshTokenId) return;
+    const seed = await this.deps.db.query.oauthRefreshTokens.findFirst({
+      where: eq(oauthRefreshTokens.id, issued.refreshTokenId),
+    });
+    if (seed) await this.revokeRefreshTokenFamily(seed, now);
   }
 
   private async revokeRefreshTokenFamily(

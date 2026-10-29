@@ -47,6 +47,9 @@ OPFIELD_HOST="${OPFIELD_NODE_HOST:-}"
 OPFIELD_PORT="${OPFIELD_NODE_PORT:-9443}"
 OPFIELD_ADDR="${OPFIELD_NODE_ADDRESS:-}"
 ENROLL_TOKEN="${OPFIELD_NODE_TOKEN:-}"
+# The generated setup command passes the token here, not as --token (an argument is readable by every local user); only
+# the daemon's install command gets it again (run_daemon_install), nothing else this installer starts.
+unset OPFIELD_NODE_TOKEN
 OPFIELD_CERT_SHA256="${OPFIELD_NODE_CERT_SHA256:-}"
 DAEMON_VERSION="${OPFIELD_NODE_DAEMON_VERSION:-latest}"
 DISABLE_CONSOLE="${OPFIELD_NODE_DISABLE_CONSOLE:-0}"
@@ -1179,9 +1182,10 @@ Environment variables:
   OPFIELD_NODE_HOST             Same as --host
   OPFIELD_NODE_PORT             Same as --port (default: 9443)
   OPFIELD_NODE_ADDRESS          Same as --opfield (host:port combined)
-  OPFIELD_NODE_TOKEN            Same as --token
+  OPFIELD_NODE_TOKEN            Same as --token, kept off the command line (sudo --preserve-env=OPFIELD_NODE_TOKEN)
   OPFIELD_NODE_CERT_SHA256      Same as --opfield-cert-sha256
   OPFIELD_NODE_DAEMON_VERSION   Same as --version
+  OPFIELD_ALLOW_UNSIGNED_ARTIFACTS  Set to 1 to install a development build without signed manifests
   OPFIELD_NODE_DISABLE_CONSOLE  Set to 1 to disable the host console
   OPFIELD_NODE_DISABLE_FILES    Set to 1 to disable host file access
   OPFIELD_RELEASES_API_URL      Override the Opfield release feed
@@ -1572,6 +1576,130 @@ verify_checksum() {
     fi
 }
 
+# ── Signed release artifacts ─────────────────────────────────────────
+# A daemon binary is verified against its signed release manifest (<artifact>.update.json, next to it in the release)
+# before anything runs it: openssl checks the manifest's Ed25519 signature with the update signing keys below, then
+# the manifest must name this artifact, release and architecture, and the binary must have the SHA-256 it names.
+# checksums.txt comes from the same place as the binary and proves nothing about who built it. The keys are this
+# installer's own: it comes from the Opfield release over TLS and is checked against that release's checksum list, so
+# the trust runs installer -> embedded keys -> manifest -> binary, and no downloaded binary runs before its check.
+#
+# Update signing trust, the same as the backend's (update-signing-trust.ts) and the daemons' (updateauth/trust.go):
+# key slots hold the base64 body of an Ed25519 PEM PUBLIC KEY block; primary is the release signing key, secondary the
+# owner's standby key (empty until it is added). A key whose id (SHA-256 of its SubjectPublicKeyInfo DER, hex) is
+# listed in UPDATE_TRUST_REVOKED verifies nothing. docs/security.md describes a key rotation.
+UPDATE_TRUST_PRIMARY='MCowBQYDK2VwAyEAxLXGD8vCYQCYboK301miZXyAaoOLc43zFVnMlH3FeWg='
+UPDATE_TRUST_SECONDARY=''
+UPDATE_TRUST_REVOKED='' # key ids, separated by spaces
+
+# A release without signed manifests (a development build on a private artifact server) installs only when the
+# operator allows it: then the binary is checked against checksums.txt alone, with a warning.
+ALLOW_UNSIGNED_ARTIFACTS="${OPFIELD_ALLOW_UNSIGNED_ARTIFACTS:-0}"
+
+ensure_artifact_verifier() {
+    command -v openssl >/dev/null 2>&1 && return 0
+    log "Installing openssl to verify the signed release..."
+    if command -v apt-get >/dev/null 2>&1; then
+        { apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y openssl; } >>"$LOG_FILE" 2>&1 || true
+    elif command -v dnf >/dev/null 2>&1; then
+        dnf install -y openssl >>"$LOG_FILE" 2>&1 || true
+    elif command -v yum >/dev/null 2>&1; then
+        yum install -y openssl >>"$LOG_FILE" 2>&1 || true
+    elif command -v apk >/dev/null 2>&1; then
+        apk add --no-cache openssl >>"$LOG_FILE" 2>&1 || true
+    elif command -v zypper >/dev/null 2>&1; then
+        zypper --non-interactive install openssl >>"$LOG_FILE" 2>&1 || true
+    fi
+    hash -r
+    command -v openssl >/dev/null 2>&1 || die "openssl is required to verify the signed release; install it and run the installer again."
+}
+
+# The string (or number) value of a top-level field of a JSON file our release tooling wrote: no field value holds a
+# quote, so this needs no JSON parser on the host.
+artifact_json_field() {
+    tr -d '\n\r' <"$1" | sed -n 's/.*"'"$2"'"[[:space:]]*:[[:space:]]*"\{0,1\}\([^",}]*\)"\{0,1\}[[:space:]]*[,}].*/\1/p'
+}
+
+artifact_base64url_decode() {
+    local value="$1" remainder
+    [[ "$value" =~ ^[A-Za-z0-9_-]+$ ]] || return 1
+    value="${value//-/+}"
+    value="${value//_/\/}"
+    remainder=$(( ${#value} % 4 ))
+    [[ "$remainder" -eq 0 ]] || value="${value}$(printf '=%.0s' $(seq 1 $((4 - remainder))))"
+    printf '%s' "$value" | openssl base64 -d -A
+}
+
+# Whether one of the trusted, unrevoked keys signed payload with signature.
+artifact_signed_by_trusted_key() {
+    local payload="$1" signature="$2" work="$3" slot id
+    for slot in "$UPDATE_TRUST_PRIMARY" "$UPDATE_TRUST_SECONDARY"; do
+        [[ -n "$slot" ]] || continue
+        id=$(printf '%s' "$slot" | openssl base64 -d -A | sha256sum | awk '{print $1}')
+        [[ " ${UPDATE_TRUST_REVOKED} " == *" ${id} "* ]] && continue
+        printf -- '-----BEGIN PUBLIC KEY-----\n%s\n-----END PUBLIC KEY-----\n' "$slot" >"${work}/key.pem"
+        if openssl pkeyutl -verify -pubin -inkey "${work}/key.pem" -rawin -in "$payload" -sigfile "$signature" >>"$LOG_FILE" 2>&1; then
+            return 0
+        fi
+    done
+    return 1
+}
+
+# Whether this host's openssl verifies a raw Ed25519 signature (pkeyutl -rawin): OpenSSL 3.0 and later. OpenSSL 1.1.1
+# (Debian 11, Ubuntu 20.04, RHEL 8 and its rebuilds) has no -rawin and cannot verify the release manifests.
+artifact_signatures_verifiable() {
+    local help
+    help=$(openssl pkeyutl -help 2>&1 || true)
+    [[ "$help" == *-rawin* ]]
+}
+
+# verify_release_artifact <file> <artifact name> <daemon type> <release tag> <release base URL>: dies unless file is
+# the artifact the release's signed manifest names.
+verify_release_artifact() {
+    local file="$1" artifact="$2" daemon_type="$3" tag="$4" base="$5"
+    local version="${tag%-"${daemon_type}"}" work manifest field expected actual
+    ensure_artifact_verifier
+    if ! artifact_signatures_verifiable; then
+        # Signed verification where the host can do it; elsewhere the check every install had before it, said loudly.
+        warn "$(openssl version 2>/dev/null || echo 'This openssl') cannot verify the signed release manifest of ${artifact} (OpenSSL 3 or later is needed): it is checked against checksums.txt only. Install OpenSSL 3 to verify signed releases."
+        verify_checksum "$file" "$artifact"
+        return 0
+    fi
+    work=$(mktemp -d) || die "Could not create a directory to verify ${artifact}."
+    manifest="${work}/manifest.json"
+    log "Verifying the signed release manifest of ${artifact}..."
+    if ! curl -fsSL "${base}/${artifact}.update.json" -o "$manifest" >>"$LOG_FILE" 2>&1; then
+        rm -rf "$work"
+        if [[ "$ALLOW_UNSIGNED_ARTIFACTS" == "1" ]]; then
+            warn "${artifact} ${tag} has no signed release manifest; OPFIELD_ALLOW_UNSIGNED_ARTIFACTS=1 installs it checked against checksums.txt only."
+            verify_checksum "$file" "$artifact"
+            return 0
+        fi
+        die "Could not download the signed release manifest ${base}/${artifact}.update.json; nothing was installed. (A development build without signed manifests installs with OPFIELD_ALLOW_UNSIGNED_ARTIFACTS=1.)"
+    fi
+    if [[ "$(artifact_json_field "$manifest" schemaVersion)" != "1" ||
+        "$(artifact_json_field "$manifest" keyId)" != "$LEGACY_UPDATE_KEY_ID" ]] ||
+        ! artifact_base64url_decode "$(artifact_json_field "$manifest" payload)" >"${work}/payload" ||
+        ! artifact_base64url_decode "$(artifact_json_field "$manifest" signature)" >"${work}/signature" ||
+        ! artifact_signed_by_trusted_key "${work}/payload" "${work}/signature" "$work"; then
+        rm -rf "$work"
+        die "The release manifest of ${artifact} ${tag} is not signed by a trusted Opfield key; nothing was installed."
+    fi
+    for field in "kind=daemon-binary" "version=${version}" "tag=${tag}" "daemonType=${daemon_type}" "arch=${ARCH}" "artifactName=${artifact}"; do
+        if [[ "$(artifact_json_field "${work}/payload" "${field%%=*}")" != "${field#*=}" ]]; then
+            rm -rf "$work"
+            die "The signed release manifest names another artifact than ${artifact} ${tag} (${field%%=*}); nothing was installed."
+        fi
+    done
+    expected=$(artifact_json_field "${work}/payload" sha256)
+    rm -rf "$work"
+    actual=$(sha256sum "$file" | awk '{print $1}')
+    if [[ ! "$expected" =~ ^[0-9a-f]{64}$ || "$expected" != "$actual" ]]; then
+        die "${artifact} does not match its signed release manifest (expected ${expected:-no checksum}, got ${actual}); nothing was installed."
+    fi
+    ok "Signed release verified (${artifact} ${tag})"
+}
+
 install_daemon() {
     if [[ "$RUN_USER" == "root" ]]; then
         # Never write a root binary through the link or wrapper left by an install that ran as another user.
@@ -1617,7 +1745,7 @@ install_daemon_binary() {
     fi
 
     if curl -fsSL "$DOWNLOAD_URL" -o "${target}.tmp" >> "$LOG_FILE" 2>&1; then
-        verify_checksum "${target}.tmp" "$binary_name"
+        verify_release_artifact "${target}.tmp" "$binary_name" monitoring "${RESOLVED_DAEMON_VERSION}-monitoring" "$RELEASE_BASE"
         mv "${target}.tmp" "$target"
         chmod +x "$target"
         local ver
@@ -1658,11 +1786,26 @@ enroll_daemon() {
         address_flag="$LEGACY_ADDRESS_FLAG"
         cert_flag="$LEGACY_CERT_FLAG"
     fi
-    if ! run_as_run_user "$target" install "$address_flag" "$OPFIELD_ADDR" --token "$ENROLL_TOKEN" "$cert_flag" "$OPFIELD_CERT_SHA256" >> "$LOG_FILE" 2>&1; then
+    if ! run_daemon_install run_as_run_user "$target" "$address_flag" "$OPFIELD_ADDR" "$cert_flag" "$OPFIELD_CERT_SHA256" >> "$LOG_FILE" 2>&1; then
         die "Failed to enroll monitoring-daemon. Check ${LOG_FILE} for details."
     fi
     prepare_run_user_identity
     ok "Config written to /etc/monitoring-daemon/config.yaml"
+}
+
+# run_daemon_install <runner> <daemon binary> <install arguments...>: the daemon's install command with the enrollment
+# token in its environment, never on its command line, which every local user can read while it runs. A daemon of an
+# earlier release (a pinned --version) does not name OPFIELD_NODE_TOKEN in its usage and takes the token only from --token.
+run_daemon_install() {
+    local runner="$1" binary="$2" usage
+    shift 2
+    usage=$("$runner" "$binary" install 2>&1 || true)
+    if [[ "$usage" == *OPFIELD_NODE_TOKEN* ]]; then
+        (export OPFIELD_NODE_TOKEN="$ENROLL_TOKEN"; "$runner" "$binary" install "$@")
+    else
+        warn "This daemon release takes the enrollment token only on its command line."
+        "$runner" "$binary" install "$@" --token "$ENROLL_TOKEN"
+    fi
 }
 
 # A daemon running as its own user enrolls with its copy of the host identity and owns everything it writes.

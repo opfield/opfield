@@ -1,6 +1,4 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
-import { setCookie } from 'hono/cookie';
-import { getEnv } from '@/config/env.js';
 import { container } from '@/container.js';
 import { getFolderScopedIds } from '@/lib/folder-scopes.js';
 import { openApiValidationHook } from '@/lib/openapi.js';
@@ -48,7 +46,7 @@ import {
   sessionOnly,
 } from '@/modules/auth/auth.middleware.js';
 import { AuthService } from '@/modules/auth/auth.service.js';
-import { getSessionCookieNameForUrl } from '@/modules/auth/session-cookie.js';
+import { setSessionCookie } from '@/modules/auth/session-cookie.js';
 import {
   CreateResourceFolderSchema,
   MoveResourceFolderSchema,
@@ -63,7 +61,6 @@ import {
   assertFolderManageForFolders,
   assertFolderManageForResources,
 } from '@/modules/resource-folders/resource-folder-access.js';
-import { GeneralSettingsService } from '@/modules/settings/general-settings.service.js';
 import { SessionService } from '@/services/session.service.js';
 import type { AppEnv } from '@/types.js';
 import {
@@ -422,19 +419,7 @@ adminRoutes.openapi(
       ipAddress: await getClientIpForContext(c),
       userAgent: c.req.header('user-agent'),
     });
-    let publicUrl: string;
-    try {
-      publicUrl = await container.resolve(GeneralSettingsService).requirePublicUrl();
-    } catch {
-      publicUrl = getEnv().APP_URL;
-    }
-    setCookie(c, getSessionCookieNameForUrl(publicUrl), impersonation.sessionId, {
-      httpOnly: true,
-      secure: new URL(publicUrl).protocol === 'https:',
-      sameSite: 'Lax',
-      maxAge: Math.max(1, Math.floor((impersonation.expiresAt - Date.now()) / 1000)),
-      path: '/',
-    });
+    setSessionCookie(c, impersonation.sessionId, (impersonation.expiresAt - Date.now()) / 1000);
 
     await auditService.log({
       userId: actor.id,

@@ -8,7 +8,7 @@ import { container, TOKENS } from '@/container.js';
 import type { DrizzleClient } from '@/db/client.js';
 import { users } from '@/db/schema/index.js';
 import { openApiValidationHook } from '@/lib/openapi.js';
-import { getClientIpForContext } from '@/lib/request-ip.js';
+import { getClientIpForContext, getDistinctClientIpForContext } from '@/lib/request-ip.js';
 import { AppError } from '@/middleware/error-handler.js';
 import { AuditService } from '@/modules/audit/audit.service.js';
 import { setAuditSubjectUser } from '@/modules/audit/audit-request-context.js';
@@ -18,6 +18,7 @@ import { getEnvironmentSettingsSnapshot } from '@/modules/settings/environment-s
 import { GeneralSettingsService } from '@/modules/settings/general-settings.service.js';
 import { SessionService } from '@/services/session.service.js';
 import type { AppEnv, AuthMethod } from '@/types.js';
+import type { SignInClient } from './account-sign-in-throttle.js';
 import {
   beginCurrentUserTotpSetupRoute,
   confirmCurrentUserTotpSetupRoute,
@@ -36,7 +37,13 @@ import {
   updateCurrentUserAvatarRoute,
   updateCurrentUserPreferencesRoute,
 } from './auth.docs.js';
-import { authMiddleware, CSRF_HEADER_NAME, rejectImpersonation, sessionOnly } from './auth.middleware.js';
+import {
+  assertNotImpersonating,
+  authMiddleware,
+  CSRF_HEADER_NAME,
+  rejectImpersonation,
+  sessionOnly,
+} from './auth.middleware.js';
 import { AuthService } from './auth.service.js';
 import {
   EmailCodeSchema,
@@ -56,6 +63,8 @@ import {
   PasswordResetTokenSchema,
 } from './auth-route-schemas.js';
 import { AvatarStorageService } from './avatar-storage.service.js';
+import { issueKnownDeviceCookie, readKnownDevice } from './known-device-cookie.js';
+import { sessionAllowedForCookie } from './legacy-session-cookie.js';
 import { requiresSessionMfaReauthentication } from './live-session-user.js';
 import { LocalAuthService } from './local-auth.service.js';
 import { MfaService } from './mfa.service.js';
@@ -63,10 +72,10 @@ import { OidcSettingsService } from './oidc-settings.service.js';
 import { PasskeyService } from './passkey.service.js';
 import { getPublicAuthMethods } from './public-auth-methods.js';
 import {
-  getAcceptedSessionCookieNames,
-  getSessionCookieNameForUrl,
-  hasInstallationSessionCookie,
-  LEGACY_SESSION_COOKIE_NAME,
+  clearSessionCookies,
+  selectSessionCookie,
+  sessionCookieRequestOriginForContext,
+  setSessionCookie,
 } from './session-cookie.js';
 
 export const authRoutes = new OpenAPIHono<AppEnv>({ defaultHook: openApiValidationHook });
@@ -92,27 +101,22 @@ authRoutes.use('/passkeys/*', standardOnlyPublicAuthRoute);
 async function setLocalSession(c: any, user: import('@/types.js').User, authMethod: AuthMethod, mfaSatisfied = false) {
   setAuditSubjectUser(user.id);
   const sessionService = container.resolve(SessionService);
-  const { sessionId } = await sessionService.createSession(user, undefined, undefined, {
+  const { sessionId } = await sessionService.createSession(user, {
     authMethod,
     ipAddress: await getClientIpForContext(c),
     userAgent: c.req.header('user-agent'),
     ...(mfaSatisfied ? { mfaSatisfiedAt: Date.now() } : {}),
   });
   await container.resolve(AuthService).recordSuccessfulSignIn(user.id);
-  const publicUrl = await getPublicUrl();
-  const publicUrlObject = new URL(publicUrl);
-  const cookieOptions = {
-    httpOnly: true,
-    secure: publicUrlObject.protocol === 'https:',
-    sameSite: 'Lax' as const,
-    maxAge: getEnvironmentSettingsSnapshot().sessions.expirySeconds,
-    path: '/',
-  };
-  setCookie(c, getSessionCookieNameForUrl(publicUrl), sessionId, cookieOptions);
+  setSessionCookie(c, sessionId, getEnvironmentSettingsSnapshot().sessions.expirySeconds, {
+    withPlainLoopbackCookie: true,
+  });
+  await issueKnownDeviceCookie(c, user.id);
+}
 
-  if (['localhost', '127.0.0.1', '::1'].includes(publicUrlObject.hostname)) {
-    setCookie(c, LEGACY_SESSION_COOKIE_NAME, sessionId, cookieOptions);
-  }
+/** Who a sign-in check comes from, for the per-account throttle (see AccountSignInThrottle). */
+async function signInClient(c: any): Promise<SignInClient> {
+  return { ip: await getDistinctClientIpForContext(c), knownDevice: await readKnownDevice(c) };
 }
 
 async function getPublicUrl(): Promise<string> {
@@ -124,18 +128,12 @@ async function getPublicUrl(): Promise<string> {
   }
 }
 
-function getRequestSessionId(c: any): string | null {
-  for (const cookieName of getAcceptedSessionCookieNames()) {
-    const sessionId = getCookie(c, cookieName);
-    if (sessionId) return sessionId;
-  }
-  return null;
-}
-
-function clearSessionCookies(c: any): void {
-  for (const cookieName of getAcceptedSessionCookieNames()) {
-    deleteCookie(c, cookieName, { path: '/' });
-  }
+async function getRequestSessionId(c: any): Promise<string | null> {
+  const requestOrigin = sessionCookieRequestOriginForContext(c);
+  const cookie = selectSessionCookie((name) => getCookie(c, name), requestOrigin, c.req.header('Cookie') ?? '');
+  if (!cookie?.legacy) return cookie?.value ?? null;
+  const session = await container.resolve(SessionService).getSession(cookie.value);
+  return session && sessionAllowedForCookie(cookie, session) ? cookie.value : null;
 }
 
 async function finishLocalPrimaryAuth(c: any, user: import('@/types.js').User, authMethod: 'password' | 'email_otp') {
@@ -372,13 +370,7 @@ authRoutes.openapi(callbackRoute, async (c) => {
     });
 
     const publicUrl = await getPublicUrl();
-    setCookie(c, getSessionCookieNameForUrl(publicUrl), result.sessionId, {
-      httpOnly: true,
-      secure: new URL(publicUrl).protocol === 'https:',
-      sameSite: 'Lax',
-      maxAge: getEnvironmentSettingsSnapshot().sessions.expirySeconds,
-      path: '/',
-    });
+    setSessionCookie(c, result.sessionId, getEnvironmentSettingsSnapshot().sessions.expirySeconds);
 
     let safeReturnTo: string | null = null;
     let directReturnTo: string | null = null;
@@ -440,7 +432,7 @@ authRoutes.post('/demo/verify', async (c) => {
 authRoutes.post('/password/login', async (c) => {
   const input = LocalPasswordLoginSchema.parse(await c.req.json());
   const localAuth = container.resolve(LocalAuthService);
-  const user = await localAuth.authenticatePassword(input.email, input.password);
+  const user = await localAuth.authenticatePassword(input.email, input.password, await signInClient(c));
   if (!user) {
     await auditFailedLocalSignIn('password', input.email);
     return c.json({ code: 'INVALID_CREDENTIALS', message: 'Invalid email or password' }, 401);
@@ -450,20 +442,24 @@ authRoutes.post('/password/login', async (c) => {
 
 authRoutes.post('/email/continue', async (c) => {
   const input = EmailSchema.parse(await c.req.json());
-  return c.json(await container.resolve(LocalAuthService).beginEmailSignIn(input.email));
+  return c.json(await container.resolve(LocalAuthService).beginEmailSignIn(input.email, await signInClient(c)));
 });
 
 authRoutes.post('/email-otp/request', async (c) => {
   const input = EmailSchema.parse(await c.req.json());
   const localAuth = container.resolve(LocalAuthService);
-  const challengeId = await localAuth.requestEmailOtp(input.email).catch(() => null);
+  // Only the issuance limit answers differently (429, for every address alike); a failed delivery stays silent.
+  const challengeId = await localAuth.requestEmailOtp(input.email, await signInClient(c)).catch((error: unknown) => {
+    if (error instanceof AppError && error.statusCode === 429) throw error;
+    return null;
+  });
   return c.json({ ok: true, challengeId: challengeId ?? crypto.randomUUID() });
 });
 
 authRoutes.post('/email-otp/verify', async (c) => {
   const input = EmailCodeSchema.parse(await c.req.json());
   const localAuth = container.resolve(LocalAuthService);
-  const user = await localAuth.verifyEmailOtp(input.challengeId, input.code);
+  const user = await localAuth.verifyEmailOtp(input.challengeId, input.code, await signInClient(c));
   if (!user) return c.json({ code: 'INVALID_CODE', message: 'Invalid or expired sign-in code' }, 401);
   return finishLocalPrimaryAuth(c, user, 'email_otp');
 });
@@ -471,7 +467,7 @@ authRoutes.post('/email-otp/verify', async (c) => {
 authRoutes.post('/mfa/verify', async (c) => {
   const input = MfaVerifySchema.parse(await c.req.json());
   const mfa = container.resolve(MfaService);
-  const completed = await mfa.verifyLoginChallenge(input.challengeId, input);
+  const completed = await mfa.verifyLoginChallenge(input.challengeId, input, await signInClient(c));
   if (!completed) return c.json({ code: 'INVALID_MFA_CODE', message: 'Invalid or expired authentication code' }, 401);
   const user = await container.resolve(AuthService).getUserById(completed.userId);
   if (!user || user.isBlocked || !isAllowedDemoMfaUser(user))
@@ -594,7 +590,7 @@ authRoutes.post('/password/reset/complete', async (c) => {
 
 // CSRF token for cookie-authenticated browser mutations
 authRoutes.use('/csrf', async (c, next) => {
-  const sessionId = getRequestSessionId(c);
+  const sessionId = await getRequestSessionId(c);
   const session = sessionId ? await container.resolve(SessionService).getSession(sessionId) : null;
   if (sessionId && session?.purpose === 'impersonation') {
     c.set('sessionId', sessionId);
@@ -615,12 +611,13 @@ authRoutes.openapi(csrfTokenRoute, async (c) => {
   if (!csrfToken) {
     return c.json({ code: 'AUTH_ERROR', message: 'Invalid or expired session' }, 401);
   }
+  c.header('Cache-Control', 'no-store');
   return c.json({ csrfToken });
 });
 
 authRoutes.openapi(stopImpersonationRoute, async (c) => {
   const sessionService = container.resolve(SessionService);
-  const impersonationSessionId = getRequestSessionId(c);
+  const impersonationSessionId = await getRequestSessionId(c);
   const impersonationSession = impersonationSessionId ? await sessionService.getSession(impersonationSessionId) : null;
 
   if (!impersonationSessionId || impersonationSession?.purpose !== 'impersonation') {
@@ -651,14 +648,7 @@ authRoutes.openapi(stopImpersonationRoute, async (c) => {
     throw new AppError(401, 'ORIGINAL_SESSION_INVALID', 'The original administrator session is no longer valid');
   }
 
-  const publicUrl = await getPublicUrl();
-  setCookie(c, getSessionCookieNameForUrl(publicUrl), original.sessionId, {
-    httpOnly: true,
-    secure: new URL(publicUrl).protocol === 'https:',
-    sameSite: 'Lax',
-    maxAge: Math.max(1, Math.floor((original.session.expiresAt - Date.now()) / 1000)),
-    path: '/',
-  });
+  setSessionCookie(c, original.sessionId, (original.session.expiresAt - Date.now()) / 1000);
   await sessionService.destroySession(impersonationSessionId);
 
   const subject = impersonationSession.user;
@@ -703,14 +693,7 @@ authRoutes.openapi(logoutRoute, async (c) => {
   } finally {
     // Always drop the browser cookie, even if the IdP logout URL could not
     // be computed, so a signed-out browser never keeps a session reference.
-    const cookieHeader = c.req.header('Cookie') ?? '';
-    if (hasInstallationSessionCookie(cookieHeader)) {
-      for (const cookieName of getAcceptedSessionCookieNames()) {
-        deleteCookie(c, cookieName, { path: '/' });
-      }
-    } else {
-      deleteCookie(c, 'session_id', { path: '/' });
-    }
+    clearSessionCookies(c);
   }
   return c.json({ message: 'Logged out successfully', ...(logoutUrl ? { logoutUrl } : {}) });
 });
@@ -770,9 +753,14 @@ authRoutes.openapi(currentUserPreferencesRoute, async (c) => {
 });
 
 authRoutes.openapi(updateCurrentUserPreferencesRoute, async (c) => {
+  const input = c.req.valid('json');
+  // The subject's AI approval mode decides what their assistant may run unasked after the impersonation ends.
+  if (input.aiApprovalMode !== undefined) {
+    assertNotImpersonating(c, 'The AI approval mode cannot be changed while impersonating');
+  }
   const sessionUser = c.get('user')!;
   const authService = container.resolve(AuthService);
-  const preferences = await authService.updateUserPreferences(sessionUser.id, c.req.valid('json'));
+  const preferences = await authService.updateUserPreferences(sessionUser.id, input);
   return c.json(preferences);
 });
 

@@ -60,6 +60,7 @@ export const DEFAULT_ENVIRONMENT_SETTINGS: EnvironmentSettings = {
   },
   sessions: {
     expirySeconds: 2_592_000,
+    absoluteLifetimeSeconds: null,
   },
   pkiDefaults: {
     crlValidityHours: 24,
@@ -181,16 +182,16 @@ export function legacyEnvironmentOverrides(
 export function normalizeEnvironmentSettings(value: unknown): EnvironmentSettings {
   const stored = value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
   const group = <G extends SettingsGroup>(name: G): EnvironmentSettings[G] => {
-    const defaults = DEFAULT_ENVIRONMENT_SETTINGS[name] as Record<string, number>;
+    const defaults = DEFAULT_ENVIRONMENT_SETTINGS[name] as Record<string, number | null>;
     const record = stored[name] && typeof stored[name] === 'object' ? (stored[name] as Record<string, unknown>) : {};
     const shape = SETTINGS_GROUPS[name].shape as Record<string, { safeParse(input: unknown): { success: boolean } }>;
-    const result: Record<string, number> = { ...defaults };
+    const result: Record<string, number | null> = { ...defaults };
     for (const key of Object.keys(defaults)) {
       let candidate = record[key];
       // Request limits above this release's maximum are lowered to it rather than dropped.
       const maximum = name === 'requestLimits' ? REQUEST_LIMIT_MAXIMUMS[key as keyof typeof REQUEST_LIMIT_MAXIMUMS] : 0;
       if (maximum && typeof candidate === 'number') candidate = Math.min(candidate, maximum);
-      if (candidate !== undefined && shape[key]?.safeParse(candidate).success) result[key] = candidate as number;
+      if (candidate !== undefined && shape[key]?.safeParse(candidate).success) result[key] = candidate as number | null;
     }
     return result as EnvironmentSettings[G];
   };

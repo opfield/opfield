@@ -139,11 +139,11 @@ func setupLogger(level, format string) *slog.Logger {
 
 func runInstall() {
 	if len(os.Args) < 4 {
-		fmt.Fprintf(os.Stderr, "Usage: nginx-daemon install --opfield <address> --token <token> --opfield-cert-sha256 <sha256:hex>\n")
+		fmt.Fprintf(os.Stderr, "Usage: nginx-daemon install --opfield <address> --opfield-cert-sha256 <sha256:hex>\n  %s\n", lifecycle.InstallTokenUsage)
 		os.Exit(1)
 	}
 
-	var address, token, certSHA256 string
+	var address, tokenFlag, certSHA256 string
 	for i := 2; i < len(os.Args)-1; i++ {
 		switch os.Args[i] {
 		// legacy-name: legacycompat.AddressFlag and legacycompat.CertFlag of installers and scripts written before 2.12.1 — remove once
@@ -151,14 +151,19 @@ func runInstall() {
 		case "--opfield", legacycompat.AddressFlag:
 			address = os.Args[i+1]
 		case "--token":
-			token = os.Args[i+1]
+			tokenFlag = os.Args[i+1]
 		case "--opfield-cert-sha256", legacycompat.CertFlag:
 			certSHA256 = os.Args[i+1]
 		}
 	}
+	token, err := lifecycle.InstallToken(tokenFlag, os.Stdin)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
 
 	if address == "" || token == "" || certSHA256 == "" {
-		fmt.Fprintf(os.Stderr, "--opfield, --token, and --opfield-cert-sha256 are required\n")
+		fmt.Fprintf(os.Stderr, "--opfield, the enrollment token (%s or --token), and --opfield-cert-sha256 are required\n", lifecycle.InstallTokenEnv)
 		os.Exit(1)
 	}
 	if !certSHA256Pattern.MatchString(certSHA256) {

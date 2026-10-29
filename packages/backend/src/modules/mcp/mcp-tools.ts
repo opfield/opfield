@@ -72,7 +72,8 @@ const MCP_EXCLUDED_TOOLS = new Set([
   'kill_process',
   'list_sandbox_jobs',
   'gitlab_clone_repository_to_sandbox',
-  // A token must not mint Opfield credentials: API tokens or OAuth grants. Inference keys are resources.
+  // A token must not mint Opfield credentials: API tokens or OAuth grants. Inference keys stay listed for list and
+  // revoke; AIService.executeTool refuses their create and update through MCP.
   'manage_api_token',
   'manage_oauth_authorization',
   // Embedded-assistant UI actions: setup dialogs and per-browser pin preferences.

@@ -67,6 +67,8 @@ export const RequestLimitSettingsSchema = z
 export const SessionSettingsSchema = z
   .object({
     expirySeconds: positiveInt(300, 365 * 24 * 60 * 60),
+    /** The longest a browser session lives from sign-in, renewals included; null: no such limit. */
+    absoluteLifetimeSeconds: positiveInt(300, 365 * 24 * 60 * 60).nullable(),
   })
   .strict();
 

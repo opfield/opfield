@@ -104,7 +104,8 @@ export class BackupService {
   async createPolicy(
     _databaseId: string,
     _input: BackupPolicyInput,
-    _userId: string
+    _userId: string,
+    _actorScopes?: readonly string[]
   ): Promise<{
     id: string;
     createdById: string | null;
@@ -135,7 +136,8 @@ export class BackupService {
     _databaseId: string,
     _policyId: string,
     _input: BackupPolicyInput,
-    _userId: string
+    _userId: string,
+    _actorScopes?: readonly string[]
   ): Promise<{
     id: string;
     databaseConnectionId: string;
@@ -224,14 +226,14 @@ export class BackupService {
     _databaseId: string,
     _runId: string,
     _userId: string,
-    _options?: { artifacts?: BackupHistoryArtifactsAction }
+    _options?: { artifacts?: BackupHistoryArtifactsAction; actorScopes?: readonly string[] }
   ): Promise<BackupHistoryDeleteResult> {
     return commercialModuleUnavailable();
   }
   async deleteOrphanedHistory(
     _runId: string,
     _userId: string,
-    _options?: { artifacts?: BackupHistoryArtifactsAction }
+    _options?: { artifacts?: BackupHistoryArtifactsAction; actorScopes?: readonly string[] }
   ): Promise<BackupHistoryDeleteResult> {
     return commercialModuleUnavailable();
   }

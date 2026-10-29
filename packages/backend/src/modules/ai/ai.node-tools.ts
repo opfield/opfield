@@ -3,6 +3,7 @@ import { container, TOKENS } from '@/container.js';
 import type { DrizzleClient } from '@/db/client.js';
 import { proxyHosts } from '@/db/schema/index.js';
 import { hasScope, hasScopeForResource } from '@/lib/permissions.js';
+import { resolveSlugVisibleTo } from '@/lib/slug-lookup.js';
 import { AppError } from '@/middleware/error-handler.js';
 import {
   FileBrowseSchema,
@@ -588,9 +589,10 @@ function detectNodeFileEncoding(buffer: Buffer): 'utf8' | 'base64' {
 /** get_node by slug: the same lookup and per-node check as GET /nodes/by-slug/{slug}. */
 async function getNodeBySlugForUser(context: { nodesService: NodesService }, user: User, slug: unknown) {
   if (typeof slug !== 'string' || !slug) throw new AppError(400, 'VALIDATION_ERROR', 'nodeId or slug is required');
-  const node = await context.nodesService.getBySlug(slug);
-  if (!hasScope(user.scopes, `nodes:details:${node.id}`)) {
-    throw new AppError(403, 'FORBIDDEN', `Missing required scope: nodes:details:${node.id}`);
-  }
-  return node;
+  // A Node the caller may not view answers like a missing slug.
+  return resolveSlugVisibleTo(
+    'Node',
+    () => context.nodesService.getBySlug(slug),
+    (id) => hasScope(user.scopes, `nodes:details:${id}`)
+  );
 }

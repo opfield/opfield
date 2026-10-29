@@ -1,14 +1,15 @@
 import { z } from 'zod';
-import { hasScope, hasScopeBase } from '@/lib/permissions.js';
+import { hasScope } from '@/lib/permissions.js';
 import { extractBaseScope } from '@/lib/scopes.js';
 import { AppError } from '@/middleware/error-handler.js';
 
 /**
  * Internal registry access of an API token: what `docker login` with the token may pull or push from outside
- * Opfield. It belongs to the token, not to a user scope. The owner may give a token pull when they can view a
- * Docker workload or image anywhere, and push when they can change a workload; every request rechecks that against
- * the owner's current permissions. `all` covers every repository; a list narrows the token to exactly those
- * repository names (no prefix match), like the per-repository registry scopes did. An absent action is not granted.
+ * Opfield. It belongs to the token, not to a user scope. `all` covers every repository and needs the broad
+ * (unqualified) workload or image scope; a list narrows the token to exactly those repository names (no prefix match)
+ * and needs, per repository, view (pull) or edit/manage (push) on a workload whose images live there
+ * (token-registry-workloads.ts). Every request rechecks that against the owner's current permissions, so tokens
+ * created under the earlier, looser rule are bounded too. An absent action is not granted.
  *
  * Tokens created before this attribute carry `docker:registries:internal:pull|push[:<repository>]` in their scopes,
  * and scripts may still send those names: both read as registry access. The two scopes stay in the catalog as legacy
@@ -42,11 +43,47 @@ const LEGACY_REGISTRY_SCOPES: Record<RegistryAction, string> = {
   push: 'docker:registries:internal:push',
 };
 
-/** What lets the owner give a token each action, besides the legacy registry scopes. */
+/** What lets the owner give a token each action on every repository, held unqualified, besides the legacy scopes. */
 const REGISTRY_ACCESS_BASIS: Record<RegistryAction, readonly string[]> = {
   pull: ['docker:containers:view', 'docker:compose:view', 'docker:images:view'],
   push: ['docker:containers:edit', 'docker:containers:manage', 'docker:compose:manage'],
 };
+
+/**
+ * A workload whose images live in an internal registry repository: a container or deployment (`containers`) or a
+ * Compose project (`compose`), with its access resource id (null: a container without one, only node-wide grants
+ * reach it).
+ */
+export interface RegistryRepositoryWorkload {
+  kind: 'containers' | 'compose';
+  nodeId: string;
+  resourceId: string | null;
+}
+
+/** The workloads using a repository (RegistryRepositoryWorkloadService). */
+export type RegistryRepositoryWorkloads = (repository: string) => Promise<RegistryRepositoryWorkload[]>;
+
+/** What lets the owner give a token each action on a workload's repositories. */
+const WORKLOAD_REGISTRY_SCOPES: Record<
+  RegistryAction,
+  Record<RegistryRepositoryWorkload['kind'], readonly string[]>
+> = {
+  pull: { containers: ['docker:containers:view'], compose: ['docker:compose:view'] },
+  push: { containers: ['docker:containers:edit', 'docker:containers:manage'], compose: ['docker:compose:manage'] },
+};
+
+function ownerCoversWorkload(
+  ownerScopes: readonly string[],
+  action: RegistryAction,
+  workload: RegistryRepositoryWorkload
+): boolean {
+  // The images of the workload's node include the ones it pulled from the repository.
+  if (action === 'pull' && hasScope(ownerScopes, `docker:images:view:${workload.nodeId}`)) return true;
+  const qualifier = workload.resourceId ? `${workload.nodeId}/${workload.resourceId}` : workload.nodeId;
+  return WORKLOAD_REGISTRY_SCOPES[action][workload.kind].some((scope) =>
+    hasScope(ownerScopes, `${scope}:${qualifier}`)
+  );
+}
 
 export function isLegacyRegistryScope(scope: string): boolean {
   const base = extractBaseScope(scope);
@@ -106,18 +143,52 @@ export function tokenRegistryAccess(token: {
   return mergeRegistryAccess(token.registryAccess, registryAccessFromScopes(token.scopes ?? []));
 }
 
-/** Whether the owner's scopes let their tokens run this registry action (on this repository). */
-export function ownerMayUseRegistry(ownerScopes: string[], action: RegistryAction, repository?: string): boolean {
-  if (REGISTRY_ACCESS_BASIS[action].some((scope) => hasScopeBase(ownerScopes, scope))) return true;
+/**
+ * Whether the owner's scopes let their tokens run this registry action on every repository (no `repository`) or on
+ * one. Every repository needs the broad workload or image scope or the unqualified legacy scope; one repository is
+ * also covered by view (pull) or edit/manage (push) on one of `workloads` (the workloads using it), or by the legacy
+ * scope for that repository.
+ */
+export function ownerMayUseRegistry(
+  ownerScopes: readonly string[],
+  action: RegistryAction,
+  repository?: string,
+  workloads: readonly RegistryRepositoryWorkload[] = []
+): boolean {
+  if (REGISTRY_ACCESS_BASIS[action].some((scope) => hasScope(ownerScopes, scope))) return true;
   const legacy = LEGACY_REGISTRY_SCOPES[action];
-  return repository ? hasScope(ownerScopes, `${legacy}:${repository}`) : hasScopeBase(ownerScopes, legacy);
+  if (!repository) return hasScope(ownerScopes, legacy);
+  if (workloads.some((workload) => ownerCoversWorkload(ownerScopes, action, workload))) return true;
+  return hasScope(ownerScopes, `${legacy}:${repository}`);
+}
+
+/** The workloads of the listed repositories the owner's broad or legacy scopes do not cover already. */
+export async function registryAccessWorkloads(
+  access: TokenRegistryAccess,
+  ownerScopes: readonly string[],
+  workloadsOf: RegistryRepositoryWorkloads
+): Promise<Map<string, RegistryRepositoryWorkload[]>> {
+  const workloads = new Map<string, RegistryRepositoryWorkload[]>();
+  for (const action of REGISTRY_ACTIONS) {
+    const repositories = access[action];
+    if (repositories === undefined || repositories === 'all') continue;
+    for (const repository of repositories) {
+      if (workloads.has(repository) || ownerMayUseRegistry(ownerScopes, action, repository)) continue;
+      workloads.set(repository, await workloadsOf(repository));
+    }
+  }
+  return workloads;
 }
 
 /**
- * Refuse registry access the owner cannot give a token: pull needs view access to a Docker workload or image
- * (or the legacy pull scope), push the right to change a workload (or the legacy push scope).
+ * Refuse registry access the owner cannot give a token (ownerMayUseRegistry). `workloads` are the workloads of the
+ * listed repositories (registryAccessWorkloads); without them a listed repository needs the broad or legacy scope.
  */
-export function assertTokenRegistryAccessAllowed(access: TokenRegistryAccess, ownerScopes: string[]): void {
+export function assertTokenRegistryAccessAllowed(
+  access: TokenRegistryAccess,
+  ownerScopes: readonly string[],
+  workloads: ReadonlyMap<string, readonly RegistryRepositoryWorkload[]> = new Map()
+): void {
   const denied: string[] = [];
   for (const action of REGISTRY_ACTIONS) {
     const repositories = access[action];
@@ -127,7 +198,9 @@ export function assertTokenRegistryAccessAllowed(access: TokenRegistryAccess, ow
       continue;
     }
     for (const repository of repositories) {
-      if (!ownerMayUseRegistry(ownerScopes, action, repository)) denied.push(`${action} ${repository}`);
+      if (!ownerMayUseRegistry(ownerScopes, action, repository, workloads.get(repository))) {
+        denied.push(`${action} ${repository}`);
+      }
     }
   }
   if (denied.length > 0) {
@@ -139,15 +212,21 @@ export function assertTokenRegistryAccessAllowed(access: TokenRegistryAccess, ow
   }
 }
 
-/** Whether a token may run a registry action on a repository now, bounded by its owner's current scopes. */
-export function tokenAllowsRegistryAction(
+/**
+ * Whether a token may run a registry action on a repository now, bounded by its owner's current scopes by the same
+ * rule as at creation (tokens created under the earlier, looser rule included). The repository's workloads are
+ * looked up only when the owner's broad or legacy scopes do not decide.
+ */
+export async function tokenAllowsRegistryAction(
   access: TokenRegistryAccess,
-  ownerScopes: string[],
+  ownerScopes: readonly string[],
   action: RegistryAction,
-  repository: string
-): boolean {
+  repository: string,
+  workloadsOf: RegistryRepositoryWorkloads
+): Promise<boolean> {
   const repositories = access[action];
   if (repositories === undefined) return false;
   if (repositories !== 'all' && !repositories.includes(repository)) return false;
-  return ownerMayUseRegistry(ownerScopes, action, repository);
+  if (ownerMayUseRegistry(ownerScopes, action, repository)) return true;
+  return ownerMayUseRegistry(ownerScopes, action, repository, await workloadsOf(repository));
 }

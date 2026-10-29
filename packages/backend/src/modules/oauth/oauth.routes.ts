@@ -232,6 +232,9 @@ oauthRoutes.get('/authorize', optionalAuthMiddleware, async (c) => {
 });
 
 oauthRoutes.post('/token', async (c) => {
+  // Token responses carry credentials and must never be cached (RFC 6749 section 5.1).
+  c.header('Cache-Control', 'no-store');
+  c.header('Pragma', 'no-cache');
   const contentType = c.req.header('content-type') ?? '';
   const body = contentType.includes('application/json')
     ? await c.req.json()
@@ -269,13 +272,16 @@ oauthRoutes.get('/authorizations', async (c) => {
 });
 
 // One authorization is one consent (its own tokens and scopes); the id comes from GET /authorizations.
+// Changing or revoking the subject's grants outlives an impersonation session, so only the subject does it.
 oauthRoutes.delete('/authorizations/:authorizationId', async (c) => {
+  assertNotImpersonating(c, 'OAuth authorizations cannot be changed while impersonating');
   const authorizationId = z.string().min(1).parse(c.req.param('authorizationId'));
   await oauthService().revokeUserAuthorization(c.get('user')!.id, authorizationId);
   return c.json({ success: true });
 });
 
 oauthRoutes.patch('/authorizations/:authorizationId', async (c) => {
+  assertNotImpersonating(c, 'OAuth authorizations cannot be changed while impersonating');
   const authorizationId = z.string().min(1).parse(c.req.param('authorizationId'));
   const body = OAuthAuthorizationScopesSchema.parse(await c.req.json());
   const authorization = await oauthService().updateUserAuthorization(c.get('user')!, authorizationId, body);

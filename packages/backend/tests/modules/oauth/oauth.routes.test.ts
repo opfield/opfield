@@ -452,6 +452,9 @@ describe('OAuth client and token routes', () => {
     expect(body.access_token).toBe('gwo_access');
     expect(body.refresh_token).toBe('gwr_refresh');
     expect(body.scope).toBe('nodes:details docker:containers:view');
+    // Token responses are never cached (RFC 6749 section 5.1, R1-13).
+    expect(response.headers.get('cache-control')).toBe('no-store');
+    expect(response.headers.get('pragma')).toBe('no-cache');
   });
 
   it('returns MCP token responses without refresh metadata', async () => {

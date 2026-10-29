@@ -1,6 +1,8 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { container } from '@/container.js';
 import { openApiValidationHook } from '@/lib/openapi.js';
+import { hasScope } from '@/lib/permissions.js';
+import { AppError } from '@/middleware/error-handler.js';
 import { authMiddleware, requireScope } from '@/modules/auth/auth.middleware.js';
 import type { AppEnv } from '@/types.js';
 import { getEnvironmentSettingsRoute, updateEnvironmentSettingsRoute } from './environment-settings.docs.js';
@@ -24,7 +26,22 @@ environmentSettingsRoutes.openapi(
   { ...updateEnvironmentSettingsRoute, middleware: requireScope('settings:opfield:edit') },
   async (c) => {
     const input = EnvironmentSettingsUpdateSchema.parse(await c.req.json());
-    const data = await container.resolve(EnvironmentSettingsService).update(input);
+    const service = container.resolve(EnvironmentSettingsService);
+    // Lowering the absolute session lifetime ends every older browser session at once, so changing it takes
+    // admin:system like the other identity-trust settings; resubmitting the current value is fine.
+    const absoluteLifetime = input.sessions?.absoluteLifetimeSeconds;
+    if (
+      absoluteLifetime !== undefined &&
+      absoluteLifetime !== service.getSnapshot().sessions.absoluteLifetimeSeconds &&
+      !hasScope(c.get('effectiveScopes') ?? [], 'admin:system')
+    ) {
+      throw new AppError(
+        403,
+        'ADMIN_SYSTEM_REQUIRED',
+        'Changing the absolute session lifetime requires the admin:system permission'
+      );
+    }
+    const data = await service.update(input);
     return c.json({ data });
   }
 );

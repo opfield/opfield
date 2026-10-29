@@ -16,11 +16,13 @@ import { SetupAccessService } from '@/modules/setup/setup-access.service.js';
 import { TokensService } from '@/modules/tokens/tokens.service.js';
 import { SessionService } from '@/services/session.service.js';
 import type { AppEnv, SessionData, User } from '@/types.js';
+import { sessionAllowedForCookie } from './legacy-session-cookie.js';
 import {
-  getAcceptedSessionCookieNames,
-  getSessionCookieNameForUrl,
-  hasInstallationSessionCookie,
   LEGACY_SESSION_COOKIE_NAME,
+  reissueLegacySessionCookie,
+  type SelectedSessionCookie,
+  selectSessionCookie,
+  sessionCookieRequestOriginForContext,
 } from './session-cookie.js';
 
 const SESSION_COOKIE_NAME = LEGACY_SESSION_COOKIE_NAME;
@@ -38,7 +40,11 @@ type AuthenticatedBearer = {
   clientId?: string;
 };
 
-function extractCredential(c: Context<AppEnv>): { type: CredentialType; value: string } | null {
+type RequestCredential =
+  | { type: Exclude<CredentialType, 'session'>; value: string }
+  | { type: 'session'; value: string; cookie: SelectedSessionCookie };
+
+async function extractCredential(c: Context<AppEnv>): Promise<RequestCredential | null> {
   const authHeader = c.req.header('Authorization');
   if (authHeader?.startsWith('Bearer ')) {
     const value = authHeader.slice(7).trim();
@@ -50,26 +56,31 @@ function extractCredential(c: Context<AppEnv>): { type: CredentialType; value: s
     }
   }
 
-  const cookieHeader = c.req.header('Cookie') ?? '';
-  if (hasInstallationSessionCookie(cookieHeader)) {
-    const preferredCookieName = getSessionCookieNameForUrl(c.req.url);
-    const preferredSession = getCookie(c, preferredCookieName);
-    if (preferredSession) return { type: 'session', value: preferredSession };
+  const cookieHeader = c.req.header('Cookie');
+  if (!cookieHeader) return null;
+  const cookie = selectSessionCookie(
+    (name) => getCookie(c, name),
+    sessionCookieRequestOriginForContext(c),
+    cookieHeader
+  );
+  return cookie ? { type: 'session', value: cookie.value, cookie } : null;
+}
 
-    const legacySession = getCookie(c, SESSION_COOKIE_NAME);
-    if (legacySession) return { type: 'session', value: legacySession };
+/**
+ * The session a cookie credential names, or null. A legacy-named cookie only carries a session from before the
+ * `__Host-` cookie (sessionAllowedForCookie); anything else under that name is treated as no session.
+ */
+async function getCredentialSession(
+  credential: Extract<RequestCredential, { type: 'session' }>
+): Promise<SessionData | null> {
+  const session = await container.resolve(SessionService).getSession(credential.value);
+  return session && sessionAllowedForCookie(credential.cookie, session) ? session : null;
+}
 
-    for (const cookieName of getAcceptedSessionCookieNames()) {
-      if (cookieName === preferredCookieName || cookieName === SESSION_COOKIE_NAME) continue;
-      const cookieSession = getCookie(c, cookieName);
-      if (cookieSession) return { type: 'session', value: cookieSession };
-    }
-  }
-
-  const legacySession = getCookie(c, SESSION_COOKIE_NAME);
-  if (legacySession) return { type: 'session', value: legacySession };
-
-  return null;
+/** A session that arrived under a legacy cookie name continues under the current one (see selectSessionCookie). */
+function moveLegacySessionCookie(c: Context<AppEnv>, credential: RequestCredential, session: SessionData): void {
+  if (credential.type !== 'session') return;
+  reissueLegacySessionCookie(c, credential.cookie, session.expiresAt);
 }
 
 function requiresCsrf(method: string): boolean {
@@ -101,9 +112,9 @@ async function validateSetupPurposeSession(session: SessionData, path: string): 
 }
 
 export async function isAdmittedSetupPurposeRequest(c: Context<AppEnv>): Promise<boolean> {
-  const credential = extractCredential(c);
+  const credential = await extractCredential(c);
   if (!credential || credential.type !== 'session') return false;
-  const session = await container.resolve(SessionService).getSession(credential.value);
+  const session = credential.type === 'session' ? await getCredentialSession(credential) : null;
   if (!session) return false;
   return validateSetupPurposeSession(session, new URL(c.req.url).pathname);
 }
@@ -172,14 +183,14 @@ function applyBearerContext(c: Context<AppEnv>, result: AuthenticatedBearer): vo
  * a bearer token). The API rate limit counts signed-in browser sessions per session; it is not authentication.
  */
 export async function liveRequestSessionId(c: Context<AppEnv>): Promise<string | null> {
-  const credential = extractCredential(c);
+  const credential = await extractCredential(c);
   if (credential?.type !== 'session') return null;
-  const session = await container.resolve(SessionService).getSession(credential.value);
+  const session = credential.type === 'session' ? await getCredentialSession(credential) : null;
   return session && session.purpose !== 'setup' ? credential.value : null;
 }
 
 export const authMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
-  const credential = extractCredential(c);
+  const credential = await extractCredential(c);
 
   if (!credential) {
     throw new HTTPException(401, { message: 'Authentication required' });
@@ -194,7 +205,7 @@ export const authMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
     assertDemoRequestAllowed(c);
   } else {
     const sessionService = container.resolve(SessionService);
-    const session = await sessionService.getSession(credential.value);
+    const session = credential.type === 'session' ? await getCredentialSession(credential) : null;
     if (!session) {
       throw new HTTPException(401, { message: 'Invalid or expired session' });
     }
@@ -245,6 +256,7 @@ export const authMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
     c.set('isTokenAuth', false);
     c.set('authType', 'session');
     assertDemoRequestAllowed(c);
+    moveLegacySessionCookie(c, credential, session);
     const requestContext = getAuditRequestContext();
     await sessionService.updateSession(credential.value, {
       user,
@@ -262,7 +274,7 @@ export const authMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
 };
 
 export const optionalAuthMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
-  const credential = extractCredential(c);
+  const credential = await extractCredential(c);
 
   if (credential) {
     if (credential.type === 'api-token' || credential.type === 'oauth-token') {
@@ -272,7 +284,7 @@ export const optionalAuthMiddleware: MiddlewareHandler<AppEnv> = async (c, next)
       }
     } else {
       const sessionService = container.resolve(SessionService);
-      const session = await sessionService.getSession(credential.value);
+      const session = credential.type === 'session' ? await getCredentialSession(credential) : null;
       if (session) {
         if (session.purpose === 'setup') {
           const validSetupSession = await validateSetupPurposeSession(session, new URL(c.req.url).pathname);
@@ -305,6 +317,7 @@ export const optionalAuthMiddleware: MiddlewareHandler<AppEnv> = async (c, next)
           }
           c.set('isTokenAuth', false);
           c.set('authType', 'session');
+          moveLegacySessionCookie(c, credential, session);
           sessionService.updateSession(credential.value, { user }).catch(() => {});
           if (session.purpose !== 'setup') {
             sessionService.touchSession?.(credential.value, session).catch(() => {});

@@ -1,6 +1,7 @@
 import { container } from '@/container.js';
 import { getFolderScopedIds } from '@/lib/folder-scopes.js';
 import { getResourceScopedIds, hasScope, hasScopeForCreation } from '@/lib/permissions.js';
+import { resolveSlugVisibleTo } from '@/lib/slug-lookup.js';
 import { AppError, isZodError, validationErrorDetails } from '@/middleware/error-handler.js';
 import {
   DockerBuildCreateSchema,
@@ -303,11 +304,13 @@ async function runManagePages(user: User, args: Record<string, unknown>) {
         });
   }
   if (operation === 'project_get_by_slug') {
-    const project = await projects.getBySlug(requiredString(args.slug, 'slug'));
-    if (!canAccessPageProject(user.scopes, 'pages:view', project.id)) {
-      throw new AppError(403, 'PAGE_PROJECT_FORBIDDEN', 'Missing pages:view for this Project');
-    }
-    return project;
+    const slug = requiredString(args.slug, 'slug');
+    // A Project the caller may not view answers like a missing slug.
+    return resolveSlugVisibleTo(
+      'Page Project',
+      () => projects.getBySlug(slug),
+      (id) => canAccessPageProject(user.scopes, 'pages:view', id)
+    );
   }
 
   const projectId = requiredString(args.projectId, PROJECT_ID_FIELD);

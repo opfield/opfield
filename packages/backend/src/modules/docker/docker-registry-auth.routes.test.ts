@@ -1,14 +1,24 @@
 import 'reflect-metadata';
 import { Hono } from 'hono';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { container } from '@/container.js';
 import { AppError, errorHandler } from '@/middleware/error-handler.js';
+import { RegistryRepositoryWorkloadService } from '@/modules/tokens/token-registry-workloads.js';
 import { TokensService } from '@/modules/tokens/tokens.service.js';
 import type { AppEnv } from '@/types.js';
 import { __testOnly, dockerRegistryAuthRoutes } from './docker-registry-auth.routes.js';
 import { DockerInternalRegistryService } from './docker-registry-internal.service.js';
 
 const ORIGINAL_DEPLOYMENT_MODE = process.env.OPFIELD_DEPLOYMENT_MODE;
+// The workloads using each repository: `tenant/app` is the image of container c1 on node-1.
+const workloads = vi.fn(async (repository: string) =>
+  repository === 'tenant/app' ? [{ kind: 'containers' as const, nodeId: 'node-1', resourceId: 'c1' }] : []
+);
+
+beforeEach(() => {
+  workloads.mockClear();
+  container.registerInstance(RegistryRepositoryWorkloadService, { workloads } as never);
+});
 
 afterEach(() => {
   container.reset();
@@ -188,6 +198,37 @@ describe('docker registry external token request parsing', () => {
     expect((await pull('tenant/app')).status).toBe(200);
     expect((await pull('tenant/other')).status).toBe(403);
     expect(registry.issueToken).toHaveBeenCalledTimes(1);
+  });
+
+  it("bounds an `all` token by the workloads its owner may see or change now, not by any grant's base", async () => {
+    container.registerInstance(TokensService, {
+      validateToken: vi.fn().mockResolvedValue({
+        user: { id: 'user-1', scopes: ['docker:containers:view:node-1/c1', 'docker:containers:edit:node-9/other'] },
+        scopes: [],
+        registryAccess: { pull: 'all', push: 'all' },
+        tokenId: 'token-1',
+        tokenPrefix: 'gw_test',
+      }),
+    } as never);
+    const registry = {
+      assertExternalAccessEntitled: vi.fn().mockResolvedValue({ externalAccessEnabled: true }),
+      issueToken: vi.fn().mockReturnValue({ token: 'jwt', accessToken: 'jwt', expiresIn: 300, issuedAt: 'now' }),
+    };
+    container.registerInstance(DockerInternalRegistryService, registry as never);
+    const app = new Hono<AppEnv>();
+    app.onError(errorHandler);
+    app.route('/registry', dockerRegistryAuthRoutes);
+    const request = (scope: string) =>
+      app.request(`/registry/token?scope=${scope}`, {
+        headers: { Authorization: `Basic ${Buffer.from('opfield:gw_secret').toString('base64')}` },
+      });
+
+    expect((await request('repository:tenant/app:pull')).status).toBe(200);
+    // Push needs a change right on c1; another team's repository is no workload of the owner.
+    expect((await request('repository:tenant/app:push')).status).toBe(403);
+    expect((await request('repository:other-team/app:pull')).status).toBe(403);
+    expect(registry.issueToken).toHaveBeenCalledTimes(1);
+    expect(workloads).toHaveBeenCalledWith('tenant/app');
   });
 
   it('rejects external token issuance before API-token validation when Business is unavailable', async () => {

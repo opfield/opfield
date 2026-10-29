@@ -23,7 +23,7 @@ let relayTrustGeneration = 0;
 // Fingerprint staged by a live rotation that the relay has not confirmed yet.
 let stagedRelayFingerprint: string | null = null;
 
-function getPeerCertificateSocket(call: unknown): {
+export function getPeerCertificateSocket(call: unknown): {
   authorized?: boolean;
   authorizationError?: unknown;
   getPeerCertificate: (detailed?: boolean) => unknown;

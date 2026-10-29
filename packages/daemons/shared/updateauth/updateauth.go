@@ -3,12 +3,10 @@ package updateauth
 import (
 	"crypto/ed25519"
 	"crypto/sha256"
-	"crypto/x509"
 	_ "embed"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
-	"encoding/pem"
 	"errors"
 	"fmt"
 	"github.com/opfield/opfield/daemon-shared/legacycompat"
@@ -179,11 +177,11 @@ func VerifyEnvelope[T any](signedManifest string) (*T, error) {
 		return nil, fmt.Errorf("decode update manifest signature: %w", err)
 	}
 
-	publicKey, err := trustedKey()
+	publicKeys, err := trustedKeys()
 	if err != nil {
 		return nil, err
 	}
-	if !ed25519.Verify(publicKey, payloadBytes, signature) {
+	if !signedByAny(publicKeys, payloadBytes, signature) {
 		return nil, errors.New("update manifest signature is invalid")
 	}
 
@@ -221,23 +219,14 @@ func SHA256Hex(data []byte) string {
 	return hex.EncodeToString(sum[:])
 }
 
-// trustedKey is trustedPublicKey; tests of this package substitute a test key.
-var trustedKey = trustedPublicKey
-
-func trustedPublicKey() (ed25519.PublicKey, error) {
-	block, _ := pem.Decode([]byte(publicKeyPEM))
-	if block == nil {
-		return nil, errors.New("trusted update public key PEM is invalid")
+// signedByAny reports whether one of keys signed payload (trust.go: every trusted key that is not revoked).
+func signedByAny(keys []ed25519.PublicKey, payload, signature []byte) bool {
+	for _, key := range keys {
+		if ed25519.Verify(key, payload, signature) {
+			return true
+		}
 	}
-	parsed, err := x509.ParsePKIXPublicKey(block.Bytes)
-	if err != nil {
-		return nil, fmt.Errorf("parse trusted update public key: %w", err)
-	}
-	publicKey, ok := parsed.(ed25519.PublicKey)
-	if !ok {
-		return nil, errors.New("trusted update public key is not Ed25519")
-	}
-	return publicKey, nil
+	return false
 }
 
 func isValidSHA256(value string) bool {

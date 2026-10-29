@@ -10,7 +10,7 @@ import { AuthService } from '@/modules/auth/auth.service.js';
 import { AuthSettingsService } from '@/modules/auth/auth.settings.service.js';
 import { AuthMailService } from '@/modules/auth/auth-mail.service.js';
 import { OidcSettingsService } from '@/modules/auth/oidc-settings.service.js';
-import { getAcceptedSessionCookieNames, getSessionCookieName } from '@/modules/auth/session-cookie.js';
+import { clearSessionCookies, setSessionCookie } from '@/modules/auth/session-cookie.js';
 import { claimRestoredOwnerLink } from '@/modules/configuration-transfer/owner-password-link.js';
 import { SetupRestoreService } from '@/modules/configuration-transfer/setup-restore.service.js';
 import { toLicenseAppError } from '@/modules/license/license.errors.js';
@@ -276,22 +276,15 @@ setupRoutes.post('/wizard/session', async (c) => {
 
   const sessions = container.resolve(SessionService);
   await sessions.destroySetupSessions(OPFIELD_SYSTEM_USER_ID, setupSessionId);
-  const session = await sessions.createSession(user, undefined, undefined, {
+  const session = await sessions.createSession(user, {
     purpose: 'setup',
     setupSessionId,
     expiresAt: Date.parse(expiresAt),
     ipAddress: await getClientIpForContext(c),
     userAgent: c.req.header('user-agent'),
   });
-  const forwardedProto = c.req.header('x-forwarded-proto')?.split(',')[0]?.trim();
-  const secure = forwardedProto ? forwardedProto === 'https' : new URL(c.req.url).protocol === 'https:';
-  setCookie(c, getSessionCookieName(secure ? 'https' : 'http'), session.sessionId, {
-    httpOnly: true,
-    secure,
-    sameSite: 'Lax',
-    maxAge: Math.max(1, Math.floor((session.expiresAt - Date.now()) / 1000)),
-    path: '/',
-  });
+  // Named for the protocol the browser came over, the same one the session cookie is read by (selectSessionCookie).
+  setSessionCookie(c, session.sessionId, (session.expiresAt - Date.now()) / 1000);
   return c.json({ data: { expiresAt: new Date(session.expiresAt).toISOString() } });
 });
 
@@ -357,7 +350,7 @@ setupRoutes.post('/wizard/complete', async (c) => {
     await container.resolve(SessionService).destroySetupSessions(OPFIELD_SYSTEM_USER_ID, setupSessionId);
     await container.resolve(SetupWizardService).completeAIWorkspace(outcome);
   });
-  for (const cookieName of getAcceptedSessionCookieNames()) deleteCookie(c, cookieName, { path: '/' });
+  clearSessionCookies(c);
   deleteCookie(c, SETUP_SESSION_COOKIE, { path: '/api/setup' });
   const transport = await container.resolve(WebTransportSettingsService).getConfig();
   if (transport.tlsEnabled) container.resolve(RuntimeRestartService).request('first-run web identity updated', 1_000);

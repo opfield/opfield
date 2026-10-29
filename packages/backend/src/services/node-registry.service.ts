@@ -111,9 +111,13 @@ export interface TrafficStatsRequest {
 export class NodeRegistryService {
   private nodes = new Map<string, ConnectedNode>();
   private updatingNodeIds = new Set<string>();
+  /** Output handlers per exec session, with the node that owns the session: only that node's output reaches them. */
   private execOutputHandlers = new Map<
     string,
-    Set<(data: { execId: string; data: Buffer; exited: boolean; exitCode: number }) => void>
+    {
+      nodeId: string;
+      handlers: Set<(data: { execId: string; data: Buffer; exited: boolean; exitCode: number }) => void>;
+    }
   >();
   private logStreamHandlers = new Map<string, (lines: string[], ended?: boolean) => void>();
   private trafficStatsInFlight = new Map<string, Promise<CommandResult>>();
@@ -302,21 +306,24 @@ export class NodeRegistryService {
     }
   }
 
-  registerExecHandler(execId: string, handler: (data: any) => void) {
-    let handlers = this.execOutputHandlers.get(execId);
-    if (!handlers) {
-      handlers = new Set();
-      this.execOutputHandlers.set(execId, handlers);
+  /** `nodeId`: the node the exec session runs on; output for `execId` from any other node is dropped. */
+  registerExecHandler(execId: string, handler: (data: any) => void, nodeId: string) {
+    let entry = this.execOutputHandlers.get(execId);
+    if (!entry) {
+      entry = { nodeId, handlers: new Set() };
+      this.execOutputHandlers.set(execId, entry);
+    } else if (entry.nodeId !== nodeId) {
+      throw new Error(`Exec session ${execId} is registered for another node`);
     }
-    handlers.add(handler);
+    entry.handlers.add(handler);
   }
 
   removeExecHandler(execId: string, handler?: (data: any) => void) {
     if (handler) {
-      const handlers = this.execOutputHandlers.get(execId);
-      if (handlers) {
-        handlers.delete(handler);
-        if (handlers.size === 0) this.execOutputHandlers.delete(execId);
+      const entry = this.execOutputHandlers.get(execId);
+      if (entry) {
+        entry.handlers.delete(handler);
+        if (entry.handlers.size === 0) this.execOutputHandlers.delete(execId);
       }
     } else {
       this.execOutputHandlers.delete(execId);
@@ -324,14 +331,14 @@ export class NodeRegistryService {
   }
 
   getExecHandlerCount(execId: string): number {
-    return this.execOutputHandlers.get(execId)?.size ?? 0;
+    return this.execOutputHandlers.get(execId)?.handlers.size ?? 0;
   }
 
-  handleExecOutput(execId: string, data: any) {
-    const handlers = this.execOutputHandlers.get(execId);
-    if (handlers) {
-      for (const handler of handlers) handler(data);
-    }
+  /** Routes output a node reported for an exec session to its handlers, only when that node owns the session. */
+  handleExecOutput(nodeId: string, execId: string, data: any) {
+    const entry = this.execOutputHandlers.get(execId);
+    if (!entry || entry.nodeId !== nodeId) return;
+    for (const handler of entry.handlers) handler(data);
   }
 
   registerLogStreamHandler(key: string, handler: (lines: string[], ended?: boolean) => void) {

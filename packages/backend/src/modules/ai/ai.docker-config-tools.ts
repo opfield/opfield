@@ -23,6 +23,7 @@ import {
   pendingSourceContainer,
   updatePendingContainerEnv,
 } from '@/modules/docker/docker-pending-container-env.js';
+import { presentWebhook } from '@/modules/docker/docker-webhook-token.js';
 import { FILE_UPLOAD_MAX_BYTES } from '@/modules/settings/general-settings.service.js';
 import type { User } from '@/types.js';
 import {
@@ -224,16 +225,23 @@ export async function manageDockerContainerConfigTool(
       'docker:containers:webhooks',
       await authorizationResourceId('docker:containers:webhooks')
     );
+    const { DockerWebhookService } = await import('@/modules/docker/docker-webhook.service.js');
+    const webhookService = container.resolve(DockerWebhookService);
     if (targetType === 'deployment') {
       const { DockerDeploymentService } = await import('@/modules/docker/docker-deployment.service.js');
       const deploymentService = container.resolve(DockerDeploymentService);
-      if (operation === 'get_webhook') return deploymentService.getWebhook(nodeId, deploymentId);
+      if (operation === 'get_webhook') {
+        const row = await deploymentService.getWebhook(nodeId, deploymentId);
+        return row ? presentWebhook(row) : row;
+      }
       if (operation === 'upsert_webhook') {
-        return deploymentService.upsertWebhook(
-          nodeId,
-          deploymentId,
-          { enabled: args.enabled as boolean | undefined },
-          user.id
+        return webhookService.sealIssuedToken(
+          await deploymentService.upsertWebhook(
+            nodeId,
+            deploymentId,
+            { enabled: args.enabled as boolean | undefined },
+            user.id
+          )
         );
       }
       if (operation === 'delete_webhook') {
@@ -241,11 +249,9 @@ export async function manageDockerContainerConfigTool(
         return { success: true };
       }
       if (operation === 'regenerate_webhook_token') {
-        return deploymentService.regenerateWebhook(nodeId, deploymentId, user.id);
+        return webhookService.sealIssuedToken(await deploymentService.regenerateWebhook(nodeId, deploymentId, user.id));
       }
     }
-    const { DockerWebhookService } = await import('@/modules/docker/docker-webhook.service.js');
-    const webhookService = container.resolve(DockerWebhookService);
     if (operation === 'get_webhook') return webhookService.getByContainer(nodeId, containerName);
     if (operation === 'upsert_webhook') {
       return webhookService.upsert(nodeId, containerName, { enabled: args.enabled as boolean | undefined }, user.id);

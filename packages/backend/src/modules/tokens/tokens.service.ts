@@ -28,6 +28,8 @@ import {
   hasRegistryAccess,
   isLegacyRegistryScope,
   mergeRegistryAccess,
+  type RegistryRepositoryWorkloads,
+  registryAccessWorkloads,
   splitRegistryScopes,
   type TokenRegistryAccess,
   tokenRegistryAccess,
@@ -87,7 +89,9 @@ export function resolveRequestedTokenScopes(
 /**
  * Check the internal registry access a client asks a token for (its registryAccess and any legacy registry scopes in
  * its scope list) against the owner's scopes, and return the scopes to bound by the owner's grants: the legacy
- * registry scopes are a token attribute now, which the owner need not hold.
+ * registry scopes are a token attribute now, which the owner need not hold. A listed repository needs the owner's
+ * broad or legacy registry scope here; authorizeRequestedRegistryAccessForWorkloads also counts the owner's access to
+ * a workload using it.
  */
 export function authorizeRequestedRegistryAccess(
   input: { scopes?: readonly string[]; registryAccess?: TokenRegistryAccess },
@@ -95,6 +99,22 @@ export function authorizeRequestedRegistryAccess(
 ): string[] {
   const split = splitRegistryScopes(input.scopes ?? []);
   assertTokenRegistryAccessAllowed(mergeRegistryAccess(input.registryAccess, split.registryAccess), ownerScopes);
+  return split.scopes;
+}
+
+/** authorizeRequestedRegistryAccess with the workloads of the listed repositories looked up. */
+export async function authorizeRequestedRegistryAccessForWorkloads(
+  input: { scopes?: readonly string[]; registryAccess?: TokenRegistryAccess },
+  ownerScopes: string[],
+  workloadsOf: RegistryRepositoryWorkloads
+): Promise<string[]> {
+  const split = splitRegistryScopes(input.scopes ?? []);
+  const access = mergeRegistryAccess(input.registryAccess, split.registryAccess);
+  assertTokenRegistryAccessAllowed(
+    access,
+    ownerScopes,
+    await registryAccessWorkloads(access, ownerScopes, workloadsOf)
+  );
   return split.scopes;
 }
 

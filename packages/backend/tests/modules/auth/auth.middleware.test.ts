@@ -6,6 +6,8 @@ import type { DrizzleClient } from '@/db/client.js';
 import { runWithAuditRequestContext } from '@/modules/audit/audit-request-context.js';
 import { authMiddleware, optionalAuthMiddleware } from '@/modules/auth/auth.middleware.js';
 import { getSessionCookieName } from '@/modules/auth/session-cookie.js';
+import { initializeHostCookieSince } from '@/modules/auth/legacy-session-cookie.js';
+import { GeneralSettingsService } from '@/modules/settings/general-settings.service.js';
 import { SetupAccessService } from '@/modules/setup/setup-access.service.js';
 import { TokensService } from '@/modules/tokens/tokens.service.js';
 import { SessionService } from '@/services/session.service.js';
@@ -31,7 +33,6 @@ const USER: User = {
 const SESSION: SessionData = {
   userId: USER.id,
   user: USER,
-  accessToken: 'oidc-access-token',
   createdAt: Date.now(),
   expiresAt: Date.now() + 60_000,
   csrfToken: 'csrf-token',
@@ -481,5 +482,138 @@ describe('authMiddleware browser session credentials', () => {
     expect(await meResponse.json()).toEqual({ userId: USER.id, isBlocked: true });
     expect(logoutResponse.status).toBe(200);
     expect(await logoutResponse.json()).toEqual({ userId: USER.id, isBlocked: true });
+  });
+});
+
+describe('authMiddleware session cookies of HTTPS requests (R1-10)', () => {
+  const unprefixedHttpsCookie = () => getSessionCookieName('https').replace('__Host-', '');
+
+  const HTTPS = 'https://opfield.example.com';
+
+  /** The saved public URL; the cookie rules follow the request's protocol, not this. */
+  function useHttpsPublicUrl(publicUrl = HTTPS) {
+    container.registerInstance(GeneralSettingsService, {
+      getPublicUrl: vi.fn().mockResolvedValue(publicUrl),
+    } as unknown as GeneralSettingsService);
+  }
+
+  /** This release first started at `since` (the settings row initializeHostCookieSince reads). */
+  async function useHostCookieSince(since: number) {
+    const row = { value: { since: new Date(since).toISOString() } };
+    await initializeHostCookieSince({
+      insert: () => ({ values: () => ({ onConflictDoNothing: async () => undefined }) }),
+      select: () => ({ from: () => ({ where: () => ({ limit: async () => [row] }) }) }),
+    } as never);
+  }
+
+  it('uses the __Host- cookie and ignores another one planted next to it', async () => {
+    const sessionService = registerSession();
+    useHttpsPublicUrl();
+
+    const response = await createApp().request(`${HTTPS}/read`, {
+      headers: {
+        Cookie: `${unprefixedHttpsCookie()}=planted-session; session_id=planted-session; ${getSessionCookieName('https')}=own-session`,
+      },
+    });
+
+    expect(response.status).toBe(200);
+    expect(sessionService.getSession).toHaveBeenCalledWith('own-session');
+    expect(sessionService.getSession).not.toHaveBeenCalledWith('planted-session');
+    expect(response.headers.get('set-cookie')).toBeNull();
+  });
+
+  it('moves a session signed in before the __Host- cookie to it and clears the old cookie', async () => {
+    const sessionService = registerSession();
+    useHttpsPublicUrl();
+    await useHostCookieSince(Date.now() + 60_000);
+
+    const response = await createApp().request(`${HTTPS}/read`, {
+      headers: { Cookie: `${unprefixedHttpsCookie()}=session-1` },
+    });
+
+    expect(response.status).toBe(200);
+    expect(sessionService.getSession).toHaveBeenCalledWith('session-1');
+    const setCookies = response.headers.getSetCookie();
+    const reissued = setCookies.find((cookie) => cookie.startsWith(`${getSessionCookieName('https')}=session-1`));
+    expect(reissued).toMatch(/; Path=\//);
+    expect(reissued).toMatch(/; Secure/);
+    expect(reissued).toMatch(/; HttpOnly/);
+    expect(reissued).not.toMatch(/Domain=/i);
+    expect(setCookies.some((cookie) => cookie.startsWith(`${unprefixedHttpsCookie()}=;`))).toBe(true);
+  });
+
+  it('refuses a legacy-named cookie for a session created since this release started (L-08)', async () => {
+    registerSession({ session: { ...SESSION, createdAt: Date.now() } });
+    useHttpsPublicUrl();
+    await useHostCookieSince(Date.now() - 60_000);
+
+    const response = await createApp().request(`${HTTPS}/read`, {
+      headers: { Cookie: `${unprefixedHttpsCookie()}=planted-session` },
+    });
+
+    expect(response.status).toBe(401);
+    expect(response.headers.get('set-cookie')).toBeNull();
+  });
+
+  it('refuses the plain session_id cookie for a non-loopback HTTPS console', async () => {
+    const sessionService = registerSession();
+    useHttpsPublicUrl();
+
+    const response = await createApp().request(`${HTTPS}/read`, { headers: { Cookie: 'session_id=session-1' } });
+
+    expect(response.status).toBe(401);
+    expect(sessionService.getSession).not.toHaveBeenCalled();
+  });
+
+  it('keeps the HTTP cookie of a setup wizard over http://<ip>:3000 when the public URL is HTTPS (mixed setup)', async () => {
+    const sessionService = registerSession({ session: { ...SESSION, createdAt: Date.now() } });
+    useHttpsPublicUrl();
+    await useHostCookieSince(Date.now() - 60_000);
+
+    const response = await createApp().request('http://203.0.113.5:3000/read', {
+      headers: { Cookie: `${getSessionCookieName('http')}=setup-browser-session` },
+    });
+
+    expect(response.status).toBe(200);
+    expect(sessionService.getSession).toHaveBeenCalledWith('setup-browser-session');
+    expect(response.headers.get('set-cookie')).toBeNull();
+  });
+
+  it('keeps signed-in browsers when the public URL is switched from HTTP to HTTPS (HTTP→HTTPS switch)', async () => {
+    const sessionService = registerSession({ session: { ...SESSION, createdAt: Date.now() } });
+    await useHostCookieSince(Date.now() - 60_000);
+    const cookie = { Cookie: `${getSessionCookieName('http')}=http-session` };
+
+    // Saved as HTTPS while the console still answers over plain HTTP: the same cookie keeps working.
+    useHttpsPublicUrl();
+    const stillHttp = await createApp().request('http://opfield.example.com/read', { headers: cookie });
+    expect(stillHttp.status).toBe(200);
+    expect(sessionService.getSession).toHaveBeenCalledWith('http-session');
+
+    // Once the browser arrives over HTTPS the HTTP-named cookie of a session from this release is not taken (a
+    // sibling host could have planted it): that browser signs in once more and gets the __Host- cookie.
+    const overHttps = await createApp().request(`${HTTPS}/read`, { headers: cookie });
+    expect(overHttps.status).toBe(401);
+  });
+
+  it('applies the HTTPS rules behind a TLS proxy that is not a trusted proxy (X-Forwarded-Proto: https)', async () => {
+    const sessionService = registerSession({ session: { ...SESSION, createdAt: Date.now() } });
+    await useHostCookieSince(Date.now() - 60_000);
+    const viaProxy = 'http://opfield.example.com/read';
+
+    const ownCookie = await createApp().request(viaProxy, {
+      headers: {
+        'X-Forwarded-Proto': 'https',
+        Cookie: `${unprefixedHttpsCookie()}=planted-session; ${getSessionCookieName('https')}=own-session`,
+      },
+    });
+    expect(ownCookie.status).toBe(200);
+    expect(sessionService.getSession).toHaveBeenCalledWith('own-session');
+    expect(sessionService.getSession).not.toHaveBeenCalledWith('planted-session');
+
+    const plantedOnly = await createApp().request(viaProxy, {
+      headers: { 'X-Forwarded-Proto': 'https', Cookie: `${unprefixedHttpsCookie()}=planted-session` },
+    });
+    expect(plantedOnly.status).toBe(401);
   });
 });

@@ -42,8 +42,6 @@ export interface SessionData {
   user: User;
   publicId?: string;
   authMethod?: AuthMethod;
-  accessToken?: string;
-  refreshToken?: string;
   csrfToken?: string;
   purpose?: 'user' | 'setup' | 'impersonation';
   setupSessionId?: string;

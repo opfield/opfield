@@ -1,5 +1,6 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { Hono } from 'hono';
+import { bodyLimit } from 'hono/body-limit';
 import { container } from '@/container.js';
 import { AppError, errorHandler } from '@/middleware/error-handler.js';
 import type { AppEnv } from '@/types.js';
@@ -13,17 +14,29 @@ import {
   OPFIELD_CORE_CONTRACT_ID,
 } from './inference-core.contract.js';
 import { InferenceCoreBridgeService } from './inference-core-bridge.service.js';
+import { INFERENCE_CORE_CALLBACK_MAX_BODY_BYTES } from './inference-core-internal-listener.js';
 
 /** Freshness bound for callback signatures; outbox replays re-sign at send time. */
 const CALLBACK_TIMESTAMP_SKEW_SECONDS = 60;
 
 /**
  * Internal core → Opfield callback listener (admission + settlement). Served
- * on a dedicated port that is never published to the host: only containers on
- * the installer-managed Compose network can reach it, and every call must
- * carry a valid HMAC signature keyed by the internal callback credential.
+ * on a dedicated port that is never published to the host and bound to the
+ * container's own network addresses (inference-core-internal-listener.ts):
+ * only containers on the installer-managed Compose network can reach it, and
+ * every call must carry a valid HMAC signature keyed by the internal callback
+ * credential.
  */
 export const inferenceCoreInternalRoutes = new Hono<AppEnv>();
+
+// The body is read before the signature can be checked: cap it first.
+inferenceCoreInternalRoutes.use(
+  '*',
+  bodyLimit({
+    maxSize: INFERENCE_CORE_CALLBACK_MAX_BODY_BYTES,
+    onError: (c) => c.json({ code: 'callback_too_large', message: 'Callback body is too large' }, 413),
+  })
+);
 
 inferenceCoreInternalRoutes.onError((error, c) => {
   if (error instanceof AppError) {

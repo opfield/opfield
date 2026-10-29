@@ -90,14 +90,8 @@ export function buildHostingBootstrap(input: {
   const url = new URL(`https://${input.opfieldAddress}`);
   if (url.username || url.password || url.pathname !== '/' || url.search || url.hash)
     throw new AppError(400, 'HOSTING_OPFIELD_INVALID', 'Invalid Opfield enrollment endpoint');
-  const args = [
-    '--opfield',
-    input.opfieldAddress,
-    '--token',
-    input.token,
-    '--opfield-cert-sha256',
-    input.certificateFingerprint,
-  ];
+  // The enrollment token reaches the installer through its environment, never its command line (R3-04).
+  const args = ['--opfield', input.opfieldAddress, '--opfield-cert-sha256', input.certificateFingerprint];
   if (input.role !== 'relay') args.push('--yes');
   // The daemon release of this Opfield's line, as the node setup commands pin it.
   if (input.installers.daemonVersion) {
@@ -219,8 +213,8 @@ ${files.map((file) => `fetch_installer '${file}' '${input.installers.sha256[file
 installer="$installer_dir/${main}"
 ${
   input.reportResult
-    ? `bash "$installer" ${args.map(shellArgument).join(' ')} 2>&1 | tee -a ${HOSTING_INSTALL_LOG_FILE}`
-    : `bash "$installer" ${args.map(shellArgument).join(' ')}`
+    ? `OPFIELD_NODE_TOKEN=${shellArgument(input.token)} bash "$installer" ${args.map(shellArgument).join(' ')} 2>&1 | tee -a ${HOSTING_INSTALL_LOG_FILE}`
+    : `OPFIELD_NODE_TOKEN=${shellArgument(input.token)} bash "$installer" ${args.map(shellArgument).join(' ')}`
 }
 `;
 }

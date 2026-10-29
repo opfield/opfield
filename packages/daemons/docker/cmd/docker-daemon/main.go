@@ -258,18 +258,18 @@ func setupLogger(level, format string) *slog.Logger {
 
 func runInstall() {
 	if len(os.Args) < 4 {
-		fmt.Fprintf(os.Stderr, "Usage: docker-daemon install --opfield <address> --token <token> --opfield-cert-sha256 <sha256:hex> [--mode builder] [--docker-socket <host>]\n")
+		fmt.Fprintf(os.Stderr, "Usage: docker-daemon install --opfield <address> --opfield-cert-sha256 <sha256:hex> [--mode builder] [--docker-socket <host>]\n  %s\n", lifecycle.InstallTokenUsage)
 		os.Exit(1)
 	}
 
-	var address, token, certSHA256, dockerSocket, mode string
+	var address, tokenFlag, certSHA256, dockerSocket, mode string
 	for i := 2; i < len(os.Args)-1; i++ {
 		switch os.Args[i] {
 		// legacy-name: legacycompat.AddressFlag and legacycompat.CertFlag used by customer automation — drop with a changelog notice
 		case "--opfield", legacycompat.AddressFlag:
 			address = os.Args[i+1]
 		case "--token":
-			token = os.Args[i+1]
+			tokenFlag = os.Args[i+1]
 		case "--opfield-cert-sha256", legacycompat.CertFlag:
 			certSHA256 = os.Args[i+1]
 		case "--docker-socket":
@@ -278,9 +278,14 @@ func runInstall() {
 			mode = os.Args[i+1]
 		}
 	}
+	token, err := lifecycle.InstallToken(tokenFlag, os.Stdin)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
 
 	if address == "" || token == "" || certSHA256 == "" {
-		fmt.Fprintf(os.Stderr, "--opfield, --token, and --opfield-cert-sha256 are required\n")
+		fmt.Fprintf(os.Stderr, "--opfield, the enrollment token (%s or --token), and --opfield-cert-sha256 are required\n", lifecycle.InstallTokenEnv)
 		os.Exit(1)
 	}
 	if !opfieldCertSHA256Pattern.MatchString(certSHA256) {

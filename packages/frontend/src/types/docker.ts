@@ -686,7 +686,8 @@ export interface DockerWebhook {
   id: string;
   nodeId: string;
   containerName: string;
-  token: string;
+  /** Present only in the response that enabled the webhook or regenerated its token; the server keeps a hash. */
+  token: string | null;
   enabled: boolean;
   targetType?: "container" | "deployment";
   deploymentId?: string | null;

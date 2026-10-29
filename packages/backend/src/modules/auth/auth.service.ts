@@ -25,8 +25,11 @@ import {
   proxyHosts,
   sslCertificates,
   type UserAuthMethod,
+  userPasskeys,
   userPasswordCredentials,
+  userRecoveryCodes,
   users,
+  userTotpFactors,
 } from '@/db/schema/index.js';
 import {
   type CreatedResourceDestination,
@@ -48,6 +51,7 @@ import type { SessionService } from '@/services/session.service.js';
 import type { User } from '@/types.js';
 import type { AuthSettingsService } from './auth.settings.service.js';
 import { type AvatarStorageService, isStoredAvatarUrl } from './avatar-storage.service.js';
+import { bumpKnownDeviceEpoch } from './known-device-epoch.js';
 import {
   computeEffectiveGroupAccess,
   computeEffectiveUserAccess,
@@ -398,7 +402,7 @@ export class AuthService {
       );
       const user = await this.findOrCreateUser(normalizedClaims);
 
-      const { sessionId } = await this.sessionService.createSession(user, tokens.access_token, tokens.refresh_token, {
+      const { sessionId } = await this.sessionService.createSession(user, {
         authMethod: 'oidc',
         ...sessionMetadata,
       });
@@ -744,7 +748,11 @@ export class AuthService {
     return mapped;
   }
 
-  async updateUserAuthMethod(userId: string, authMethod: UserAuthMethod): Promise<User> {
+  async updateUserAuthMethod(
+    userId: string,
+    authMethod: UserAuthMethod,
+    options: { actorUserId?: string } = {}
+  ): Promise<User> {
     await this.assertAuthMethodEnabled(authMethod);
     const target = await this.db.query.users.findFirst({ where: eq(users.id, userId) });
     if (!target) throw new AppError(404, 'USER_NOT_FOUND', 'User not found');
@@ -769,11 +777,51 @@ export class AuthService {
     // Never carry a previous password across a primary-method transition.
     // Switching to password is activated by a fresh, emailed setup link.
     await this.db.delete(userPasswordCredentials).where(eq(userPasswordCredentials.userId, userId));
+    await this.clearSecondFactorsForMethodChange(updated, target.authMethod, options.actorUserId);
     await this.sessionService.destroyAllUserSessions(userId);
     this.emitUser(userId, 'updated');
     const mapped = await this.mapDbUserToUser(updated);
     this.emitPermissions(mapped.id, mapped.scopes, mapped.groupId);
     return mapped;
+  }
+
+  /**
+   * Second factors go with the previous sign-in method: a passkey, authenticator or recovery code set up under it
+   * (possibly by whoever the change is meant to lock out) must not keep signing in or come back with that method.
+   */
+  private async clearSecondFactorsForMethodChange(
+    user: typeof users.$inferSelect,
+    previousAuthMethod: string,
+    actorUserId: string | undefined
+  ): Promise<void> {
+    const [totp, recoveryCodes, passkeys] = await Promise.all([
+      this.db
+        .delete(userTotpFactors)
+        .where(eq(userTotpFactors.userId, user.id))
+        .returning({ userId: userTotpFactors.userId }),
+      this.db
+        .delete(userRecoveryCodes)
+        .where(eq(userRecoveryCodes.userId, user.id))
+        .returning({ id: userRecoveryCodes.id }),
+      this.db.delete(userPasskeys).where(eq(userPasskeys.userId, user.id)).returning({ id: userPasskeys.id }),
+    ]);
+    await this.cacheService.delete(`mfa:totp:setup:${user.id}`);
+    if (totp.length === 0 && recoveryCodes.length === 0 && passkeys.length === 0) return;
+    await this.auditService.log({
+      userId: actorUserId ?? null,
+      action: 'user.mfa_reset',
+      resourceType: 'user',
+      resourceId: user.id,
+      details: {
+        targetUserId: user.id,
+        reason: 'auth_method_change',
+        previousAuthMethod,
+        authMethod: user.authMethod,
+        totpRemoved: totp.length > 0,
+        recoveryCodesRemoved: recoveryCodes.length,
+        passkeysRemoved: passkeys.length,
+      },
+    });
   }
 
   async updateLocalUserName(userId: string, name: string): Promise<User> {
@@ -1254,6 +1302,8 @@ export class AuthService {
       throw new Error('User not found');
     }
 
+    // Sessions stay (status and sign-out); known-device cookies of the account stop counting.
+    await bumpKnownDeviceEpoch(this.cacheService, userId);
     this.emitUser(userId, 'updated');
     this.emitPermissions(userId, [], null, 'user_blocked');
     return this.mapDbUserToUser(updatedUser);

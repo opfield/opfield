@@ -692,7 +692,8 @@ func (p *NginxPlugin) OnSessionStart(ctx context.Context, _ *stream.Writer) erro
 		cancel()
 		return err
 	}
-	accessServer, err := startMaintenanceAccessServer(conn, p.logger)
+	workers := newNginxPeerAuthority(canonicalExecutablePath(p.cfg.Nginx.Binary), p.mgr.CachedPID)
+	accessServer, err := startMaintenanceAccessServer(conn, p.logger, workers.workerGroupGID)
 	if err != nil {
 		_ = conn.Close()
 		cancel()

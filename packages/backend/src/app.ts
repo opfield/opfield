@@ -67,7 +67,11 @@ import {
 import { authRoutes } from '@/modules/auth/auth.routes.js';
 import { AVATAR_UPLOAD_BODY_MAX_BYTES } from '@/modules/auth/avatar-storage.service.js';
 import { getPublicAuthMethods } from '@/modules/auth/public-auth-methods.js';
-import { getProgrammaticWebSocketCredential, getSessionWebSocketCredential } from '@/modules/auth/websocket-auth.js';
+import {
+  admitWebSocketSessionCookie,
+  getProgrammaticWebSocketCredential,
+  getSessionWebSocketCredential,
+} from '@/modules/auth/websocket-auth.js';
 import { backupRuntime } from '@/modules/backups/backup-runtime.js';
 import { cloudLinkRoutes } from '@/modules/cloud-link/cloud-link.routes.js';
 import { statusPageUpstreamGuard } from '@/modules/cloud-link/cloud-link-status-page-upstream.js';
@@ -329,18 +333,20 @@ function getAllowedWebSocketOrigin(requestUrl: string, hostHeader: string | unde
   return (origin: string | undefined) => isAllowedWebSocketOrigin(origin, directLocalRequestOrigin);
 }
 
+/** The session id of the upgrade's cookie for the id-authenticated sockets; '' when none may be used. */
 function getWebSocketSessionId(
   cookieHeader: string | undefined,
   origin: string | undefined,
   requestUrl: string,
   hostHeader: string | undefined
-): string {
+): Promise<string> {
   const credential = getSessionWebSocketCredential(
     cookieHeader,
     origin,
     getAllowedWebSocketOrigin(requestUrl, hostHeader)
   );
-  return credential?.value ?? '';
+  // A legacy-named cookie keeps the cookie rules of the HTTP routes (sessionAllowedForCookie).
+  return admitWebSocketSessionCookie(credential).catch(() => '');
 }
 
 async function isStatusHostRequest(hostHeader: string | undefined): Promise<boolean> {
@@ -956,13 +962,15 @@ export function createApp(): OpfieldAppRuntime {
         onOpen(event, ws) {
           wsHandlers.onOpen(event, ws);
           // Authenticate after connection opens
-          authenticateWSConnection(ws, sessionId).catch(() => {
-            try {
-              ws.close();
-            } catch {
-              /* ignore */
-            }
-          });
+          sessionId
+            .then((id) => authenticateWSConnection(ws, id))
+            .catch(() => {
+              try {
+                ws.close();
+              } catch {
+                /* ignore */
+              }
+            });
         },
         onMessage: wsHandlers.onMessage,
         onClose: wsHandlers.onClose,
@@ -1098,13 +1106,15 @@ export function createApp(): OpfieldAppRuntime {
       return {
         onOpen(event, ws) {
           eventsHandlers.onOpen(event, ws);
-          authenticateEventsConnection(ws, sessionId).catch(() => {
-            try {
-              ws.close();
-            } catch {
-              /* ignore */
-            }
-          });
+          sessionId
+            .then((id) => authenticateEventsConnection(ws, id))
+            .catch(() => {
+              try {
+                ws.close();
+              } catch {
+                /* ignore */
+              }
+            });
         },
         onMessage: eventsHandlers.onMessage,
         onClose: eventsHandlers.onClose,

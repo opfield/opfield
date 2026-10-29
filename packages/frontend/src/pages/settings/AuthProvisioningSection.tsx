@@ -1472,8 +1472,8 @@ export function AuthProvisioningSection({
                 />
               </p>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Comma-separated proxy ranges allowed to provide forwarded client headers. Empty
-                trusts all peers in reverse proxy mode.
+                Comma-separated proxy ranges allowed to provide forwarded client headers. Reverse
+                proxy mode needs at least one.
               </p>
             </div>
             <Input

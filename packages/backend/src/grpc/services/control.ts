@@ -1530,7 +1530,7 @@ export function createControlHandlers(deps: GrpcServerDeps) {
               relayDaemonLog(activeNodeId, msg.daemonLog);
             } else if (msg.execOutput) {
               // Route exec output to registered WebSocket handler
-              deps.registry.handleExecOutput(msg.execOutput.execId, msg.execOutput);
+              deps.registry.handleExecOutput(activeNodeId, msg.execOutput.execId, msg.execOutput);
             }
           }
         } catch (err) {

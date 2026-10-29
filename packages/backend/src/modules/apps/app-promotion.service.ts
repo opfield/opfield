@@ -34,6 +34,7 @@ import { RelayRegistryService } from '@/services/relay-registry.service.js';
 import { APP_PROMOTE_SCOPE, assertAppScope, visibleEnvironmentIds } from './app-access.js';
 import type { AppMemberFreeze } from './app-member-freeze.js';
 import type { AppMembersReader } from './app-members.service.js';
+import { assertPromotionImageScopes } from './app-promotion-image-scopes.js';
 import { type PromotableType, type PromotionPair, pairMembers, type UnpairedMember } from './app-promotion-pairing.js';
 import type { AppActor, AppEnvironmentRow, AppsService } from './apps.service.js';
 
@@ -214,7 +215,8 @@ function errorMessage(error: unknown): string {
  * image by digest (Git artifacts by their internal registry digest, never rebuilt), Compose projects a new revision
  * of the source YAML with every service image pinned to the digest it runs (the target keeps its own variables and
  * secret keys), Pages projects the source's active artifact. Members pair automatically by name. Databases and
- * storage are never promoted. Scope: apps:promote on the target environment (and view on the source).
+ * storage are never promoted. Scope: apps:promote on the target environment (and view on the source); a container or
+ * deployment also needs the scopes of a recreate or deploy with a new image on the target.
  */
 export class AppPromotionService {
   private readonly running = new Set<string>();
@@ -632,6 +634,10 @@ export class AppPromotionService {
     const wanted = new Set(input.items);
     const selected = preview.items.filter((item) => wanted.has(item.pairKey));
     if (selected.length === 0) throw new AppError(400, 'VALIDATION_ERROR', 'Select at least one item to promote');
+    // A new image runs with the target's env and secrets: apps:promote alone does not cover that.
+    if (selected.some((item) => item.promotable && item.type !== 'pages')) {
+      assertPromotionImageScopes(actor.scopes, selected, await this.members.listMembers([target.id]));
+    }
     const records: AppPromotionItemRecord[] = selected.map((item) => ({
       pairKey: item.pairKey,
       type: item.type,
@@ -839,7 +845,8 @@ export class AppPromotionService {
             sourceYaml: this.pinComposeYaml(sourceState.revision.sourceYaml, sourceState.services),
             promotedFromRevisionId: sourceState.revision.id,
           },
-          actor.userId
+          actor.userId,
+          actor.scopes
         );
         if (result.operationId) {
           const operation = await this.resolve(DockerComposeService)!.waitForOperation(result.operationId, 10 * 60_000);

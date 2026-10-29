@@ -7,7 +7,10 @@ IFS=$'\n\t'
 . "$(dirname -- "${BASH_SOURCE[0]}")/legacy-compat.sh"
 
 OPFIELD_ADDRESS=""
-TOKEN=""
+# The generated setup command passes the enrollment token in OPFIELD_NODE_TOKEN, not as --token (an argument is
+# readable by every local user while the installer runs); it goes only into the supervisor's 0600 configuration.
+TOKEN="${OPFIELD_NODE_TOKEN:-}"
+unset OPFIELD_NODE_TOKEN
 OPFIELD_CERT_SHA256=""
 ADVERTISE_ADDRESS=""
 SERVICE_PORT="9443"
@@ -73,6 +76,7 @@ current_relay_dir() {
 
 usage() {
   echo "Usage: setup-relay-node.sh --opfield host:port --token TOKEN --opfield-cert-sha256 sha256:HEX --advertise-address HOST [--service-port 9443] [--version vX.Y.Z] [--disable-console] [--disable-files] [--protected] [--dry-run]"
+  echo "  The token can come from OPFIELD_NODE_TOKEN instead of --token (sudo --preserve-env=OPFIELD_NODE_TOKEN), off the command line."
   echo "  An enrolled relay can be re-run without --token: it keeps its identity and takes the Opfield address, certificate"
   echo "  pin, advertised address and port from its configuration unless they are given. With a token it re-enrolls."
   echo "  --disable-console  Turn the host console off (console.enabled: false; env OPFIELD_NODE_DISABLE_CONSOLE=1)"
@@ -1072,11 +1076,26 @@ done
 unset temp_base
 trap 'rm -rf "$TEMP_DIR"; close_setup_log' EXIT
 
-cat >"${TEMP_DIR}/update-public-key.pem" <<'KEY'
------BEGIN PUBLIC KEY-----
-MCowBQYDK2VwAyEAxLXGD8vCYQCYboK301miZXyAaoOLc43zFVnMlH3FeWg=
------END PUBLIC KEY-----
-KEY
+# Update signing trust, the same as the backend's (update-signing-trust.ts) and the daemons' (updateauth/trust.go):
+# key slots hold the base64 body of an Ed25519 PEM PUBLIC KEY block; primary is the release signing key, secondary the
+# owner's standby key (empty until it is added). A key whose id (SHA-256 of its SubjectPublicKeyInfo DER, hex) is
+# listed in UPDATE_TRUST_REVOKED verifies nothing. docs/security.md describes a key rotation.
+UPDATE_TRUST_PRIMARY='MCowBQYDK2VwAyEAxLXGD8vCYQCYboK301miZXyAaoOLc43zFVnMlH3FeWg='
+UPDATE_TRUST_SECONDARY=''
+UPDATE_TRUST_REVOKED='' # key ids, separated by spaces
+
+# Whether one of the trusted, unrevoked keys signed payload with signature.
+signed_by_trusted_key() {
+  local payload="$1" signature="$2" slot id
+  for slot in "$UPDATE_TRUST_PRIMARY" "$UPDATE_TRUST_SECONDARY"; do
+    [[ -n "$slot" ]] || continue
+    id=$(printf '%s' "$slot" | openssl base64 -d -A | sha256sum | awk '{print $1}')
+    [[ " ${UPDATE_TRUST_REVOKED} " == *" ${id} "* ]] && continue
+    printf -- '-----BEGIN PUBLIC KEY-----\n%s\n-----END PUBLIC KEY-----\n' "$slot" >"${TEMP_DIR}/update-public-key.pem"
+    openssl pkeyutl -verify -pubin -inkey "${TEMP_DIR}/update-public-key.pem" -rawin -in "$payload" -sigfile "$signature" >/dev/null 2>&1 && return 0
+  done
+  return 1
+}
 
 decode_base64url() {
   local value="$1" remainder
@@ -1103,12 +1122,15 @@ fetch_verified() {
   local manifest="${TEMP_DIR}/${name}.update.json"
   local payload="${TEMP_DIR}/${name}.payload"
   local signature="${TEMP_DIR}/${name}.sig"
-  local binary="${TEMP_DIR}/${name}" url
+  local binary="${TEMP_DIR}/${name}" url help
+  # The relay installer has always verified its binaries with pkeyutl -rawin, which OpenSSL 1.1.1 lacks.
+  help=$(openssl pkeyutl -help 2>&1 || true)
+  [[ "$help" == *-rawin* ]] || { echo "OpenSSL 3 or later is required to verify the signed relay release; this host has $(openssl version 2>/dev/null || echo 'an older openssl'). Install OpenSSL 3 and run the installer again." >&2; exit 1; }
   curl -fsSL "${PACKAGE_BASE}/${name}.update.json" -o "$manifest"
   [[ "$(jq -r '.schemaVersion' "$manifest")" == "1" && "$(jq -r '.keyId' "$manifest")" == "$LEGACY_UPDATE_KEY_ID" ]] || { echo "Untrusted manifest envelope for ${name}" >&2; exit 1; }
   decode_base64url "$(jq -r '.payload' "$manifest")" >"$payload"
   decode_base64url "$(jq -r '.signature' "$manifest")" >"$signature"
-  openssl pkeyutl -verify -pubin -inkey "${TEMP_DIR}/update-public-key.pem" -rawin -in "$payload" -sigfile "$signature" >/dev/null
+  signed_by_trusted_key "$payload" "$signature" || { echo "The manifest of ${name} is not signed by a trusted Opfield key" >&2; exit 1; }
   [[ "$(jq -r '.kind' "$payload")" == "daemon-binary" && "$(jq -r '.version' "$payload")" == "$VERSION" && "$(jq -r '.tag' "$payload")" == "$TAG" && "$(jq -r '.daemonType' "$payload")" == "$daemon_type" && "$(jq -r '.arch' "$payload")" == "$ARCH" && "$(jq -r '.artifactName' "$payload")" == "$name" ]] || { echo "Manifest scope mismatch for ${name}" >&2; exit 1; }
   url=$(relay_artifact_url "$(jq -r '.downloadUrl' "$payload")" "$name")
   curl -fsSL "$url" -o "$binary" || { echo "Could not download ${name} from ${url}" >&2; exit 1; }

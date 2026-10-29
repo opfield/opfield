@@ -2,6 +2,7 @@ import { container, TOKENS } from '@/container.js';
 import type { CommercialEditionRuntime } from '@/edition/runtime.js';
 import { commercialModuleUnavailable } from '@/edition/unavailable.js';
 import { hasScope } from '@/lib/permissions.js';
+import { resolveSlugVisibleTo } from '@/lib/slug-lookup.js';
 import { AppError } from '@/middleware/error-handler.js';
 import { databaseToolRuntime } from '@/modules/databases/database-tool-runtime.js';
 import type { DatabaseConnectionService } from '@/modules/databases/databases.service.js';
@@ -40,21 +41,32 @@ export async function executeDatabaseTool(
       context,
       user,
       toolName,
-      await withDatabaseIdForSlug(context, toolName, args),
+      await withDatabaseIdForSlug(context, user, toolName, args),
       databaseToolRuntime
     );
 }
 
 /**
  * get_database_connection by slug, like GET /databases/by-slug/{slug}: the slug names the connection, and the
- * tool then reads it by id with the usual databases:view check on that id.
+ * tool then reads it by id with the usual databases:view check on that id. A connection the caller may not view
+ * answers like a missing slug.
  */
-async function withDatabaseIdForSlug(context: DatabaseToolContext, toolName: string, args: Record<string, unknown>) {
+async function withDatabaseIdForSlug(
+  context: DatabaseToolContext,
+  user: User,
+  toolName: string,
+  args: Record<string, unknown>
+) {
   if (toolName !== 'get_database_connection' || args.databaseId || typeof args.slug !== 'string' || !args.slug) {
     return args;
   }
   const { slug, ...rest } = args;
-  return { ...rest, databaseId: (await context.databaseService.getBySlug(slug as string)).id };
+  const connection = await resolveSlugVisibleTo(
+    'Database connection',
+    () => context.databaseService.getBySlug(slug as string),
+    (id) => hasScope(user.scopes, `databases:view:${id}`)
+  );
+  return { ...rest, databaseId: connection.id };
 }
 
 /** manage_managed_database operations for credentials, logs and binding runtime. */

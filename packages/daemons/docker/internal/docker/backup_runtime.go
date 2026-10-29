@@ -40,6 +40,9 @@ const (
 	backupRunnerManagedLabel  = "net.opfield.managed"
 	backupRunnerRunLabel      = "net.opfield.backup-run-id"
 	backupRunnerDeadlineLabel = "net.opfield.backup-deadline"
+	// backupRunnerUID is the user of the backup runner image (packages/daemons/backup-runner/Dockerfile): it owns the
+	// runner's files and is the one user besides root and the daemon a backup relay route serves.
+	backupRunnerUID = 65532
 	// The staging Redis of a Redis restore, labelled with backupRunnerRunLabel.
 	backupRedisStageManagedValue = "backup-redis-stage"
 	// A runner found after a daemon restart is stopped only once it is
