@@ -105,7 +105,9 @@ describe.skipIf(!url)('Opfield account access removal over the cloud link (Postg
       null
     );
     cloud.setAuditService({ log: audit } as never);
-    auth = new AuthService(db, sessions as never, {} as never, new AuthSettingsService(db), { log: audit } as never);
+    auth = new AuthService(db, sessions as never, { incr: async () => 1 } as never, new AuthSettingsService(db), {
+      log: audit,
+    } as never);
     revoker = new CloudSsoRevoker({ db, auth, cloud });
     // The owner signs in with a password and stays an active administrator; Ada (an administrator too) and Bob
     // signed in with the Opfield account; Carol has the same subject as Bob under another issuer.

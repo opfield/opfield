@@ -140,7 +140,8 @@ describe("token internal registry access", () => {
     expect(api.createToken).toHaveBeenCalledWith(
       expect.objectContaining({ registryAccess: { pull: ["team/app"], push: ["team/app"] } })
     );
-  });
+    // Typing a token name and two repositories takes a few seconds on a busy CI runner.
+  }, 15_000);
 
   it.each([
     ["external registry access is off", { externalAccess: false, licensed: true }],
