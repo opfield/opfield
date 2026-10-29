@@ -29,7 +29,7 @@ export interface HostingHttp {
   request<T>(path: string, options?: HostingRequestOptions): Promise<T>;
 }
 
-const PROVIDER_ORIGINS = {
+export const PROVIDER_ORIGINS = {
   hostkey: 'https://invapi.hostkey.com',
   digitalocean: 'https://api.digitalocean.com',
   hetzner: 'https://api.hetzner.cloud',

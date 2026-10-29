@@ -165,6 +165,32 @@ export const pathParamSchema = <T extends string>(...names: T[]) =>
     ) as Record<T, z.ZodString>
   );
 
+/** A requirement of a request body that holds only when the body matches `when` (JSON Schema `if`/`then`/`else`). */
+export interface OpenApiConditional {
+  when: Record<string, unknown>;
+  requires?: Record<string, unknown>;
+  otherwise?: Record<string, unknown>;
+}
+
+/**
+ * Documents requirements a body schema enforces in a refinement (a field required for one type or provider) as
+ * OpenAPI 3.1 `if`/`then`/`else`, so a client building the body from the document sends a body the validator
+ * accepts. Validation is unchanged: the refinement stays the rule.
+ */
+export function withDocumentedConditionals<T extends z.ZodTypeAny>(schema: T, conditionals: OpenApiConditional[]): T {
+  const allOf = conditionals.map(({ when, requires, otherwise }) =>
+    Object.fromEntries(
+      [
+        ['if', when],
+        ['then', requires],
+        ['else', otherwise],
+      ].filter(([, value]) => value !== undefined)
+    )
+  );
+  // The 3.0 and 3.1 schema types of the metadata name no `if`/`then`: the 3.1 document carries them as given.
+  return (schema as z.ZodTypeAny).openapi({ allOf: allOf as never[] }) as T;
+}
+
 export function jsonBody(schema: z.ZodTypeAny, description = 'JSON request body') {
   return {
     body: {

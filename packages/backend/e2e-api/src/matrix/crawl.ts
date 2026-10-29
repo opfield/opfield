@@ -373,6 +373,12 @@ export class Crawler {
     report.cover(family.create.key, 'exercised', 'create');
     const createdRow = data<any>(created);
     let id = idOf(createdRow);
+    // A resource whose item path names its id after itself ({uploadId}) answers that field, not `id`.
+    const itemParam = family.item.pathParams.at(-1) ?? '';
+    if (!id && itemParam !== 'id' && /Id$/.test(itemParam)) {
+      const named = createdRow?.[itemParam];
+      if (typeof named === 'string' || typeof named === 'number') id = String(named);
+    }
     if (!id && /name/i.test(family.item.pathParams.at(-1) ?? ''))
       id = String(createdRow?.name ?? (body as any)?.name ?? '') || undefined;
     if (!id && family.list) {

@@ -7,6 +7,7 @@ import {
   okJson,
   pathParamSchema,
   UnknownDataResponseSchema,
+  withDocumentedConditionals,
 } from '@/lib/openapi.js';
 import {
   CreateProxyHostSchema,
@@ -27,6 +28,26 @@ const RenderedConfigResponseSchema = dataResponseSchema(
     })
     .omit({ snippet: true })
 );
+
+const upstreamKind = (kind: string) => ({ required: ['upstreamKind'], properties: { upstreamKind: { const: kind } } });
+/** The create body with the requirements its refinement enforces per type and upstream kind (see the description). */
+const CreateProxyHostDocumentedSchema = withDocumentedConditionals(CreateProxyHostSchema, [
+  {
+    when: { properties: { type: { const: 'proxy' }, upstreamKind: { const: 'manual' } } },
+    requires: { required: ['forwardHost', 'forwardPort'] },
+  },
+  { when: upstreamKind('docker_container'), requires: { required: ['dockerNodeId', 'dockerContainerPort'] } },
+  { when: upstreamKind('docker_deployment'), requires: { required: ['dockerDeploymentId', 'dockerContainerPort'] } },
+  { when: upstreamKind('pages'), requires: { required: ['pageProjectId', 'pageTagId'] } },
+  {
+    when: { required: ['type'], properties: { type: { const: 'redirect' } } },
+    requires: { required: ['redirectUrl'] },
+  },
+  {
+    when: { required: ['relaySpreadMode'], properties: { relaySpreadMode: { const: 'fixed' } } },
+    requires: { required: ['relaySpreadCount'] },
+  },
+]);
 
 export const listProxyHostsRoute = appRoute({
   method: 'get',
@@ -82,7 +103,7 @@ export const createProxyHostRoute = appRoute({
   summary: 'Create an ingress route',
   description:
     "createMissingDomains true creates a Cloudflare domain for each hostname no registered domain covers (an exact domain or a covering wildcard), before the route: in the zone of an enabled connector, served by the route's node or ingress group, in the domains folder of the route's app environment (or the domain root). Each name needs domains:create there (on every member for a group) and must match the environment domain allowlist; a name without permission, without a zone or refused by Cloudflare is skipped, not fatal. When the route fails, the domains this request created are removed. The response adds createdDomains [{id, domain, zoneName}] and skippedDomains [{hostname, code, reason}]. POST /proxy-hosts/missing-domains shows the plan first. Required by type (400 VALIDATION_ERROR otherwise): type proxy (the default) with upstreamKind manual (the default) needs forwardHost and forwardPort; upstreamKind docker_container needs dockerNodeId, dockerContainerPort and either dockerContainerName or dockerComposeProjectId with dockerComposeServiceName; docker_deployment needs dockerDeploymentId and dockerContainerPort; pages needs pageProjectId and pageTagId (no rawConfigEnabled, no websocketSupport); any other upstreamKind than manual needs type proxy; type redirect needs redirectUrl; type 404 takes no health check; relaySpreadMode fixed needs relaySpreadCount (and only it takes one).",
-  request: jsonBody(CreateProxyHostSchema),
+  request: jsonBody(CreateProxyHostDocumentedSchema),
   responses: createdJson(UnknownDataResponseSchema),
 });
 

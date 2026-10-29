@@ -91,21 +91,33 @@ export function schemaTypes(spec: Spec, raw: Schema): string[] {
   return [];
 }
 
+/** A JSON Schema `if`/`then`/`else`: fields required (or fixed) only when the body matches `if`. */
+type Conditional = { condition: Schema; matched?: Schema; otherwise?: Schema };
+
+/** Conditionals collected from a schema and its allOf parts; `concrete` keeps them apart from the merged shape. */
+const CONDITIONALS = 'x-matrix-conditionals';
+
 /** First non-null branch of a union, merged allOf, so the generator has one concrete shape to fill. */
 export function concrete(spec: Spec, raw: Schema): Schema {
-  const schema = spec.resolve(raw);
+  const resolvedRaw = spec.resolve(raw);
+  const { if: condition, then: matched, else: otherwise, ...schema } = resolvedRaw;
+  const conditionals: Conditional[] = condition ? [{ condition, matched, otherwise }] : [];
   if (Array.isArray(schema.allOf)) {
+    const { allOf, ...base } = schema;
     const merged: Schema = {};
     const properties: Record<string, Schema> = {};
     const required: string[] = [];
-    for (const part of schema.allOf as Schema[]) {
+    for (const part of [base, ...(allOf as Schema[])]) {
       const resolved = concrete(spec, part);
-      Object.assign(merged, resolved);
-      Object.assign(properties, resolved.properties ?? {});
-      required.push(...(resolved.required ?? []));
+      conditionals.push(...((resolved[CONDITIONALS] as Conditional[] | undefined) ?? []));
+      const { [CONDITIONALS]: _, ...shape } = resolved;
+      Object.assign(merged, shape);
+      Object.assign(properties, shape.properties ?? {});
+      required.push(...(shape.required ?? []));
     }
-    return { ...merged, properties, required };
+    return { ...merged, properties, required: [...new Set(required)], [CONDITIONALS]: conditionals };
   }
+  if (conditionals.length) return { ...concrete(spec, schema), [CONDITIONALS]: conditionals };
   const branches = schema.anyOf ?? schema.oneOf;
   if (Array.isArray(branches)) {
     const nonNull = branches
@@ -171,7 +183,7 @@ function stringFor(field: string, schema: Schema, ctx: SynthContext): string {
           `${ctx.prefix}${ctx.unique}`.replace(/-/g, '_'),
           `mx${ctx.unique}`.replace(/[^a-z0-9]/g, ''),
         ]
-      : [`${ctx.prefix}${ctx.unique}`, 'mx matrix', 'mx', 'a', '1'];
+      : [`${ctx.prefix}${ctx.unique}`, `/tmp/${ctx.prefix}${ctx.unique}`, 'mx matrix', 'mx', 'a', '1'];
   for (const candidate of candidates) {
     const value = fitLength(candidate);
     if (satisfies(schema.pattern, value)) return value;
@@ -217,6 +229,12 @@ export function synthesize(spec: Spec, raw: Schema, ctx: SynthContext, field = '
         const generated = synthesize(spec, value, ctx, key, depth + 1);
         if (generated !== undefined) out[key] = generated;
       }
+      for (const conditional of (schema[CONDITIONALS] as Conditional[] | undefined) ?? []) {
+        const branch = matchesCondition(spec, conditional.condition, out, schema)
+          ? conditional.matched
+          : conditional.otherwise;
+        if (branch) applyBranch(spec, branch, out, schema, ctx, depth);
+      }
       return out;
     }
     case 'array': {
@@ -243,6 +261,54 @@ export function synthesize(spec: Spec, raw: Schema, ctx: SynthContext, field = '
       return typeof schema.default === 'boolean' ? schema.default : false;
     default:
       return undefined;
+  }
+}
+
+/**
+ * Whether `body` satisfies a conditional's `if`, with JSON Schema semantics: a property it does not carry matches
+ * unless `if` requires it (an omitted field takes its declared default first).
+ */
+function matchesCondition(spec: Spec, raw: Schema, body: Record<string, unknown>, schema: Schema): boolean {
+  const condition = spec.resolve(raw);
+  for (const key of condition.required ?? []) {
+    if (body[key] === undefined && spec.resolve(schema.properties?.[key] ?? {}).default === undefined) return false;
+  }
+  for (const [key, rawProperty] of Object.entries<Schema>(condition.properties ?? {})) {
+    const value = body[key] ?? spec.resolve(schema.properties?.[key] ?? {}).default;
+    if (value === undefined) continue;
+    const property = spec.resolve(rawProperty);
+    if ('const' in property && property.const !== value) return false;
+    if (Array.isArray(property.enum) && !property.enum.includes(value)) return false;
+    if (property.not && matchesCondition(spec, { properties: { [key]: property.not } }, body, schema)) return false;
+  }
+  return true;
+}
+
+/** Adds what a matched branch requires to `body`: its required fields, fixed values and nested requirements. */
+function applyBranch(
+  spec: Spec,
+  raw: Schema,
+  body: Record<string, unknown>,
+  schema: Schema,
+  ctx: SynthContext,
+  depth: number
+) {
+  const branch = spec.resolve(raw);
+  const properties: Record<string, Schema> = schema.properties ?? {};
+  for (const key of branch.required ?? []) {
+    if (body[key] !== undefined) continue;
+    const value = synthesize(spec, branch.properties?.[key] ?? properties[key] ?? {}, ctx, key, depth + 1);
+    if (value !== undefined) body[key] = value;
+  }
+  for (const [key, rawProperty] of Object.entries<Schema>(branch.properties ?? {})) {
+    const property = spec.resolve(rawProperty);
+    if ('const' in property) body[key] = property.const;
+    else if (property.required || property.properties) {
+      const nested = concrete(spec, properties[key] ?? {});
+      const target = (body[key] && typeof body[key] === 'object' ? body[key] : {}) as Record<string, unknown>;
+      applyBranch(spec, property, target, nested, ctx, depth + 1);
+      body[key] = target;
+    }
   }
 }
 
