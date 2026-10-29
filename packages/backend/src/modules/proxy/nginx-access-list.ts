@@ -136,10 +136,13 @@ export function accessListPasswordFile(accessListId: string): string {
   return `/etc/nginx/opfield/htpasswd/access-list-${accessListId.replace(/[^0-9A-Za-z-]/g, '')}`;
 }
 
+// The identity the node checked, and the service token credentials cleared: the upstream never sees a secret.
 const IDENTITY_HEADERS = [
   'proxy_set_header Opfield-Access-Jwt-Assertion $opfield_access_assertion;',
   'proxy_set_header Opfield-Access-Email $opfield_access_email;',
   'proxy_set_header Opfield-Access-User $opfield_access_user;',
+  'proxy_set_header Opfield-Access-Client-Id "";',
+  'proxy_set_header Opfield-Access-Client-Secret "";',
 ];
 const CHALLENGE_PAGE = `error_page 401 = ${ACCESS_CHALLENGE_LOCATION};`;
 
@@ -242,6 +245,8 @@ function accessLocations(listId: string): string {
     ]),
     '',
     ...block(`location = ${ACCESS_CALLBACK_PATH}`, [
+      // The host token is in the query string: it never goes to the access log.
+      'access_log off;',
       'auth_request off;',
       `proxy_pass http://unix:${ACCESS_SOCKET}:/callback;`,
       'proxy_set_header X-Opfield-Access-Host $host;',

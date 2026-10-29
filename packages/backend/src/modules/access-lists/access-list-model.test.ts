@@ -1,7 +1,7 @@
 import bcrypt from 'bcryptjs';
 import { describe, expect, it } from 'vitest';
 import { CreateAccessListSchema, UpdateAccessListSchema } from './access-list.schemas.js';
-import { type AccessListModel, nextAccessListModel, presentAccessList } from './access-list-model.js';
+import { type AccessListModel, nextAccessListModel, presentAccessList, revokedSignIns } from './access-list-model.js';
 
 const create = (body: Record<string, unknown>) => nextAccessListModel(CreateAccessListSchema.parse(body), null);
 const update = (body: Record<string, unknown>, current: AccessListModel) =>
@@ -52,6 +52,52 @@ describe('legacy fields of published API clients', () => {
       excludeRules: [],
     });
     expect(await bcrypt.compare('secret', staff.users[0]!.passwordHash)).toBe(true);
+  });
+
+  it('excludes only what a deny rule denied: nginx let in what an earlier allow rule matched', async () => {
+    const office = await create({
+      name: 'Office',
+      ipRules: [
+        { type: 'allow', value: '192.168.1.10' },
+        { type: 'deny', value: '192.168.1.0/24' },
+        { type: 'allow', value: '192.168.0.0/16' },
+      ],
+    });
+    expect(office.skipIpRanges).toEqual(['192.168.1.10', '192.168.0.0/16']);
+    expect(office.excludeRules).toEqual([
+      {
+        selector: 'ip',
+        values: [
+          '192.168.1.0/29',
+          '192.168.1.8/31',
+          '192.168.1.11',
+          '192.168.1.12/30',
+          '192.168.1.16/28',
+          '192.168.1.32/27',
+          '192.168.1.64/26',
+          '192.168.1.128/25',
+        ],
+      },
+    ]);
+
+    const shadowed = await create({
+      name: 'Shadowed',
+      ipRules: [
+        { type: 'allow', value: '10.0.0.0/8' },
+        { type: 'deny', value: '10.0.0.5' },
+      ],
+    });
+    expect(shadowed).toMatchObject({ skipIpRanges: ['10.0.0.0/8'], excludeRules: [] });
+
+    const v6 = await create({
+      name: 'v6',
+      ipRules: [
+        { type: 'allow', value: '2001:db8::/33' },
+        { type: 'deny', value: '2001:db8::/32' },
+        { type: 'deny', value: '192.0.2.0/24' },
+      ],
+    });
+    expect(v6.excludeRules).toEqual([{ selector: 'ip', values: ['2001:db8:8000::/33', '192.0.2.0/24'] }]);
   });
 
   it('keeps the other legacy fields on a partial legacy update, and refuses one that cannot be expressed', async () => {
@@ -132,5 +178,29 @@ describe('sign-in fields', () => {
     expect(presented.users).toEqual([{ username: 'lena' }]);
     expect(presented.sharedPasswordSet).toBe(true);
     expect(JSON.stringify(presented)).not.toContain('$2');
+  });
+});
+
+describe('sign-ins a password change ends', () => {
+  it('names the shared password and the users whose password changed or who were removed', async () => {
+    const list = await create({
+      name: 'Team',
+      signInMethods: ['password', 'shared'],
+      users: [
+        { username: 'lena', password: 'one' },
+        { username: 'maya', password: 'two' },
+        { username: 'olga', password: 'three' },
+      ],
+      sharedPassword: 'shared-one',
+      includeRules: [{ selector: 'everyone' }],
+    });
+    expect(revokedSignIns(list, await update({ name: 'Renamed' }, list))).toEqual({ shared: false, usernames: [] });
+    const next = await update(
+      { users: [{ username: 'lena' }, { username: 'maya', password: 'new' }], sharedPassword: 'shared-two' },
+      list
+    );
+    expect(revokedSignIns(list, next)).toEqual({ shared: true, usernames: ['maya', 'olga'] });
+    const cleared = await update({ sharedPassword: null, signInMethods: ['password'] }, list);
+    expect(revokedSignIns(list, cleared).shared).toBe(true);
   });
 });

@@ -67,6 +67,31 @@ CREATE UNIQUE INDEX "access_service_tokens_client_id_unique" ON "access_service_
 CREATE INDEX "access_sessions_expires_idx" ON "access_sessions" USING btree ("expires_at");--> statement-breakpoint
 CREATE UNIQUE INDEX "access_signing_keys_key_id_unique" ON "access_signing_keys" USING btree ("key_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "access_signing_keys_single_active_idx" ON "access_signing_keys" USING btree ("status") WHERE "access_signing_keys"."status" = 'active';--> statement-breakpoint
+-- What a deny rule still denied: `range` without the addresses earlier allow rules let in (nginx took the first
+-- rule that matched). A partly covered range splits into its two halves until each half is in or out.
+CREATE FUNCTION "opfield_0277_cidr_minus"("range" inet, "covers" inet[]) RETURNS inet[] LANGUAGE plpgsql AS $$
+DECLARE
+  "cover" inet;
+  "overlaps" boolean := false;
+  "half" inet;
+BEGIN
+  FOREACH "cover" IN ARRAY "covers" LOOP
+    CONTINUE WHEN family("cover") <> family("range");
+    IF "range" <<= "cover" THEN
+      RETURN '{}'::inet[];
+    END IF;
+    IF "cover" <<= "range" THEN
+      "overlaps" := true;
+    END IF;
+  END LOOP;
+  IF NOT "overlaps" THEN
+    RETURN ARRAY["range"];
+  END IF;
+  "half" := set_masklen("range", masklen("range") + 1);
+  RETURN "opfield_0277_cidr_minus"("half", "covers")
+    || "opfield_0277_cidr_minus"(set_masklen(broadcast("half") + 1, masklen("half")), "covers");
+END $$;
+--> statement-breakpoint
 -- Old lists keep their behaviour. nginx checked the IP rules in order up to the first `all` rule and
 -- denied what matched none (no rules: everyone); basic authentication applied on top (satisfy all).
 DO $$
@@ -76,12 +101,17 @@ DECLARE
   rule_type text;
   rule_value text;
   allows text[];
+  allow_ranges inet[];
   denies text[];
+  deny_range inet;
+  pieces inet[];
+  piece inet;
   all_allowed boolean;
   ip_restricted boolean;
 BEGIN
   FOR list IN SELECT "id", "ip_rules", "basic_auth_enabled", "basic_auth_users" FROM "access_lists" LOOP
     allows := '{}';
+    allow_ranges := '{}';
     denies := '{}';
     all_allowed := false;
     FOR rule IN SELECT value FROM jsonb_array_elements(list."ip_rules") LOOP
@@ -93,8 +123,28 @@ BEGIN
       END IF;
       IF rule_type = 'allow' THEN
         allows := array_append(allows, rule_value);
+        BEGIN
+          allow_ranges := array_append(allow_ranges, network(rule_value::inet)::inet);
+        EXCEPTION WHEN others THEN
+          NULL;
+        END;
       ELSE
-        denies := array_append(denies, rule_value);
+        -- Only the addresses no earlier allow rule let in; the rule as written when none overlaps it.
+        BEGIN
+          deny_range := network(rule_value::inet)::inet;
+          pieces := "opfield_0277_cidr_minus"(deny_range, allow_ranges);
+          IF cardinality(pieces) = 1 AND masklen(pieces[1]) = masklen(deny_range) THEN
+            denies := array_append(denies, rule_value);
+          ELSE
+            FOREACH piece IN ARRAY pieces LOOP
+              denies := array_append(denies, CASE
+                WHEN masklen(piece) = CASE WHEN family(piece) = 4 THEN 32 ELSE 128 END THEN host(piece)
+                ELSE host(piece) || '/' || masklen(piece) END);
+            END LOOP;
+          END IF;
+        EXCEPTION WHEN others THEN
+          denies := array_append(denies, rule_value);
+        END;
       END IF;
     END LOOP;
     ip_restricted := jsonb_array_length(list."ip_rules") > 0 AND NOT all_allowed;
@@ -118,3 +168,5 @@ BEGIN
     WHERE "id" = list."id";
   END LOOP;
 END $$;
+--> statement-breakpoint
+DROP FUNCTION "opfield_0277_cidr_minus"(inet, inet[]);

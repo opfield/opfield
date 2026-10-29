@@ -69,6 +69,31 @@ describe.skipIf(!url)('access list migration on disposable PostgreSQL', () => {
       false
     );
     await insertList('office-basic', [{ type: 'allow', value: '10.0.40.0/24' }], true);
+    await insertList(
+      'first-match',
+      [
+        { type: 'allow', value: '192.168.1.10' },
+        { type: 'deny', value: '192.168.1.0/24' },
+        { type: 'allow', value: '192.168.0.0/16' },
+      ],
+      false
+    );
+    await insertList(
+      'shadowed-deny',
+      [
+        { type: 'allow', value: '10.0.0.0/8' },
+        { type: 'deny', value: '10.0.0.5' },
+      ],
+      false
+    );
+    await insertList(
+      'first-match-v6',
+      [
+        { type: 'allow', value: '2001:db8::/33' },
+        { type: 'deny', value: '2001:db8::/32' },
+      ],
+      false
+    );
     await migrateDatabase(pool);
   }, 180_000);
 
@@ -103,6 +128,36 @@ describe.skipIf(!url)('access list migration on disposable PostgreSQL', () => {
       include_rules: [{ selector: 'everyone', values: [] }],
       require_rules: [{ selector: 'ip', values: ['10.0.40.0/24'] }],
     });
+  });
+
+  it('excludes only what a deny rule denied: an earlier allow rule let its addresses in', async () => {
+    expect(await row('first-match')).toMatchObject({
+      skip_ip_ranges: ['192.168.1.10', '192.168.0.0/16'],
+      exclude_rules: [
+        {
+          selector: 'ip',
+          values: [
+            '192.168.1.0/29',
+            '192.168.1.8/31',
+            '192.168.1.11',
+            '192.168.1.12/30',
+            '192.168.1.16/28',
+            '192.168.1.32/27',
+            '192.168.1.64/26',
+            '192.168.1.128/25',
+          ],
+        },
+      ],
+    });
+    expect(await row('shadowed-deny')).toMatchObject({ skip_ip_ranges: ['10.0.0.0/8'], exclude_rules: [] });
+    expect(await row('first-match-v6')).toMatchObject({
+      exclude_rules: [{ selector: 'ip', values: ['2001:db8:8000::/33'] }],
+    });
+  });
+
+  it('leaves no conversion helper behind', async () => {
+    const { rows } = await q("select proname from pg_proc where proname = 'opfield_0277_cidr_minus'");
+    expect(rows).toEqual([]);
   });
 
   it('drops the nginx rule columns', async () => {

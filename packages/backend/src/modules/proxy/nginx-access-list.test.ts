@@ -132,7 +132,17 @@ describe('access list rendering on a node with the access socket', () => {
     expect(lines(byPath.get('= /_opfield/access/check'))).toContain(
       `proxy_set_header X-Opfield-Access-List "${LIST_ID}"`
     );
-    expect(lines(byPath.get('= /_opfield/access/callback'))).toContain('auth_request off');
+    // The callback's query string carries the host token: it is not logged.
+    expect(lines(byPath.get('= /_opfield/access/callback'))).toEqual(
+      expect.arrayContaining(['auth_request off', 'access_log off'])
+    );
+    // Service token credentials never reach the upstream.
+    expect(lines(byPath.get('/'))).toEqual(
+      expect.arrayContaining([
+        'proxy_set_header Opfield-Access-Client-Id ""',
+        'proxy_set_header Opfield-Access-Client-Secret ""',
+      ])
+    );
     expect(lines(byPath.get('@opfield_access_challenge'))).toContain('rewrite ^ /challenge break');
     expect(lines(byPath.get('/.well-known/acme-challenge/'))).toContain('auth_request off');
     expect(config).not.toMatch(/\b(allow|deny) (10\.0\.40|198\.51)/);

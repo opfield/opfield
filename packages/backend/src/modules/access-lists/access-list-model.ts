@@ -151,3 +151,17 @@ export function presentAccessList(row: AccessListRow) {
 }
 
 export type PresentedAccessList = ReturnType<typeof presentAccessList>;
+
+/**
+ * The sign-ins an edit makes invalid: every shared password sign-in when the shared password changed or was
+ * cleared, and the password and basic sign-ins of a user who was removed or got a new password.
+ */
+export function revokedSignIns(current: AccessListModel, next: AccessListModel) {
+  const nextHashes = new Map(next.users.map((user) => [user.username, user.passwordHash]));
+  return {
+    shared: !!current.sharedPasswordHash && current.sharedPasswordHash !== next.sharedPasswordHash,
+    usernames: current.users
+      .filter((user) => nextHashes.get(user.username) !== user.passwordHash)
+      .map((user) => user.username),
+  };
+}

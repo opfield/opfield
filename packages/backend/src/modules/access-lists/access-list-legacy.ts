@@ -1,3 +1,4 @@
+import { isIP } from 'node:net';
 import type { AccessRule, AccessSignInMethod } from '@/db/schema/access-lists.js';
 import type { LegacyIpRule } from './access-list.schemas.js';
 
@@ -23,6 +24,100 @@ export interface AccessListRules {
 
 const EVERY_ADDRESS = ['0.0.0.0/0', '::/0'];
 
+interface Cidr {
+  family: 4 | 6;
+  base: bigint;
+  prefix: number;
+}
+
+const bitsOf = (family: 4 | 6) => (family === 4 ? 32 : 128);
+
+function parseCidr(value: string): Cidr | null {
+  const [address = '', prefixText] = value.split('/');
+  const family = isIP(address);
+  if (family !== 4 && family !== 6) return null;
+  const bits = bitsOf(family);
+  const prefix = prefixText === undefined ? bits : Number(prefixText);
+  let number = 0n;
+  if (family === 4) {
+    for (const part of address.split('.')) number = (number << 8n) | BigInt(Number(part));
+  } else {
+    // Expand :: and a trailing embedded IPv4 address into eight groups.
+    const embedded = /(\d+\.\d+\.\d+\.\d+)$/.exec(address)?.[1];
+    let text = address;
+    if (embedded) {
+      const octets = embedded.split('.').map(Number);
+      text = `${address.slice(0, -embedded.length)}${((octets[0]! << 8) | octets[1]!).toString(16)}:${((octets[2]! << 8) | octets[3]!).toString(16)}`;
+    }
+    const [head = '', tail] = text.split('::');
+    const headGroups = head ? head.split(':') : [];
+    const tailGroups = tail ? tail.split(':') : [];
+    const groups =
+      tail === undefined
+        ? headGroups
+        : [...headGroups, ...Array(8 - headGroups.length - tailGroups.length).fill('0'), ...tailGroups];
+    for (const group of groups) number = (number << 16n) | BigInt(Number.parseInt(group, 16));
+  }
+  const hostBits = BigInt(bits - prefix);
+  return { family, base: (number >> hostBits) << hostBits, prefix };
+}
+
+function formatCidr({ family, base, prefix }: Cidr): string {
+  let address: string;
+  if (family === 4) {
+    address = [24n, 16n, 8n, 0n].map((shift) => String((base >> shift) & 255n)).join('.');
+  } else {
+    const groups = Array.from({ length: 8 }, (_, index) => Number((base >> BigInt(112 - index * 16)) & 0xffffn));
+    // The longest run of two or more zero groups becomes :: (RFC 5952).
+    let runStart = -1;
+    let runLength = 0;
+    for (let index = 0; index < 8; ) {
+      if (groups[index] !== 0) {
+        index += 1;
+        continue;
+      }
+      let end = index;
+      while (end < 8 && groups[end] === 0) end += 1;
+      if (end - index > runLength) [runStart, runLength] = [index, end - index];
+      index = end;
+    }
+    const hex = groups.map((group) => group.toString(16));
+    address =
+      runLength >= 2
+        ? `${hex.slice(0, runStart).join(':')}::${hex.slice(runStart + runLength).join(':')}`
+        : hex.join(':');
+  }
+  return prefix === bitsOf(family) ? address : `${address}/${prefix}`;
+}
+
+/** Whether `inner` lies inside `outer` (or equals it). */
+function within(inner: Cidr, outer: Cidr): boolean {
+  if (inner.family !== outer.family || inner.prefix < outer.prefix) return false;
+  const hostBits = BigInt(bitsOf(outer.family) - outer.prefix);
+  return inner.base >> hostBits === outer.base >> hostBits;
+}
+
+/** `range` without the addresses in `covers`, as CIDR ranges: a partly covered range splits into its two halves. */
+function subtractCidr(range: Cidr, covers: Cidr[]): Cidr[] {
+  if (covers.some((cover) => within(range, cover))) return [];
+  if (!covers.some((cover) => within(cover, range))) return [range];
+  const prefix = range.prefix + 1;
+  const upper = range.base | (1n << BigInt(bitsOf(range.family) - prefix));
+  return [...subtractCidr({ ...range, prefix }, covers), ...subtractCidr({ ...range, base: upper, prefix }, covers)];
+}
+
+/**
+ * What a deny rule still denied: nginx took the first rule that matched, so an address an earlier allow rule matched
+ * was let in. The rule as written when no earlier allow overlaps it.
+ */
+function deniedAfter(value: string, earlierAllows: string[]): string[] {
+  const range = parseCidr(value);
+  if (!range) return [value];
+  const covers = earlierAllows.map(parseCidr).filter((cover): cover is Cidr => cover !== null);
+  const remaining = subtractCidr(range, covers);
+  return remaining.length === 1 && remaining[0]!.prefix === range.prefix ? [value] : remaining.map(formatCidr);
+}
+
 /** The sign-in fields of a list written with the legacy fields (migration 0277). */
 export function legacyAccessRules({ ipRules, basicAuthEnabled }: LegacyAccessFields): AccessListRules {
   const allows: string[] = [];
@@ -34,7 +129,8 @@ export function legacyAccessRules({ ipRules, basicAuthEnabled }: LegacyAccessFie
       allAllowed = rule.type === 'allow';
       break;
     }
-    (rule.type === 'allow' ? allows : denies).push(value);
+    if (rule.type === 'allow') allows.push(value);
+    else denies.push(...deniedAfter(value, allows));
   }
   const ipRestricted = ipRules.length > 0 && !allAllowed;
   return {

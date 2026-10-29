@@ -1,6 +1,12 @@
-import { and, count, eq, ilike, inArray, isNull, max } from 'drizzle-orm';
+import { and, count, eq, ilike, inArray, isNull, max, or } from 'drizzle-orm';
 import type { DrizzleClient } from '@/db/client.js';
-import { accessIdentityProviders, accessListFolders, accessLists, pageProjects } from '@/db/schema/index.js';
+import {
+  accessIdentityProviders,
+  accessListFolders,
+  accessLists,
+  accessSessions,
+  pageProjects,
+} from '@/db/schema/index.js';
 import { proxyHosts } from '@/db/schema/proxy-hosts.js';
 import { createChildLogger } from '@/lib/logger.js';
 import { transactionWithScopeCleanup } from '@/lib/resource-scope-cleanup.js';
@@ -26,6 +32,7 @@ import {
   nextAccessListModel,
   type PresentedAccessList,
   presentAccessList,
+  revokedSignIns,
 } from './access-list-model.js';
 
 const logger = createChildLogger('AccessListService');
@@ -149,6 +156,7 @@ export class AccessListService {
     // an older node gets the fallback config, and the apply deploys the list's
     // htpasswd file to it before the config that references it.
     const [updated] = await this.db.update(accessLists).set(updateData).where(eq(accessLists.id, id)).returning();
+    await this.revokeSignIns(id, revokedSignIns(accessListModelOf(existing), model));
     scheduleAccessPolicySync();
 
     if (affectedHosts.length > 0) {
@@ -417,6 +425,29 @@ export class AccessListService {
   // -----------------------------------------------------------------------
   // Helpers
   // -----------------------------------------------------------------------
+
+  /**
+   * Ends the sign-ins a changed or removed password no longer backs: the sessions of the list with the shared
+   * password, and those of each user by password or basic authentication. The nodes drop them with the next sync.
+   */
+  private async revokeSignIns(accessListId: string, revoked: { shared: boolean; usernames: string[] }) {
+    const ended = [
+      ...(revoked.shared ? [eq(accessSessions.method, 'shared')] : []),
+      ...(revoked.usernames.length > 0
+        ? [
+            and(
+              inArray(accessSessions.method, ['password', 'basic']),
+              inArray(accessSessions.subject, revoked.usernames)
+            ),
+          ]
+        : []),
+    ];
+    if (ended.length === 0) return;
+    await this.db
+      .update(accessSessions)
+      .set({ revokedAt: new Date() })
+      .where(and(eq(accessSessions.accessListId, accessListId), isNull(accessSessions.revokedAt), or(...ended)));
+  }
 
   /** A list offers only identity providers that exist (`idp:<id>`). */
   private async assertIdentityProviders(model: AccessListModel): Promise<void> {
