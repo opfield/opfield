@@ -10,6 +10,7 @@ import { type LicenseFeature, requireConfiguredLicensePolicy } from '@/modules/l
 import { NodeDispatchService } from '@/services/node-dispatch.service.js';
 import type { User } from '@/types.js';
 import { ACCESS_LIST_TOOL_NAMES, executeAccessListTool } from './ai.access-list-tools.js';
+import { ACCESS_SIGN_IN_TOOL_NAMES, executeAccessSignInTool } from './ai.access-sign-in-tools.js';
 import { ACCESS_TOOL_NAMES, executeAccessTool } from './ai.access-tools.js';
 import { APP_INCIDENT_TOOL_NAMES, executeAppIncidentTool } from './ai.app-incident-tools.js';
 import { APP_PROMOTION_TOOL_NAMES, executeAppPromotionTool } from './ai.app-promotion-tools.js';
@@ -639,6 +640,9 @@ export abstract class AIServiceExecution extends AIServiceRuntimeSupport {
     }
     if (INGRESS_GROUP_TOOL_NAMES.has(toolName)) {
       return executeIngressGroupTool(user, args);
+    }
+    if (ACCESS_SIGN_IN_TOOL_NAMES.has(toolName)) {
+      return executeAccessSignInTool(user, toolName, args);
     }
     if (ACCESS_LIST_TOOL_NAMES.has(toolName)) {
       return executeAccessListTool(

@@ -150,6 +150,16 @@ func Config() string {
 // ServerDirectives are the lines a server block Opfield's daemon writes needs for the pages, indented for the server
 // level, without the codes in except (the server answers them itself). They use the variables of Config.
 func ServerDirectives(except ...int) []string {
+	return serverDirectives(false, except...)
+}
+
+// AccessCheckedServerDirectives are ServerDirectives for a server that checks access with auth_request: the pages
+// answer without a second check.
+func AccessCheckedServerDirectives(except ...int) []string {
+	return serverDirectives(true, except...)
+}
+
+func serverDirectives(accessChecked bool, except ...int) []string {
 	var named, requestLine []string
 	for _, page := range Pages {
 		switch {
@@ -171,7 +181,11 @@ func ServerDirectives(except ...int) []string {
 		lines = append(lines, fmt.Sprintf("    error_page %d %s;", page.Code, Location(page.Code)))
 	}
 	body := func(variable string) []string {
-		return []string{"        allow all;", "        auth_basic off;", "        default_type text/html;", "        return 200 " + variable + ";", "    }"}
+		lines := []string{"        allow all;", "        auth_basic off;"}
+		if accessChecked {
+			lines = append(lines, "        auth_request off;")
+		}
+		return append(lines, "        default_type text/html;", "        return 200 "+variable+";", "    }")
 	}
 	lines = append(lines, "    location "+Location(0)+" {")
 	lines = append(lines, body(Variable(0, true))...)

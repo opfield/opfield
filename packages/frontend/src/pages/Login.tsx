@@ -91,7 +91,8 @@ function isPasskeyPromptDismissed(error: unknown): boolean {
   );
 }
 
-async function authRequest<T>(path: string, body?: unknown): Promise<T> {
+/** A JSON request of the sign-in entry (GET without a body); a failure throws the server's message. */
+export async function authRequest<T>(path: string, body?: unknown): Promise<T> {
   const response = await fetch(path, {
     method: body === undefined ? "GET" : "POST",
     credentials: "include",

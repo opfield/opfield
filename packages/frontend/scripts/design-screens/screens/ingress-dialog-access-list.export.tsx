@@ -23,6 +23,8 @@ it("ingress-dialog-access-list", async () => {
       await waitForReveal();
       await releaseAnimatedHeights(dialog);
     },
-    notes: ["Editing an access list with IP rules and three basic-auth users."],
+    notes: [
+      "Editing an access list with four sign-in methods, three users, an address that skips sign-in and Include / Require / Exclude rules.",
+    ],
   });
 });

@@ -235,41 +235,6 @@ Domains are registered public hostnames with an explicit nginx ingress assignmen
 - create_domain requires domains:create, and delete_domain requires domains:delete. Those domain permissions include the managed DNS records for the domain
 - For matched_existing domains, pass deleteDns=false to keep DNS and remove only the Opfield mapping, or deleteDns=true to remove the adopted Cloudflare records`,
 
-  'access-lists': `# Access Lists
-
-Access lists provide IP-based access control and HTTP basic authentication for ingress routes.
-
-## How It Works
-1. Create an access list with IP rules and/or basic auth users
-2. Attach it to one or more routes via accessListId
-3. Nginx enforces the rules on every request to those routes
-
-## IP Rules
-- Ordered array of rules: { type: "allow"|"deny", value: "IP, CIDR or all" }
-- Examples: { type: "allow", value: "10.0.0.0/8" }, { type: "deny", value: "192.0.2.7" }, { type: "deny", value: "all" }
-- nginx checks the rules in order and the first match wins; when a list has rules, every address that matches none is denied (Opfield renders deny all; after the last rule)
-- Common pattern: allow specific IPs/ranges; nothing else gets in. To block a few addresses and let everyone else in, put the deny rules first and end with { type: "allow", value: "all" }
-- Order matters: deny all before allow 203.0.113.7 blocks 203.0.113.7 too
-- ipRuleWarnings in every access list response lists the rules that cannot change the outcome: kind "shadowed" (an earlier rule, coveredByIndex, matches every address the rule matches, so it never matches) and kind "no_effect" (a deny rule no later rule allows, so those addresses are denied anyway). Indexes are 0-based, and the message names the same 0-based indexes ("the rule at index 1"); the console numbers rules from 1 ("rule 2"). Only single-rule coverage is detected
-
-## Basic Authentication
-- basicAuthEnabled: true to enable HTTP basic auth
-- basicAuthUsers: array of { username, password }
-- Passwords are hashed with bcrypt before storage in htpasswd format
-- Htpasswd files are deployed to nginx nodes via daemon
-
-## Tool Argument Shapes
-- create_access_list accepts allowIps and denyIps as string arrays plus basicAuthUsers, and folderId for the destination access list folder (acl:create there is enough; omitted creates at the top level).
-- Access lists live in folders like other resource lists (folderId, sortOrder): list_resource_folders and manage_resource_folder with resourceType access_lists (folder changes need acl:folders:manage; moving a list also needs acl:edit on it and on the destination). acl:view, acl:edit and acl:delete also take a folder (\`<scope>:folder/<folderId>\`), covering every list in it and its subfolders.
-- manage_access_list({ operation: "update", accessListId, ... }) accepts ipRules as ordered { type, value } objects (the whole list, in order) and basicAuthUsers as { username, password } objects.
-- manage_access_list({ operation: "move_rule", accessListId, fromIndex, toIndex }) moves one IP rule (0-based positions; the rules between shift by one) against the stored list, so it cannot overwrite a concurrent edit of the other rules. REST: POST /api/access-lists/:id/ip-rules/move.
-- Use basicAuthEnabled to turn HTTP basic auth on or off. If it is enabled, provide at least one basic auth user.
-
-## Usage
-- One access list can be shared across multiple routes
-- Changing an access list automatically updates all routes using it
-- An access list cannot be deleted while a route or a Pages project uses it; detach it first`,
-
   templates: `# Certificate Templates
 
 Templates define preset configurations for issuing PKI certificates. They save time and enforce consistency.
@@ -434,6 +399,7 @@ Opfield manages public ingress through nginx daemon nodes running on remote serv
 - Built-in templates for common patterns (reverse proxy, redirect, etc.)
 - Custom templates support variables: \`{{variableName}}\` replaced at render time
 - Assigned to routes via nginxTemplateId — default template used if none specified
+- Access list: a custom template renders it with \`{{{accessListDirectives accessList}}}\` inside \`{{#if accessList}}\` ... \`{{/if}}\` (each on its own line) in every location the list protects, as the built-in proxy template does; Opfield adds the sign-in locations to the server. A template copied from a built-in one before sign-in based access lists is upgraded when it renders. A template that reads \`accessList.ipRules\`, \`accessList.basicAuthEnabled\` or \`accessListHasIpRules\` itself gets the address rules only (skip ranges allowed, excluded addresses and everyone else denied), so a sign-in it cannot render is denied, never open
 
 ## Raw Config Mode
 - When rawConfigEnabled is true on a route, the template rendering is bypassed entirely

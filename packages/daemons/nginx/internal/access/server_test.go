@@ -1,0 +1,202 @@
+package access
+
+import (
+	"bytes"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"strings"
+	"testing"
+	"time"
+)
+
+func testServer(t *testing.T, synced bool) (*Server, *Store, func(Claims) string) {
+	t.Helper()
+	store, err := OpenStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	command, key := testPolicy(t)
+	if synced {
+		if _, err := store.Apply(command); err != nil {
+			t.Fatal(err)
+		}
+	}
+	server := NewServer(store)
+	server.now = func() time.Time { return testNow }
+	server.rand = bytes.NewReader(bytes.Repeat([]byte{7}, 64))
+	return server, store, func(claims Claims) string { return signToken(t, key, claims) }
+}
+
+func accessRequest(path, list, clientIP string, header http.Header) *http.Request {
+	r := httptest.NewRequest(http.MethodGet, "http://access"+path, nil)
+	for name, values := range header {
+		r.Header[name] = values
+	}
+	r.Header.Set(ListHeader, list)
+	r.Header.Set(HostHeader, testHost)
+	r.Header.Set(ClientIPHeader, clientIP)
+	r.Header.Set(URIHeader, "/reports?q=1")
+	r.Header.Set(SecureHeader, "on")
+	return r
+}
+
+func serve(server *Server, r *http.Request) *httptest.ResponseRecorder {
+	w := httptest.NewRecorder()
+	server.Handler().ServeHTTP(w, r)
+	return w
+}
+
+func TestCheck(t *testing.T) {
+	server, _, sign := testServer(t, true)
+	cookie := func(token string) http.Header {
+		return http.Header{"Cookie": {TokenCookie + "=" + token}}
+	}
+	foreign := testClaims("lena@gmail.com")
+	cases := []struct {
+		name   string
+		list   string
+		ip     string
+		header http.Header
+		status int
+	}{
+		{"unknown list fails closed", "33333333-3333-4333-8333-333333333333", "203.0.113.9", nil, http.StatusServiceUnavailable},
+		{"skip range", testListID, "10.0.40.7", nil, http.StatusOK},
+		{"not signed in", testListID, "203.0.113.9", nil, http.StatusUnauthorized},
+		{"signed in and included", testListID, "203.0.113.9", cookie(sign(testClaims("lena@acme.dev"))), http.StatusOK},
+		{"signed in, not included: sign-in page", testListID, "203.0.113.9", cookie(sign(foreign)), http.StatusUnauthorized},
+		{"service token", testListID, "203.0.113.9", http.Header{ServiceTokenIDHeader: {"ci.client"}, ServiceTokenSecretHeader: {"token-secret"}}, http.StatusOK},
+		{"wrong service token secret", testListID, "203.0.113.9", http.Header{ServiceTokenIDHeader: {"ci.client"}, ServiceTokenSecretHeader: {"nope"}}, http.StatusUnauthorized},
+		{"service token on a list without its rule", testBasicID, "203.0.113.9", http.Header{ServiceTokenIDHeader: {"ci.client"}, ServiceTokenSecretHeader: {"token-secret"}}, http.StatusForbidden},
+		{"basic without credentials", testBasicID, "203.0.113.9", nil, http.StatusUnauthorized},
+		{"basic with credentials", testBasicID, "203.0.113.9", http.Header{"Authorization": {basicHeader("lena", "s3cret")}}, http.StatusOK},
+		{"basic with a wrong password", testBasicID, "203.0.113.9", http.Header{"Authorization": {basicHeader("lena", "wrong")}}, http.StatusUnauthorized},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if w := serve(server, accessRequest("/check", c.list, c.ip, c.header)); w.Code != c.status {
+				t.Fatalf("status %d, want %d", w.Code, c.status)
+			}
+		})
+	}
+
+	token := sign(testClaims("lena@acme.dev"))
+	w := serve(server, accessRequest("/check", testListID, "203.0.113.9", cookie(token)))
+	if w.Header().Get(AssertionHeader) != token || w.Header().Get(EmailHeader) != "lena@acme.dev" || w.Header().Get(UserHeader) != "Lena Novak" {
+		t.Fatalf("identity headers: %v", w.Header())
+	}
+	w = serve(server, accessRequest("/check", testBasicID, "203.0.113.9", http.Header{"Authorization": {basicHeader("lena", "s3cret")}}))
+	if w.Header().Get(AssertionHeader) != "" || w.Header().Get(UserHeader) != "lena" {
+		t.Fatalf("basic identity headers: %v", w.Header())
+	}
+}
+
+func TestCheckWithoutPolicyFailsClosed(t *testing.T) {
+	server, _, _ := testServer(t, false)
+	for _, path := range []string{"/check", "/challenge", "/callback"} {
+		if w := serve(server, accessRequest(path, testListID, "10.0.40.7", nil)); w.Code != http.StatusServiceUnavailable {
+			t.Fatalf("%s: status %d", path, w.Code)
+		}
+	}
+}
+
+func basicHeader(username, password string) string {
+	r := httptest.NewRequest(http.MethodGet, "/", nil)
+	r.SetBasicAuth(username, password)
+	return r.Header.Get("Authorization")
+}
+
+func TestChallenge(t *testing.T) {
+	server, _, _ := testServer(t, true)
+	w := serve(server, accessRequest("/challenge", testListID, "203.0.113.9", nil))
+	if w.Code != http.StatusFound {
+		t.Fatalf("status %d", w.Code)
+	}
+	location, err := url.Parse(w.Header().Get("Location"))
+	if err != nil || location.Scheme != "https" || location.Host != "access.example.net" || location.Path != "/access/sign-in" {
+		t.Fatalf("location %q", w.Header().Get("Location"))
+	}
+	query := location.Query()
+	state := w.Result().Cookies()
+	if len(state) != 1 || state[0].Name != StateCookie || !state[0].HttpOnly || !state[0].Secure || state[0].MaxAge != 600 || state[0].SameSite != http.SameSiteLaxMode {
+		t.Fatalf("state cookie %+v", state)
+	}
+	if query.Get("list") != testListID || query.Get("host") != testHost || query.Get("n") != state[0].Value || query.Get("r") != "/reports?q=1" {
+		t.Fatalf("sign-in query %v", query)
+	}
+
+	w = serve(server, accessRequest("/challenge", testBasicID, "203.0.113.9", nil))
+	if w.Code != http.StatusUnauthorized || w.Header().Get("WWW-Authenticate") != `Basic realm="app.example.com", charset="UTF-8"` {
+		t.Fatalf("basic challenge %d %v", w.Code, w.Header())
+	}
+}
+
+func TestCallback(t *testing.T) {
+	server, _, sign := testServer(t, true)
+	claims := testClaims("lena@acme.dev")
+	claims.Nonce = "nonce-1"
+	token := sign(claims)
+	callback := func(token, returnTo, state string) *httptest.ResponseRecorder {
+		r := accessRequest("/callback?t="+url.QueryEscape(token)+"&r="+url.QueryEscape(returnTo), "", "", nil)
+		if state != "" {
+			r.AddCookie(&http.Cookie{Name: StateCookie, Value: state})
+		}
+		return serve(server, r)
+	}
+
+	w := callback(token, "/reports?q=1", "nonce-1")
+	if w.Code != http.StatusFound || w.Header().Get("Location") != "/reports?q=1" ||
+		w.Header().Get("Referrer-Policy") != "no-referrer" || w.Header().Get("Cache-Control") != "no-store" {
+		t.Fatalf("callback %d %v", w.Code, w.Header())
+	}
+	cookies := map[string]*http.Cookie{}
+	for _, cookie := range w.Result().Cookies() {
+		cookies[cookie.Name] = cookie
+	}
+	access, state := cookies[TokenCookie], cookies[StateCookie]
+	if access == nil || access.Value != token || !access.HttpOnly || !access.Secure || access.Path != "/" || access.MaxAge != 3600 {
+		t.Fatalf("access cookie %+v", access)
+	}
+	if state == nil || state.MaxAge >= 0 {
+		t.Fatalf("state cookie not cleared: %+v", state)
+	}
+
+	for returnTo, want := range map[string]string{"//evil.example": "/", "https://evil.example/": "/", "/\\evil": "/", "": "/", "/" + strings.Repeat("a", 4096): "/"} {
+		if w := callback(token, returnTo, "nonce-1"); w.Header().Get("Location") != want {
+			t.Errorf("return %q went to %q", returnTo, w.Header().Get("Location"))
+		}
+	}
+	other := testClaims("lena@acme.dev")
+	other.Audience = "other.example.com"
+	other.Nonce = "nonce-1"
+	for name, w := range map[string]*httptest.ResponseRecorder{
+		"no state cookie":     callback(token, "/", ""),
+		"another state":       callback(token, "/", "nonce-2"),
+		"token without non":   callback(sign(testClaims("lena@acme.dev")), "/", "nonce-1"),
+		"token of other host": callback(sign(other), "/", "nonce-1"),
+	} {
+		if w.Code != http.StatusBadRequest || !strings.HasPrefix(w.Header().Get("Content-Type"), "text/plain") || len(w.Result().Cookies()) != 0 {
+			t.Errorf("%s: %d %v", name, w.Code, w.Header())
+		}
+	}
+}
+
+// A visitor the sign-in page let in moments ago but this list refuses (the two saw different addresses, say) is
+// denied instead of sent back to sign in, which would loop.
+func TestFreshlySignedInRefusalIsNotRedirected(t *testing.T) {
+	server, _, sign := testServer(t, true)
+	fresh := testClaims("lena@gmail.com")
+	fresh.IssuedAt = testNow.Add(-10 * time.Second).Unix()
+	header := http.Header{"Cookie": {TokenCookie + "=" + sign(fresh)}}
+	for _, path := range []string{"/check", "/challenge"} {
+		if w := serve(server, accessRequest(path, testListID, "203.0.113.9", header)); w.Code != http.StatusForbidden || w.Header().Get("Location") != "" {
+			t.Fatalf("%s: %d %v", path, w.Code, w.Header())
+		}
+	}
+	// An older sign-in is sent to the sign-in page, which says there is no access.
+	old := testClaims("lena@gmail.com")
+	header = http.Header{"Cookie": {TokenCookie + "=" + sign(old)}}
+	if w := serve(server, accessRequest("/challenge", testListID, "203.0.113.9", header)); w.Code != http.StatusFound {
+		t.Fatalf("older sign-in: %d", w.Code)
+	}
+}

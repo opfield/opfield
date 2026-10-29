@@ -25,7 +25,7 @@ it("ingress-dialog-access-list-create", async () => {
       await settleDialog("Create Access List");
     },
     notes: [
-      "A new access list before any rule is added: no IP rules (every address passes) and basic authentication off.",
+      "A new access list before anything is set: no sign-in methods, no addresses that skip sign-in and no rules.",
     ],
   });
 });

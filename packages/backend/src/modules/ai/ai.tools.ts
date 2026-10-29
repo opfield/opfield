@@ -1,3 +1,4 @@
+import { ACCESS_SIGN_IN_AI_TOOLS } from './ai.access-sign-in-tools.js';
 import { APP_INCIDENT_AI_TOOLS } from './ai.app-incident-tools.js';
 import { APP_PROMOTION_AI_TOOLS } from './ai.app-promotion-tools.js';
 import { BACKUP_AI_TOOLS } from './ai.backup-tools.js';
@@ -33,6 +34,7 @@ const AI_TOOL_DEFINITIONS: AIToolDefinition[] = [
   ...PKI_AI_TOOLS,
   ...FOLDER_AI_TOOLS,
   ...INGRESS_AI_TOOLS,
+  ...ACCESS_SIGN_IN_AI_TOOLS,
   ...INGRESS_GROUP_AI_TOOLS,
   ...APP_AI_TOOLS,
   ...APP_INCIDENT_AI_TOOLS,

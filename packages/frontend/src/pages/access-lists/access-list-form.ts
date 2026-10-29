@@ -1,50 +1,105 @@
-import { arrayMove } from "@dnd-kit/sortable";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { toastApiError } from "@/lib/api-error-toast";
 import { api } from "@/services/api";
-import type { AccessList, IPRule } from "@/types";
+import type {
+  AccessList,
+  AccessRule,
+  AccessRuleSelector,
+  AccessSignInMethod,
+  CreateAccessListRequest,
+} from "@/types";
+import { CHOICE_SELECTORS } from "./access-options";
 
-export interface BasicAuthUserInput {
+export interface AccessListUserInput {
   _key: string;
   username: string;
   password: string;
 }
 
-export type IPRuleInput = IPRule & { _key: string };
+export interface AddressInput {
+  _key: string;
+  value: string;
+}
 
 /**
- * Rows left completely blank are ignored. Every other row needs a username, and
- * a password unless it keeps an existing user's stored password. Basic auth
- * without any user would lock every visitor out, so it is rejected too.
+ * One rule row. A typed selector keeps its values as the comma-separated `text` of its input; a
+ * picked one (user, group, method, service token) keeps `values`.
  */
-export function validateBasicAuthUsers(
-  rows: { username: string; password: string }[],
-  existingUsernames: string[]
-): { users: { username: string; password: string }[] } | { error: string } {
-  const users: { username: string; password: string }[] = [];
-  for (const row of rows) {
-    const username = row.username.trim();
-    if (!username && !row.password) continue;
-    if (!username) return { error: "Enter a username for every basic auth user" };
-    if (!row.password && !existingUsernames.includes(username)) {
-      return { error: `Enter a password for basic auth user "${username}"` };
-    }
-    users.push({ username, password: row.password });
-  }
-  if (users.length === 0) {
-    return { error: "Add at least one user to enable basic authentication" };
-  }
-  return { users };
+export interface AccessRuleInput {
+  _key: string;
+  selector: AccessRuleSelector;
+  text: string;
+  values: string[];
 }
+
+export type RuleKind = "include" | "require" | "exclude";
 
 let accessListRowSequence = 0;
 const nextRowKey = (prefix: string) => `${prefix}-${++accessListRowSequence}`;
 
+export const newRuleInput = (
+  selector: AccessRuleSelector = "email",
+  values: string[] = []
+): AccessRuleInput => ({ _key: nextRowKey("rule"), selector, text: values.join(", "), values });
+
+const toRuleInputs = (rules: AccessRule[] | undefined) =>
+  (rules ?? []).map((rule) => newRuleInput(rule.selector, rule.values));
+
+/** The rule a row saves as, or null for a row left without a value. */
+export function ruleFromInput(row: AccessRuleInput): AccessRule | null {
+  if (row.selector === "everyone") return { selector: "everyone", values: [] };
+  const values = CHOICE_SELECTORS.has(row.selector)
+    ? row.values.filter(Boolean)
+    : row.text
+        .split(",")
+        .map((value) => value.trim())
+        .filter(Boolean);
+  return values.length > 0 ? { selector: row.selector, values } : null;
+}
+
+const rulesFromInputs = (rows: AccessRuleInput[]) =>
+  rows.map(ruleFromInput).filter((rule): rule is AccessRule => rule !== null);
+
 /**
- * Form state of the create/edit access list dialog. It is filled from
- * `accessList` (or emptied for a new list) each time the dialog opens; stored
- * passwords are never sent back, so existing users start with a blank one.
+ * Rows left completely blank are ignored. Every other row needs a username, and a password
+ * unless it keeps an existing user's stored password. Username sign-in without any user would
+ * let nobody in, so it is rejected too.
+ */
+export function validateListUsers(
+  rows: { username: string; password: string }[],
+  existingUsernames: string[]
+): { users: { username: string; password?: string }[] } | { error: string } {
+  const users: { username: string; password?: string }[] = [];
+  for (const row of rows) {
+    const username = row.username.trim();
+    if (!username && !row.password) continue;
+    if (!username) return { error: "Enter a username for every user" };
+    if (!row.password && !existingUsernames.includes(username)) {
+      return { error: `Enter a password for user "${username}"` };
+    }
+    users.push(row.password ? { username, password: row.password } : { username });
+  }
+  if (users.length === 0) {
+    return { error: "Add at least one user to sign in with a username and password" };
+  }
+  return { users };
+}
+
+/** Undefined keeps the stored shared password, null drops it, a string replaces it. */
+function sharedPasswordChange(
+  enabled: boolean,
+  typed: string,
+  stored: boolean
+): string | null | undefined {
+  if (enabled) return typed || undefined;
+  return stored ? null : undefined;
+}
+
+/**
+ * Form state of the create/edit access list dialog. It is filled from `accessList` (or emptied
+ * for a new list) each time the dialog opens; stored passwords are never sent back, so existing
+ * users and the shared password start blank and a blank one keeps what is stored.
  */
 export function useAccessListForm({
   open,
@@ -61,9 +116,16 @@ export function useAccessListForm({
   /** Destination folder of a new list ("" is ungrouped); a list moves between folders in the list. */
   const [folderId, setFolderId] = useState("");
   const [description, setDescription] = useState("");
-  const [ipRules, setIpRules] = useState<IPRuleInput[]>([]);
-  const [basicAuthEnabled, setBasicAuthEnabled] = useState(false);
-  const [basicAuthUsers, setBasicAuthUsers] = useState<BasicAuthUserInput[]>([]);
+  const [sessionTtlSeconds, setSessionTtlSeconds] = useState<number | null>(null);
+  const [methods, setMethods] = useState<AccessSignInMethod[]>([]);
+  const [sharedPassword, setSharedPassword] = useState("");
+  const [users, setUsers] = useState<AccessListUserInput[]>([]);
+  const [skip, setSkip] = useState<AddressInput[]>([]);
+  const [rules, setRules] = useState<Record<RuleKind, AccessRuleInput[]>>({
+    include: [],
+    require: [],
+    exclude: [],
+  });
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
@@ -71,48 +133,41 @@ export function useAccessListForm({
     setName(accessList?.name ?? "");
     setFolderId("");
     setDescription(accessList?.description || "");
-    setIpRules((accessList?.ipRules || []).map((rule) => ({ ...rule, _key: nextRowKey("ip") })));
-    setBasicAuthEnabled(accessList?.basicAuthEnabled ?? false);
-    setBasicAuthUsers(
-      (accessList?.basicAuthUsers || []).map((user) => ({
-        _key: nextRowKey("auth"),
+    setSessionTtlSeconds(accessList?.sessionTtlSeconds ?? null);
+    setMethods(accessList?.signInMethods ?? []);
+    setSharedPassword("");
+    setUsers(
+      (accessList?.users ?? []).map((user) => ({
+        _key: nextRowKey("user"),
         username: user.username,
         password: "",
       }))
     );
+    setSkip((accessList?.skipIpRanges ?? []).map((value) => ({ _key: nextRowKey("skip"), value })));
+    setRules({
+      include: toRuleInputs(accessList?.includeRules),
+      require: toRuleInputs(accessList?.requireRules),
+      exclude: toRuleInputs(accessList?.excludeRules),
+    });
   }, [open, accessList]);
 
-  const addIpRule = (rule: IPRule = { type: "allow", value: "" }) =>
-    setIpRules((prev) => [...prev, { ...rule, _key: nextRowKey("ip") }]);
-  const updateIpRule = (index: number, field: keyof IPRule, value: string) => {
-    setIpRules((prev) =>
-      prev.map((rule, candidateIndex) =>
-        candidateIndex === index ? { ...rule, [field]: value } : rule
-      )
-    );
-  };
-  const removeIpRule = (index: number) => {
-    setIpRules((prev) => prev.filter((_, candidateIndex) => candidateIndex !== index));
-  };
-  /** nginx checks the rules in this order and the first match wins. */
-  const moveIpRule = (fromIndex: number, toIndex: number) => {
-    setIpRules((prev) => arrayMove(prev, fromIndex, toIndex));
-  };
-  const addBasicAuthUser = (
-    user: { username: string; password: string } = { username: "", password: "" }
-  ) => {
-    setBasicAuthUsers((prev) => [...prev, { ...user, _key: nextRowKey("auth") }]);
-  };
-  const updateBasicAuthUser = (index: number, field: "username" | "password", value: string) => {
-    setBasicAuthUsers((prev) =>
-      prev.map((user, candidateIndex) =>
-        candidateIndex === index ? { ...user, [field]: value } : user
-      )
-    );
-  };
-  const removeBasicAuthUser = (index: number) => {
-    setBasicAuthUsers((prev) => prev.filter((_, candidateIndex) => candidateIndex !== index));
-  };
+  const setMethod = (key: AccessSignInMethod, enabled: boolean) =>
+    setMethods((prev) => [...prev.filter((method) => method !== key), ...(enabled ? [key] : [])]);
+  const usersShown = methods.includes("password") || methods.includes("basic");
+
+  const addUser = () =>
+    setUsers((prev) => [...prev, { _key: nextRowKey("user"), username: "", password: "" }]);
+  const updateUser = (index: number, field: "username" | "password", value: string) =>
+    setUsers((prev) => prev.map((user, at) => (at === index ? { ...user, [field]: value } : user)));
+  const removeUser = (index: number) => setUsers((prev) => prev.filter((_, at) => at !== index));
+
+  const addSkip = () => setSkip((prev) => [...prev, { _key: nextRowKey("skip"), value: "" }]);
+  const updateSkip = (index: number, value: string) =>
+    setSkip((prev) => prev.map((row, at) => (at === index ? { ...row, value } : row)));
+  const removeSkip = (index: number) => setSkip((prev) => prev.filter((_, at) => at !== index));
+
+  const setRuleRows = (kind: RuleKind, rows: AccessRuleInput[]) =>
+    setRules((prev) => ({ ...prev, [kind]: rows }));
 
   const save = async () => {
     if (!name.trim()) {
@@ -120,30 +175,44 @@ export function useAccessListForm({
       return;
     }
 
-    let nextBasicAuthUsers: { username: string; password: string }[] | undefined;
-    if (basicAuthEnabled) {
-      const validation = validateBasicAuthUsers(
-        basicAuthUsers,
-        accessList ? (accessList.basicAuthUsers ?? []).map((user) => user.username) : []
-      );
+    // Hidden users (no username method on) stay as they are.
+    const storedUsernames = (accessList?.users ?? []).map((user) => user.username);
+    let nextUsers: CreateAccessListRequest["users"] = storedUsernames.map((username) => ({
+      username,
+    }));
+    if (usersShown) {
+      const validation = validateListUsers(users, storedUsernames);
       if ("error" in validation) {
         toast.error(validation.error);
         return;
       }
-      nextBasicAuthUsers = validation.users;
+      nextUsers = validation.users;
+    }
+
+    const sharedOn = methods.includes("shared");
+    if (sharedOn && !sharedPassword && !accessList?.sharedPasswordSet) {
+      toast.error("Enter the shared password");
+      return;
     }
 
     setIsSaving(true);
     try {
-      const data = {
+      const data: CreateAccessListRequest = {
         name,
         // An empty string clears the stored description on edit.
         description: accessList ? description.trim() : description.trim() || undefined,
-        ipRules: ipRules
-          .filter((rule) => rule.value.trim() !== "")
-          .map(({ _key: _discarded, ...rule }) => rule),
-        basicAuthEnabled,
-        basicAuthUsers: nextBasicAuthUsers,
+        signInMethods: methods,
+        users: nextUsers,
+        sharedPassword: sharedPasswordChange(
+          sharedOn,
+          sharedPassword,
+          accessList?.sharedPasswordSet ?? false
+        ),
+        skipIpRanges: skip.map((row) => row.value.trim()).filter(Boolean),
+        includeRules: rulesFromInputs(rules.include),
+        requireRules: rulesFromInputs(rules.require),
+        excludeRules: rulesFromInputs(rules.exclude),
+        sessionTtlSeconds,
         ...(accessList ? {} : { folderId: folderId || null }),
       };
 
@@ -171,17 +240,23 @@ export function useAccessListForm({
     setFolderId,
     description,
     setDescription,
-    ipRules,
-    addIpRule,
-    updateIpRule,
-    removeIpRule,
-    moveIpRule,
-    basicAuthEnabled,
-    setBasicAuthEnabled,
-    basicAuthUsers,
-    addBasicAuthUser,
-    updateBasicAuthUser,
-    removeBasicAuthUser,
+    sessionTtlSeconds,
+    setSessionTtlSeconds,
+    methods,
+    setMethod,
+    sharedPassword,
+    setSharedPassword,
+    usersShown,
+    users,
+    addUser,
+    updateUser,
+    removeUser,
+    skip,
+    addSkip,
+    updateSkip,
+    removeSkip,
+    rules,
+    setRuleRows,
     isSaving,
     save,
   };

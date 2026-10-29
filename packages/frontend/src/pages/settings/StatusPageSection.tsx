@@ -48,6 +48,7 @@ import type {
 } from "@/types";
 
 import { StatusPageIngressSelect } from "./StatusPageIngressSelect";
+import { SystemRouteCertificateSelect } from "./SystemRouteCertificateSelect";
 
 interface StatusPageSectionProps {
   nodesList: Node[];
@@ -345,30 +346,12 @@ export function StatusPageSection({ nodesList }: StatusPageSectionProps) {
           description="Certificate presented by the public status page endpoint"
           help="Certificate browsers receive for the status-page domain. It must be active and cover the configured hostname."
         >
-          <Select
-            value={config.sslCertificateId ?? "__none__"}
+          <SystemRouteCertificateSelect
+            value={config.sslCertificateId}
+            certificates={sslCerts}
             disabled={!canManage || savingSettings}
-            onValueChange={(sslCertificateId) =>
-              setConfig((prev) => ({
-                ...prev,
-                sslCertificateId: sslCertificateId === "__none__" ? null : sslCertificateId,
-              }))
-            }
-          >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__none__">No certificate</SelectItem>
-              {sslCerts
-                .filter((cert) => cert.status === "active")
-                .map((cert) => (
-                  <SelectItem key={cert.id} value={cert.id}>
-                    {cert.name}
-                  </SelectItem>
-                ))}
-            </SelectContent>
-          </Select>
+            onChange={(sslCertificateId) => setConfig((prev) => ({ ...prev, sslCertificateId }))}
+          />
         </SettingsRow>
         <SettingsRow
           label="Nginx template"

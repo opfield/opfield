@@ -603,10 +603,77 @@ message OpfieldCommand {
     // Relay supervisor only (relay_service_port_v1): move the relay worker to
     // another TCP port. See SetRelayServicePortCommand.
     SetRelayServicePortCommand set_relay_service_port = 83;
+    // Nginx daemons advertising nginx_access_auth_v1: the full access policy
+    // the daemon's access socket checks requests against. See
+    // SyncAccessPolicyCommand.
+    SyncAccessPolicyCommand sync_access_policy = 84;
     // Nginx daemons advertising nginx_log_budget_v1: how long rotated nginx
     // logs are kept (Housekeeping "Nginx Logs"; disk-logs range 210-214).
     ConfigureNginxLogsCommand configure_nginx_logs = 210;
   }
+}
+
+// The access policy of every access list, as the full desired state. nginx
+// asks the daemon's access socket (auth_request) whether a request to a route
+// with an access list may pass; the daemon answers from this policy and the
+// signed access token cookie alone, so access keeps working while Opfield is
+// unreachable. The daemon keeps the last applied policy across restarts and
+// acknowledges an older or equal revision without changes.
+message SyncAccessPolicyCommand {
+  uint64 revision = 1;
+  // Origin of the sign-in page, https://access.example.com (no path).
+  string sign_in_origin = 2;
+  // Keys that verify access tokens: the active key and keys still verifying.
+  repeated AccessVerificationKey keys = 3;
+  repeated AccessListPolicy lists = 4;
+  // Sessions revoked before they expired; dropped by the daemon after expiry.
+  repeated AccessRevokedSession revoked_sessions = 5;
+  repeated AccessServiceToken service_tokens = 6;
+}
+
+message AccessVerificationKey {
+  string key_id = 1;
+  // Raw 32-byte Ed25519 public key.
+  bytes public_key = 2;
+}
+
+message AccessListPolicy {
+  string id = 1;
+  // opfield, password, basic, shared, idp:<provider id>.
+  repeated string sign_in_methods = 2;
+  // Addresses (IP or CIDR) that pass without signing in.
+  repeated string skip_ip_ranges = 3;
+  repeated AccessRule include_rules = 4;
+  repeated AccessRule require_rules = 5;
+  repeated AccessRule exclude_rules = 6;
+  // Users basic authentication accepts; sent only when basic is a method.
+  repeated AccessListUser basic_auth_users = 7;
+}
+
+message AccessRule {
+  // everyone, ip, email, email_domain, opfield_user, opfield_group,
+  // sso_group, method, service_token.
+  string selector = 1;
+  repeated string values = 2;
+}
+
+message AccessListUser {
+  string username = 1;
+  string bcrypt_hash = 2;
+}
+
+message AccessRevokedSession {
+  string session_id = 1;
+  int64 expires_at_unix = 2;
+}
+
+message AccessServiceToken {
+  string id = 1;
+  string client_id = 2;
+  // Hex SHA-256 of the secret.
+  string secret_sha256 = 3;
+  // 0: no expiry.
+  int64 expires_at_unix = 4;
 }
 
 // The address Opfield moves to (configuration export to another host). The

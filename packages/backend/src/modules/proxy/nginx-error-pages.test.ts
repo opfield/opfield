@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { ConfigValidatorService } from '@/services/config-validator.service.js';
 import type { ProxyHostConfig } from '@/services/nginx-config-generator.service.js';
+import { maintenanceAccessListDirectives } from './nginx-access-list.js';
 import { type NginxConfigDirective, parseNginxConfig } from './nginx-config-tree.js';
 import {
   ERROR_PAGE_PATH,
@@ -13,18 +14,21 @@ import {
   withOpfieldErrorPages,
 } from './nginx-error-pages.js';
 import { renderMaintenanceFlagGuard } from './nginx-maintenance-flag-guard.js';
-import { maintenanceAccessListDirectives, NginxTemplateService } from './nginx-template.service.js';
+import { NginxTemplateService } from './nginx-template.service.js';
 
 // Owner request for 2.12.3: every page nginx itself generates is an Opfield page, while an upstream's own error
 // responses pass through and the codes a route answers itself (Pages 404, SPA fallback) keep their handling.
 const HOST_ID = '11111111-1111-4111-8111-111111111111';
+// Basic authentication from 10.0.0.0/8, on a node without the access socket.
 const accessList: NonNullable<ProxyHostConfig['accessList']> = {
   id: '22222222-2222-4222-8222-222222222222',
-  ipRules: [
-    { type: 'allow', value: '10.0.0.0/8' },
-    { type: 'deny', value: 'all' },
-  ],
-  basicAuthEnabled: true,
+  authRequest: false,
+  signInMethods: ['basic'],
+  hasUsers: true,
+  skipIpRanges: [],
+  includeRules: [{ selector: 'everyone', values: [] }],
+  requireRules: [{ selector: 'ip', values: ['10.0.0.0/8'] }],
+  excludeRules: [],
 };
 const host: ProxyHostConfig = {
   id: HOST_ID,

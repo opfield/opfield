@@ -192,3 +192,101 @@ func TestUsesAccessListFindsProtectedPreviews(t *testing.T) {
 		t.Fatal("UsesAccessList must match exactly the referenced list")
 	}
 }
+
+// Once the access socket has the list's policy, the preview asks it about every request; the fallback rules and
+// credentials are no longer rendered or needed.
+func TestPreviewAccessChecksOnTheAccessSocket(t *testing.T) {
+	runtime, _ := accessRuntime(t)
+	runtime.SetErrorPages(true)
+	synced := map[string]bool{accessListID: true}
+	runtime.SetAccessChecks(func(id string) bool { return synced[id] })
+	// Basic authentication without a deployed htpasswd file: checked previews do not read it.
+	access := &PreviewAccess{AccessListID: accessListID, IPRules: []PreviewIPRule{{Type: "allow", Value: "10.0.0.0/8"}}, BasicAuth: true}
+	if err := runtime.MaterializePreview(profileID, deploymentID, "checked.pages.example", "", "", PreviewFallback{Access: access}); err != nil {
+		t.Fatal(err)
+	}
+	config, _ := os.ReadFile(runtime.previewConfigPath("checked.pages.example"))
+	text := string(config)
+	for _, want := range []string{
+		"    server_name checked.pages.example;\n    auth_request /_opfield/access/check;\n    error_page 401 = @opfield_access_challenge;\n",
+		"    location = /_opfield/access/check {\n        internal;\n        auth_request off;\n        proxy_pass http://unix:/run/nginx-daemon/access.sock:/check;\n        proxy_pass_request_body off;\n        proxy_set_header Content-Length \"\";\n        proxy_set_header X-Opfield-Access-List \"" + accessListID + "\";\n        proxy_set_header X-Opfield-Access-Host $host;\n        proxy_set_header X-Opfield-Access-Client-Ip $remote_addr;\n        proxy_set_header X-Opfield-Access-Uri $request_uri;\n        proxy_set_header X-Opfield-Access-Secure $https;\n    }\n",
+		"    location = /_opfield/access/callback {\n        auth_request off;\n        access_log off;\n        proxy_pass http://unix:/run/nginx-daemon/access.sock:/callback;\n",
+		"    location @opfield_access_challenge {\n        auth_request off;\n        rewrite ^ /challenge break;\n        proxy_pass http://unix:/run/nginx-daemon/access.sock;\n",
+		"        auth_basic off;\n        auth_request off;\n",
+	} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("missing %q:\n%s", want, text)
+		}
+	}
+	if strings.Contains(text, "allow 10.0.0.0/8") || strings.Contains(text, "auth_basic_user_file") || strings.Contains(text, "satisfy all") {
+		t.Fatalf("fallback directives rendered next to the check:\n%s", text)
+	}
+	for _, line := range strings.Split(text, "\n") {
+		if strings.HasPrefix(line, "    error_page ") && strings.Contains(line, " 401 ") && !strings.HasSuffix(line, "@opfield_access_challenge;") {
+			t.Fatalf("401 must reach the access challenge: %q", line)
+		}
+	}
+	if runtime.UsesAccessList(accessListID) {
+		t.Fatal("a checked preview does not use the list's htpasswd file")
+	}
+
+	// Without the list's policy the fallback applies; a named list without fallback rules lets nobody in.
+	delete(synced, accessListID)
+	if err := runtime.MaterializePreview(profileID, deploymentID, "closed.pages.example", "", "", PreviewFallback{Access: &PreviewAccess{AccessListID: accessListID}}); err != nil {
+		t.Fatal(err)
+	}
+	closed, _ := os.ReadFile(runtime.previewConfigPath("closed.pages.example"))
+	if !strings.Contains(string(closed), "    satisfy all;\n    deny all;\n    root ") || strings.Contains(string(closed), "auth_request") {
+		t.Fatalf("unsynced list without fallback rules must deny everyone:\n%s", closed)
+	}
+}
+
+// A preview materialized before its list's policy reached the access socket switches to access checks when the
+// policy arrives, and back to the fallback when the list leaves it.
+func TestPreviewAccessFollowsThePolicy(t *testing.T) {
+	runtime, _ := accessRuntime(t)
+	synced := map[string]bool{}
+	runtime.SetAccessChecks(func(id string) bool { return synced[id] })
+	access := &PreviewAccess{AccessListID: accessListID, IPRules: []PreviewIPRule{{Type: "allow", Value: "10.0.0.0/8"}}}
+	if err := runtime.MaterializePreview(profileID, deploymentID, "follow.pages.example", "", "", PreviewFallback{SPAFallback: true, Access: access}); err != nil {
+		t.Fatal(err)
+	}
+	if err := runtime.MaterializePreview(profileID, deploymentID, "public.pages.example", "", ""); err != nil {
+		t.Fatal(err)
+	}
+	read := func() string {
+		config, err := os.ReadFile(runtime.previewConfigPath("follow.pages.example"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return string(config)
+	}
+	fallback := read()
+	if strings.Contains(fallback, "auth_request") {
+		t.Fatalf("unsynced list rendered with checks:\n%s", fallback)
+	}
+
+	synced[accessListID] = true
+	if changed, err := runtime.RefreshAccessChecks(); err != nil || changed != 1 {
+		t.Fatalf("refresh after the policy arrived: %d %v", changed, err)
+	}
+	checked := read()
+	if !strings.Contains(checked, "    auth_request /_opfield/access/check;\n") || strings.Contains(checked, "allow 10.0.0.0/8") || !strings.Contains(checked, "try_files $uri $uri/ /index.html;") {
+		t.Fatalf("preview not rendered with checks:\n%s", checked)
+	}
+	if changed, err := runtime.RefreshAccessChecks(); err != nil || changed != 0 {
+		t.Fatalf("a refresh without policy changes rendered again: %d %v", changed, err)
+	}
+
+	delete(synced, accessListID)
+	if changed, err := runtime.RefreshAccessChecks(); err != nil || changed != 1 || read() != fallback {
+		t.Fatalf("refresh after the list left the policy: %d %v\n%s", changed, err, read())
+	}
+
+	if err := runtime.RemovePreview("follow.pages.example"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(runtime.previewAccessRecordPath("follow.pages.example")); !os.IsNotExist(err) {
+		t.Fatalf("record of a removed preview kept: %v", err)
+	}
+}

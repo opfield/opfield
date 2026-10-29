@@ -1,3 +1,4 @@
+export type * from "./access";
 export type {
   AIConfig,
   AIMessage,

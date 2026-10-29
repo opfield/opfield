@@ -144,7 +144,14 @@ func (r *Runtime) previewConfig(hostname, deploymentID, certificateID, certifica
 		lines = append(lines, "    error_page 404 @opfield_pages_404;")
 	}
 	// Every other page nginx answers with itself (a denied client, a refused method) is an Opfield page too.
-	lines = append(lines, r.errorPageDirectives(404)...)
+	if r.accessChecked(fallback.Access) {
+		// 401 goes to the access challenge, and the pages answer without a second check.
+		if r.errorPages {
+			lines = append(lines, errorpages.AccessCheckedServerDirectives(404, 401)...)
+		}
+	} else {
+		lines = append(lines, r.errorPageDirectives(404)...)
+	}
 	// The runtime configuration answers under the Opfield path, which pages load, and under the pre-Opfield one, which
 	// pages written before 2.12.1 may name themselves.
 	for _, scriptPath := range []string{naming.PagesConfigScriptPath, naming.LegacyPagesConfigScriptPath} {

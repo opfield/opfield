@@ -65,7 +65,6 @@ const CHEATSHEET_VARIABLES: ReferenceTableRow[] = [
   { term: "{{advancedConfig}}", description: "Raw advanced config" },
   { term: "{{#each customHeaders}}", description: "Iterate custom headers" },
   { term: "{{#each customRewrites}}", description: "Iterate rewrite rules" },
-  { term: "{{#each accessList.ipRules}}", description: "Iterate access-list IP rules" },
 ];
 
 const CHEATSHEET_HELPERS: ReferenceTableRow[] = [

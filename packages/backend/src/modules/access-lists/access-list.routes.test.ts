@@ -33,6 +33,7 @@ function setup(granted: string[]) {
   const lists = {
     create: vi.fn(async (input: Record<string, unknown>) => ({ id: LIST, ...input })),
     update: vi.fn(async (id: string, input: Record<string, unknown>) => ({ id, ...input })),
+    moveIpRule: vi.fn(async (id: string) => ({ id })),
   };
   const folders = {
     // The real destination rule, with the folder lookup stubbed.
@@ -75,6 +76,23 @@ describe('POST /api/access-lists', () => {
     expect((await call('', 'POST', UI_PAYLOAD)).status).toBe(403);
     expect(lists.create).toHaveBeenCalledTimes(1);
     expect(lists.create.mock.calls[0]![0]).toMatchObject({ name: 'Office', folderId: FOLDER });
+  });
+
+  it('takes the sign-in fields or the legacy fields, never both in one body', async () => {
+    const { lists, call } = setup(['acl:create']);
+    const signIn = { name: 'Team', signInMethods: ['opfield'], includeRules: [{ selector: 'everyone' }] };
+
+    expect((await call('', 'POST', signIn)).status).toBe(201);
+    const mixed = await call('', 'POST', { ...signIn, ipRules: [] });
+    expect(mixed.status).toBe(400);
+    expect(lists.create).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the legacy IP rule move route of published clients', async () => {
+    const { lists, call } = setup(['acl:edit']);
+
+    expect((await call(`/${LIST}/ip-rules/move`, 'POST', { fromIndex: 1, toIndex: 0 })).status).toBe(200);
+    expect(lists.moveIpRule).toHaveBeenCalledWith(LIST, { fromIndex: 1, toIndex: 0 }, 'user-1');
   });
 
   it('still refuses folderId on an update: a list changes folder through the folder move route', async () => {

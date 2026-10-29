@@ -25,6 +25,7 @@ import type { RelayPoolService } from '@/services/relay-pool.service.js';
 import type { AdditionalRouteService } from './additional-route.service.js';
 import { supportsPagesRouteTemplate } from './additional-route-template.js';
 import { effectiveMaintenance } from './effective-maintenance.js';
+import { NGINX_ACCESS_AUTH_CAPABILITY, nginxAccessListOf, usesFallbackBasicAuth } from './nginx-access-list.js';
 import { NGINX_ERROR_PAGES_CAPABILITY, withOpfieldErrorPages } from './nginx-error-pages.js';
 import { MAINTENANCE_FLAG_CAPABILITY } from './nginx-maintenance-flag-guard.js';
 import {
@@ -130,6 +131,13 @@ export interface StatusPageSystemHostInput {
   nginxTemplateId?: string | null;
   upstreamUrl?: string | null;
 }
+
+/** System routes proxied to Opfield itself: the public status page and the access sign-in domain. */
+export type BackendSystemHostKind = 'status_page' | 'access_sign_in';
+export const BACKEND_SYSTEM_HOST_LABELS: Record<BackendSystemHostKind, string> = {
+  status_page: 'status page',
+  access_sign_in: 'access sign-in',
+};
 
 export interface RegistrySystemHostInput {
   domain: string;
@@ -414,18 +422,19 @@ export abstract class ProxyServiceCore {
     });
   }
 
+  /**
+   * The htpasswd file of a list checked with basic authentication, for a node without the access socket (see
+   * nginx-access-list.ts); a node with it checks the users from the synced access policy.
+   */
   protected async deployAccessListCredentials(nodeId: string, accessListId?: string | null): Promise<void> {
-    if (!accessListId) return;
+    if (!accessListId || (await this.nodeReports(nodeId, NGINX_ACCESS_AUTH_CAPABILITY))) return;
 
     const list = await this.db.query.accessLists.findFirst({
       where: eq(accessLists.id, accessListId),
     });
-    if (!list?.basicAuthEnabled) return;
+    if (!list || !usesFallbackBasicAuth(nginxAccessListOf(list))) return;
 
-    const users = list.basicAuthUsers as { username: string; passwordHash: string }[];
-    if (users.length === 0) {
-      throw new Error(`Access list ${accessListId} has basic auth enabled without credentials`);
-    }
+    const users = list.users ?? [];
     const content = `${users.map((user) => `${user.username}:${user.passwordHash}`).join('\n')}\n`;
     const result = await this.nodeDispatch.deployHtpasswd(nodeId, accessListId, content);
     if (!result.success) {
@@ -691,6 +700,7 @@ export abstract class ProxyServiceCore {
   // Helpers — access list resolution
   // -----------------------------------------------------------------------
 
+  /** The route's access list; buildNginxConfig decides per node how it is checked. */
   protected async resolveAccessList(accessListId: string | null): Promise<ProxyHostConfig['accessList']> {
     if (!accessListId) return null;
 
@@ -698,13 +708,7 @@ export abstract class ProxyServiceCore {
       where: eq(accessLists.id, accessListId),
     });
 
-    if (!list) return null;
-
-    return {
-      id: list.id,
-      ipRules: list.ipRules as { type: string; value: string }[],
-      basicAuthEnabled: list.basicAuthEnabled,
-    };
+    return list ? nginxAccessListOf(list) : null;
   }
 
   // -----------------------------------------------------------------------
@@ -714,9 +718,14 @@ export abstract class ProxyServiceCore {
   protected async buildNginxConfig(
     host: ProxyHostRow,
     certPaths: CertPaths,
-    accessList: ProxyHostConfig['accessList'],
+    routeAccessList: ProxyHostConfig['accessList'],
     pagesRouteIncludePathOverride?: string
   ): Promise<string> {
+    // A node with the access socket checks requests there; an older one gets the fallback directives.
+    const accessList = routeAccessList && {
+      ...routeAccessList,
+      authRequest: await this.nodeReports(host.nodeId, NGINX_ACCESS_AUTH_CAPABILITY),
+    };
     // Raw mode is an explicit user-owned escape hatch: only the node's file and nginx names in it follow the node
     // (nginx-node-names.ts).
     if ((host.type === 'raw' || host.rawConfigEnabled) && host.rawConfig) {

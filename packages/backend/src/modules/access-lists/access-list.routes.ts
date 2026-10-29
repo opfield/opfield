@@ -93,7 +93,7 @@ accessListRoutes.openapi(
   }
 );
 
-// Move one IP rule (first match wins, so order changes who gets in)
+// Move one IP rule in the legacy fields (clients written before sign-in based lists)
 accessListRoutes.openapi(
   { ...moveAccessListIpRuleRoute, middleware: requireScopeForResource('acl:edit', 'id') },
   async (c) => {

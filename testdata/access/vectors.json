@@ -1,0 +1,1070 @@
+{
+  "_comment": "Access decision vectors (contract: .workflow/access-v2/contract.md, section Decision). identity is an already verified identity (token idn claims); source is where it came from: cookie, basic or service_token. expect: allow | deny | basic | redirect.",
+  "cases": [
+    {
+      "name": "excluded ip is denied even from a skip range neighbour",
+      "list": {
+        "id": "11111111-1111-4111-8111-111111111111",
+        "signInMethods": [
+          "opfield",
+          "idp:g1",
+          "password",
+          "basic"
+        ],
+        "skipIpRanges": [
+          "10.0.40.0/24"
+        ],
+        "includeRules": [
+          {
+            "selector": "email_domain",
+            "values": [
+              "acme.dev"
+            ]
+          },
+          {
+            "selector": "opfield_group",
+            "values": [
+              "grp-support"
+            ]
+          },
+          {
+            "selector": "service_token",
+            "values": [
+              "tok-ci"
+            ]
+          }
+        ],
+        "requireRules": [],
+        "excludeRules": [
+          {
+            "selector": "email",
+            "values": [
+              "contractor@acme.dev"
+            ]
+          },
+          {
+            "selector": "ip",
+            "values": [
+              "198.51.100.0/24",
+              "2001:db8:bad::/48"
+            ]
+          }
+        ]
+      },
+      "clientIp": "198.51.100.7",
+      "expect": "deny"
+    },
+    {
+      "name": "excluded ipv6 range",
+      "list": {
+        "id": "11111111-1111-4111-8111-111111111111",
+        "signInMethods": [
+          "opfield",
+          "idp:g1",
+          "password",
+          "basic"
+        ],
+        "skipIpRanges": [
+          "10.0.40.0/24"
+        ],
+        "includeRules": [
+          {
+            "selector": "email_domain",
+            "values": [
+              "acme.dev"
+            ]
+          },
+          {
+            "selector": "opfield_group",
+            "values": [
+              "grp-support"
+            ]
+          },
+          {
+            "selector": "service_token",
+            "values": [
+              "tok-ci"
+            ]
+          }
+        ],
+        "requireRules": [],
+        "excludeRules": [
+          {
+            "selector": "email",
+            "values": [
+              "contractor@acme.dev"
+            ]
+          },
+          {
+            "selector": "ip",
+            "values": [
+              "198.51.100.0/24",
+              "2001:db8:bad::/48"
+            ]
+          }
+        ]
+      },
+      "clientIp": "2001:db8:bad::1",
+      "expect": "deny"
+    },
+    {
+      "name": "skip range passes without identity",
+      "list": {
+        "id": "11111111-1111-4111-8111-111111111111",
+        "signInMethods": [
+          "opfield",
+          "idp:g1",
+          "password",
+          "basic"
+        ],
+        "skipIpRanges": [
+          "10.0.40.0/24"
+        ],
+        "includeRules": [
+          {
+            "selector": "email_domain",
+            "values": [
+              "acme.dev"
+            ]
+          },
+          {
+            "selector": "opfield_group",
+            "values": [
+              "grp-support"
+            ]
+          },
+          {
+            "selector": "service_token",
+            "values": [
+              "tok-ci"
+            ]
+          }
+        ],
+        "requireRules": [],
+        "excludeRules": [
+          {
+            "selector": "email",
+            "values": [
+              "contractor@acme.dev"
+            ]
+          },
+          {
+            "selector": "ip",
+            "values": [
+              "198.51.100.0/24",
+              "2001:db8:bad::/48"
+            ]
+          }
+        ]
+      },
+      "clientIp": "10.0.40.15",
+      "expect": "allow"
+    },
+    {
+      "name": "no identity with sign-in methods redirects",
+      "list": {
+        "id": "11111111-1111-4111-8111-111111111111",
+        "signInMethods": [
+          "opfield",
+          "idp:g1",
+          "password",
+          "basic"
+        ],
+        "skipIpRanges": [
+          "10.0.40.0/24"
+        ],
+        "includeRules": [
+          {
+            "selector": "email_domain",
+            "values": [
+              "acme.dev"
+            ]
+          },
+          {
+            "selector": "opfield_group",
+            "values": [
+              "grp-support"
+            ]
+          },
+          {
+            "selector": "service_token",
+            "values": [
+              "tok-ci"
+            ]
+          }
+        ],
+        "requireRules": [],
+        "excludeRules": [
+          {
+            "selector": "email",
+            "values": [
+              "contractor@acme.dev"
+            ]
+          },
+          {
+            "selector": "ip",
+            "values": [
+              "198.51.100.0/24",
+              "2001:db8:bad::/48"
+            ]
+          }
+        ]
+      },
+      "clientIp": "203.0.113.9",
+      "expect": "redirect"
+    },
+    {
+      "name": "google identity in included domain",
+      "list": {
+        "id": "11111111-1111-4111-8111-111111111111",
+        "signInMethods": [
+          "opfield",
+          "idp:g1",
+          "password",
+          "basic"
+        ],
+        "skipIpRanges": [
+          "10.0.40.0/24"
+        ],
+        "includeRules": [
+          {
+            "selector": "email_domain",
+            "values": [
+              "acme.dev"
+            ]
+          },
+          {
+            "selector": "opfield_group",
+            "values": [
+              "grp-support"
+            ]
+          },
+          {
+            "selector": "service_token",
+            "values": [
+              "tok-ci"
+            ]
+          }
+        ],
+        "requireRules": [],
+        "excludeRules": [
+          {
+            "selector": "email",
+            "values": [
+              "contractor@acme.dev"
+            ]
+          },
+          {
+            "selector": "ip",
+            "values": [
+              "198.51.100.0/24",
+              "2001:db8:bad::/48"
+            ]
+          }
+        ]
+      },
+      "clientIp": "203.0.113.9",
+      "expect": "allow",
+      "identity": {
+        "m": "idp:g1",
+        "sub": "g-1",
+        "em": "Lena@ACME.dev"
+      },
+      "source": "cookie"
+    },
+    {
+      "name": "excluded email is sent to the sign-in page",
+      "list": {
+        "id": "11111111-1111-4111-8111-111111111111",
+        "signInMethods": [
+          "opfield",
+          "idp:g1",
+          "password",
+          "basic"
+        ],
+        "skipIpRanges": [
+          "10.0.40.0/24"
+        ],
+        "includeRules": [
+          {
+            "selector": "email_domain",
+            "values": [
+              "acme.dev"
+            ]
+          },
+          {
+            "selector": "opfield_group",
+            "values": [
+              "grp-support"
+            ]
+          },
+          {
+            "selector": "service_token",
+            "values": [
+              "tok-ci"
+            ]
+          }
+        ],
+        "requireRules": [],
+        "excludeRules": [
+          {
+            "selector": "email",
+            "values": [
+              "contractor@acme.dev"
+            ]
+          },
+          {
+            "selector": "ip",
+            "values": [
+              "198.51.100.0/24",
+              "2001:db8:bad::/48"
+            ]
+          }
+        ]
+      },
+      "clientIp": "203.0.113.9",
+      "expect": "redirect",
+      "identity": {
+        "m": "idp:g1",
+        "sub": "g-2",
+        "em": "contractor@acme.dev"
+      },
+      "source": "cookie"
+    },
+    {
+      "name": "identity matching no include rule is sent to the sign-in page",
+      "list": {
+        "id": "11111111-1111-4111-8111-111111111111",
+        "signInMethods": [
+          "opfield",
+          "idp:g1",
+          "password",
+          "basic"
+        ],
+        "skipIpRanges": [
+          "10.0.40.0/24"
+        ],
+        "includeRules": [
+          {
+            "selector": "email_domain",
+            "values": [
+              "acme.dev"
+            ]
+          },
+          {
+            "selector": "opfield_group",
+            "values": [
+              "grp-support"
+            ]
+          },
+          {
+            "selector": "service_token",
+            "values": [
+              "tok-ci"
+            ]
+          }
+        ],
+        "requireRules": [],
+        "excludeRules": [
+          {
+            "selector": "email",
+            "values": [
+              "contractor@acme.dev"
+            ]
+          },
+          {
+            "selector": "ip",
+            "values": [
+              "198.51.100.0/24",
+              "2001:db8:bad::/48"
+            ]
+          }
+        ]
+      },
+      "clientIp": "203.0.113.9",
+      "expect": "redirect",
+      "identity": {
+        "m": "idp:g1",
+        "sub": "g-3",
+        "em": "lena@gmail.com"
+      },
+      "source": "cookie"
+    },
+    {
+      "name": "opfield user in included group",
+      "list": {
+        "id": "11111111-1111-4111-8111-111111111111",
+        "signInMethods": [
+          "opfield",
+          "idp:g1",
+          "password",
+          "basic"
+        ],
+        "skipIpRanges": [
+          "10.0.40.0/24"
+        ],
+        "includeRules": [
+          {
+            "selector": "email_domain",
+            "values": [
+              "acme.dev"
+            ]
+          },
+          {
+            "selector": "opfield_group",
+            "values": [
+              "grp-support"
+            ]
+          },
+          {
+            "selector": "service_token",
+            "values": [
+              "tok-ci"
+            ]
+          }
+        ],
+        "requireRules": [],
+        "excludeRules": [
+          {
+            "selector": "email",
+            "values": [
+              "contractor@acme.dev"
+            ]
+          },
+          {
+            "selector": "ip",
+            "values": [
+              "198.51.100.0/24",
+              "2001:db8:bad::/48"
+            ]
+          }
+        ]
+      },
+      "clientIp": "203.0.113.9",
+      "expect": "allow",
+      "identity": {
+        "m": "opfield",
+        "sub": "user-7",
+        "em": "maya@other.org",
+        "grp": [
+          "grp-support"
+        ]
+      },
+      "source": "cookie"
+    },
+    {
+      "name": "method not offered by the list is not usable",
+      "list": {
+        "id": "11111111-1111-4111-8111-111111111111",
+        "signInMethods": [
+          "opfield",
+          "idp:g1",
+          "password",
+          "basic"
+        ],
+        "skipIpRanges": [
+          "10.0.40.0/24"
+        ],
+        "includeRules": [
+          {
+            "selector": "email_domain",
+            "values": [
+              "acme.dev"
+            ]
+          },
+          {
+            "selector": "opfield_group",
+            "values": [
+              "grp-support"
+            ]
+          },
+          {
+            "selector": "service_token",
+            "values": [
+              "tok-ci"
+            ]
+          }
+        ],
+        "requireRules": [],
+        "excludeRules": [
+          {
+            "selector": "email",
+            "values": [
+              "contractor@acme.dev"
+            ]
+          },
+          {
+            "selector": "ip",
+            "values": [
+              "198.51.100.0/24",
+              "2001:db8:bad::/48"
+            ]
+          }
+        ]
+      },
+      "clientIp": "203.0.113.9",
+      "expect": "redirect",
+      "identity": {
+        "m": "idp:other",
+        "sub": "x",
+        "em": "lena@acme.dev"
+      },
+      "source": "cookie"
+    },
+    {
+      "name": "password identity of another list is not usable",
+      "list": {
+        "id": "11111111-1111-4111-8111-111111111111",
+        "signInMethods": [
+          "opfield",
+          "idp:g1",
+          "password",
+          "basic"
+        ],
+        "skipIpRanges": [
+          "10.0.40.0/24"
+        ],
+        "includeRules": [
+          {
+            "selector": "email_domain",
+            "values": [
+              "acme.dev"
+            ]
+          },
+          {
+            "selector": "opfield_group",
+            "values": [
+              "grp-support"
+            ]
+          },
+          {
+            "selector": "service_token",
+            "values": [
+              "tok-ci"
+            ]
+          }
+        ],
+        "requireRules": [],
+        "excludeRules": [
+          {
+            "selector": "email",
+            "values": [
+              "contractor@acme.dev"
+            ]
+          },
+          {
+            "selector": "ip",
+            "values": [
+              "198.51.100.0/24",
+              "2001:db8:bad::/48"
+            ]
+          }
+        ]
+      },
+      "clientIp": "203.0.113.9",
+      "expect": "redirect",
+      "identity": {
+        "m": "password",
+        "sub": "lena.novak",
+        "em": "lena@acme.dev",
+        "lst": "22222222-2222-4222-8222-222222222222"
+      },
+      "source": "cookie"
+    },
+    {
+      "name": "service token named by an include rule",
+      "list": {
+        "id": "11111111-1111-4111-8111-111111111111",
+        "signInMethods": [
+          "opfield",
+          "idp:g1",
+          "password",
+          "basic"
+        ],
+        "skipIpRanges": [
+          "10.0.40.0/24"
+        ],
+        "includeRules": [
+          {
+            "selector": "email_domain",
+            "values": [
+              "acme.dev"
+            ]
+          },
+          {
+            "selector": "opfield_group",
+            "values": [
+              "grp-support"
+            ]
+          },
+          {
+            "selector": "service_token",
+            "values": [
+              "tok-ci"
+            ]
+          }
+        ],
+        "requireRules": [],
+        "excludeRules": [
+          {
+            "selector": "email",
+            "values": [
+              "contractor@acme.dev"
+            ]
+          },
+          {
+            "selector": "ip",
+            "values": [
+              "198.51.100.0/24",
+              "2001:db8:bad::/48"
+            ]
+          }
+        ]
+      },
+      "clientIp": "203.0.113.9",
+      "expect": "allow",
+      "identity": {
+        "m": "service_token",
+        "sub": "tok-ci"
+      },
+      "source": "service_token"
+    },
+    {
+      "name": "service token not named by any rule is denied",
+      "list": {
+        "id": "11111111-1111-4111-8111-111111111111",
+        "signInMethods": [
+          "opfield",
+          "idp:g1",
+          "password",
+          "basic"
+        ],
+        "skipIpRanges": [
+          "10.0.40.0/24"
+        ],
+        "includeRules": [
+          {
+            "selector": "email_domain",
+            "values": [
+              "acme.dev"
+            ]
+          },
+          {
+            "selector": "opfield_group",
+            "values": [
+              "grp-support"
+            ]
+          },
+          {
+            "selector": "service_token",
+            "values": [
+              "tok-ci"
+            ]
+          }
+        ],
+        "requireRules": [],
+        "excludeRules": [
+          {
+            "selector": "email",
+            "values": [
+              "contractor@acme.dev"
+            ]
+          },
+          {
+            "selector": "ip",
+            "values": [
+              "198.51.100.0/24",
+              "2001:db8:bad::/48"
+            ]
+          }
+        ]
+      },
+      "clientIp": "203.0.113.9",
+      "expect": "deny",
+      "identity": {
+        "m": "service_token",
+        "sub": "tok-other"
+      },
+      "source": "service_token"
+    },
+    {
+      "name": "require rule fails for an otherwise included identity",
+      "list": {
+        "id": "11111111-1111-4111-8111-111111111111",
+        "signInMethods": [
+          "opfield",
+          "idp:g1",
+          "password",
+          "basic"
+        ],
+        "skipIpRanges": [
+          "10.0.40.0/24"
+        ],
+        "includeRules": [
+          {
+            "selector": "email_domain",
+            "values": [
+              "acme.dev"
+            ]
+          },
+          {
+            "selector": "opfield_group",
+            "values": [
+              "grp-support"
+            ]
+          },
+          {
+            "selector": "service_token",
+            "values": [
+              "tok-ci"
+            ]
+          }
+        ],
+        "requireRules": [
+          {
+            "selector": "method",
+            "values": [
+              "idp:g1"
+            ]
+          }
+        ],
+        "excludeRules": [
+          {
+            "selector": "email",
+            "values": [
+              "contractor@acme.dev"
+            ]
+          },
+          {
+            "selector": "ip",
+            "values": [
+              "198.51.100.0/24",
+              "2001:db8:bad::/48"
+            ]
+          }
+        ]
+      },
+      "clientIp": "203.0.113.9",
+      "expect": "redirect",
+      "identity": {
+        "m": "opfield",
+        "sub": "user-7",
+        "grp": [
+          "grp-support"
+        ]
+      },
+      "source": "cookie"
+    },
+    {
+      "name": "require rule passes",
+      "list": {
+        "id": "11111111-1111-4111-8111-111111111111",
+        "signInMethods": [
+          "opfield",
+          "idp:g1",
+          "password",
+          "basic"
+        ],
+        "skipIpRanges": [
+          "10.0.40.0/24"
+        ],
+        "includeRules": [
+          {
+            "selector": "email_domain",
+            "values": [
+              "acme.dev"
+            ]
+          },
+          {
+            "selector": "opfield_group",
+            "values": [
+              "grp-support"
+            ]
+          },
+          {
+            "selector": "service_token",
+            "values": [
+              "tok-ci"
+            ]
+          }
+        ],
+        "requireRules": [
+          {
+            "selector": "method",
+            "values": [
+              "idp:g1"
+            ]
+          }
+        ],
+        "excludeRules": [
+          {
+            "selector": "email",
+            "values": [
+              "contractor@acme.dev"
+            ]
+          },
+          {
+            "selector": "ip",
+            "values": [
+              "198.51.100.0/24",
+              "2001:db8:bad::/48"
+            ]
+          }
+        ]
+      },
+      "clientIp": "203.0.113.9",
+      "expect": "allow",
+      "identity": {
+        "m": "idp:g1",
+        "sub": "g-1",
+        "em": "lena@acme.dev"
+      },
+      "source": "cookie"
+    },
+    {
+      "name": "basic-only list without credentials challenges",
+      "list": {
+        "id": "22222222-2222-4222-8222-222222222222",
+        "signInMethods": [
+          "basic"
+        ],
+        "skipIpRanges": [],
+        "includeRules": [
+          {
+            "selector": "everyone",
+            "values": []
+          }
+        ],
+        "requireRules": [
+          {
+            "selector": "ip",
+            "values": [
+              "10.0.40.0/24",
+              "10.0.41.0/24"
+            ]
+          }
+        ],
+        "excludeRules": []
+      },
+      "clientIp": "10.0.40.2",
+      "expect": "basic"
+    },
+    {
+      "name": "basic identity from an allowed network",
+      "list": {
+        "id": "22222222-2222-4222-8222-222222222222",
+        "signInMethods": [
+          "basic"
+        ],
+        "skipIpRanges": [],
+        "includeRules": [
+          {
+            "selector": "everyone",
+            "values": []
+          }
+        ],
+        "requireRules": [
+          {
+            "selector": "ip",
+            "values": [
+              "10.0.40.0/24",
+              "10.0.41.0/24"
+            ]
+          }
+        ],
+        "excludeRules": []
+      },
+      "clientIp": "10.0.41.9",
+      "expect": "allow",
+      "identity": {
+        "m": "basic",
+        "sub": "lena.novak",
+        "lst": "22222222-2222-4222-8222-222222222222"
+      },
+      "source": "basic"
+    },
+    {
+      "name": "basic identity outside the required networks is denied",
+      "list": {
+        "id": "22222222-2222-4222-8222-222222222222",
+        "signInMethods": [
+          "basic"
+        ],
+        "skipIpRanges": [],
+        "includeRules": [
+          {
+            "selector": "everyone",
+            "values": []
+          }
+        ],
+        "requireRules": [
+          {
+            "selector": "ip",
+            "values": [
+              "10.0.40.0/24",
+              "10.0.41.0/24"
+            ]
+          }
+        ],
+        "excludeRules": []
+      },
+      "clientIp": "192.0.2.1",
+      "expect": "deny",
+      "identity": {
+        "m": "basic",
+        "sub": "lena.novak",
+        "lst": "22222222-2222-4222-8222-222222222222"
+      },
+      "source": "basic"
+    },
+    {
+      "name": "list without methods or skip ranges denies everyone",
+      "list": {
+        "id": "22222222-2222-4222-8222-222222222222",
+        "signInMethods": [],
+        "skipIpRanges": [],
+        "includeRules": [],
+        "requireRules": [],
+        "excludeRules": []
+      },
+      "clientIp": "10.0.40.2",
+      "expect": "deny"
+    },
+    {
+      "name": "open list lets everyone in",
+      "list": {
+        "id": "22222222-2222-4222-8222-222222222222",
+        "signInMethods": [],
+        "skipIpRanges": [
+          "0.0.0.0/0",
+          "::/0"
+        ],
+        "includeRules": [],
+        "requireRules": [],
+        "excludeRules": [
+          {
+            "selector": "ip",
+            "values": [
+              "203.0.113.250"
+            ]
+          }
+        ]
+      },
+      "clientIp": "192.0.2.44",
+      "expect": "allow"
+    },
+    {
+      "name": "open list still excludes",
+      "list": {
+        "id": "22222222-2222-4222-8222-222222222222",
+        "signInMethods": [],
+        "skipIpRanges": [
+          "0.0.0.0/0",
+          "::/0"
+        ],
+        "includeRules": [],
+        "requireRules": [],
+        "excludeRules": [
+          {
+            "selector": "ip",
+            "values": [
+              "203.0.113.250"
+            ]
+          }
+        ]
+      },
+      "clientIp": "203.0.113.250",
+      "expect": "deny"
+    },
+    {
+      "name": "service token not named by the service token rule is denied even with an everyone rule",
+      "list": {
+        "id": "33333333-3333-4333-8333-333333333333",
+        "signInMethods": [
+          "opfield"
+        ],
+        "skipIpRanges": [],
+        "includeRules": [
+          {
+            "selector": "everyone",
+            "values": []
+          },
+          {
+            "selector": "service_token",
+            "values": [
+              "tok-ci"
+            ]
+          }
+        ],
+        "requireRules": [],
+        "excludeRules": []
+      },
+      "clientIp": "203.0.113.9",
+      "identity": {
+        "m": "service_token",
+        "sub": "tok-other"
+      },
+      "source": "service_token",
+      "expect": "deny"
+    },
+    {
+      "name": "service token named by the service token rule next to an everyone rule",
+      "list": {
+        "id": "33333333-3333-4333-8333-333333333333",
+        "signInMethods": [
+          "opfield"
+        ],
+        "skipIpRanges": [],
+        "includeRules": [
+          {
+            "selector": "everyone",
+            "values": []
+          },
+          {
+            "selector": "service_token",
+            "values": [
+              "tok-ci"
+            ]
+          }
+        ],
+        "requireRules": [],
+        "excludeRules": []
+      },
+      "clientIp": "203.0.113.9",
+      "identity": {
+        "m": "service_token",
+        "sub": "tok-ci"
+      },
+      "source": "service_token",
+      "expect": "allow"
+    },
+    {
+      "name": "basic-only list from outside the required networks is denied without a challenge",
+      "list": {
+        "id": "22222222-2222-4222-8222-222222222222",
+        "signInMethods": [
+          "basic"
+        ],
+        "skipIpRanges": [],
+        "includeRules": [
+          {
+            "selector": "everyone",
+            "values": []
+          }
+        ],
+        "requireRules": [
+          {
+            "selector": "ip",
+            "values": [
+              "10.0.40.0/24",
+              "10.0.41.0/24"
+            ]
+          }
+        ],
+        "excludeRules": []
+      },
+      "clientIp": "192.0.2.1",
+      "expect": "deny"
+    }
+  ]
+}

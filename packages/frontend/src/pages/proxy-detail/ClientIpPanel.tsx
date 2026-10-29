@@ -130,7 +130,7 @@ export function ClientIpPanel({
       <SettingsControlRow
         title="Source"
         description={autoDescription}
-        help="Access list IP rules, rate limits, access logs and the X-Real-IP / X-Forwarded-For sent to the upstream use this address. Forwarded addresses are believed only from Cloudflare's edge or the proxies you list; a visitor that connects directly keeps its own address. Raw configs get it where they contain the line # opfield:client-ip."
+        help="Access list address rules, rate limits, access logs and the X-Real-IP / X-Forwarded-For sent to the upstream use this address. Forwarded addresses are believed only from Cloudflare's edge or the proxies you list; a visitor that connects directly keeps its own address. Raw configs get it where they contain the line # opfield:client-ip."
       >
         <Select
           value={draft.source}

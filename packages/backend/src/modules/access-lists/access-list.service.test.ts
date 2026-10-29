@@ -5,6 +5,8 @@ import { AccessListService } from './access-list.service.js';
 vi.mock('@/lib/resource-scope-cleanup.js', () => ({
   transactionWithScopeCleanup: (db: any, work: (tx: any) => unknown) => work(db),
 }));
+const policySync = vi.hoisted(() => vi.fn());
+vi.mock('@/modules/access-signin/access-policy-sync.js', () => ({ scheduleAccessPolicySync: policySync }));
 
 const ACCESS_LIST_ID = '11111111-1111-4111-8111-111111111111';
 
@@ -52,5 +54,7 @@ describe('Access list deletion', () => {
       ['ingress-b', ACCESS_LIST_ID],
     ]);
     expect(db.delete).toHaveBeenCalled();
+    // The nodes drop the list from the access policy they check.
+    expect(policySync).toHaveBeenCalled();
   });
 });

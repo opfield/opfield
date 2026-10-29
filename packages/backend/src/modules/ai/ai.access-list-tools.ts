@@ -41,18 +41,8 @@ export async function executeAccessListTool(
         { allowedIds: allowedResourceIdsForScopes(user.scopes, 'acl:view') }
       );
     case 'create_access_list': {
-      const input = CreateAccessListSchema.parse({
-        name: a.name,
-        description: a.description,
-        ipRules: [
-          ...(Array.isArray(a.ipRules) ? a.ipRules : []),
-          ...(a.allowIps || []).map((value: string) => ({ value, type: 'allow' })),
-          ...(a.denyIps || []).map((value: string) => ({ value, type: 'deny' })),
-        ],
-        basicAuthEnabled: a.basicAuthEnabled ?? !!a.basicAuthUsers?.length,
-        basicAuthUsers: a.basicAuthUsers || [],
-        folderId: a.folderId ?? undefined,
-      });
+      // The same fields as POST /api/access-lists; the schema drops the tool's own arguments.
+      const input = CreateAccessListSchema.parse({ ...args, folderId: a.folderId ?? undefined });
       // Mirrors POST /access-lists: broad acl:create, or acl:create on the destination folder.
       await container.resolve(AccessListFolderService).assertCreateFolder(user.scopes, input.folderId);
       return context.accessListService.create(input, user.id);
