@@ -97,18 +97,26 @@ export class InferenceBudgetPolicyService {
       .from(inferenceLimitUsageResets)
       .where(eq(inferenceLimitUsageResets.userId, userId));
     const resets = new Map(resetRows.map((row) => [row.dimension, row]));
+    const persistedActive = (window: (typeof SUBSCRIPTION_LIMIT_WINDOWS)[number]) => {
+      const reset = resets.get(window.dimension);
+      return Boolean(reset?.windowActive && activeUsageWindow(now, reset.resetAt, window.durationMs));
+    };
+    // One look at the user's latest recent entry tells which windows without a persisted one are worth walking.
+    const latestEntry = SUBSCRIPTION_LIMIT_WINDOWS.every(persistedActive)
+      ? null
+      : await latestSubscriptionEntry(database, userId, now);
     const legacyStarts = new Map(
       await Promise.all(
         SUBSCRIPTION_LIMIT_WINDOWS.map(async (window) => {
           const reset = resets.get(window.dimension);
-          const active = reset?.windowActive && activeUsageWindow(now, reset.resetAt, window.durationMs);
+          const active = persistedActive(window);
           // An expired persisted window may have been left behind by the old
           // disabled-limit path. Recover only entries after that window ended;
           // an explicit reset instead fences recovery at its reset timestamp.
           const since = reset?.windowActive ? new Date(reset.resetAt.getTime() + window.durationMs) : reset?.resetAt;
           return [
             window.dimension,
-            active ? null : await legacyUsageWindowStart(database, userId, now, window.durationMs, since),
+            active ? null : await legacyUsageWindowStart(database, userId, now, window.durationMs, since, latestEntry),
           ] as const;
         })
       )
@@ -237,31 +245,39 @@ function currentUsageWindow(
   return persisted ?? activeUsageWindow(now, legacyStart ?? undefined, durationMs);
 }
 
-async function legacyUsageWindowStart(
-  database: DrizzleExecutor,
-  userId: string,
-  now: Date,
-  durationMs: number,
-  since?: Date
-): Promise<Date | null> {
-  // A window can be open now only from an entry within its duration: without one there is nothing to walk, which
-  // keeps the walk off the hot path for a user with old entries and no persisted window (read-only overviews). A
-  // recent subscription entry comes from an admitted request, and admission persists every window, so the full walk
-  // remains only for entries older than persisted windows (the first days after upgrading from such a release).
-  const recent = await database
-    .select({ occurredAt: inferenceUsageLedger.occurredAt })
+/** The user's latest subscription entry within the longest window, or null without one. */
+async function latestSubscriptionEntry(database: DrizzleExecutor, userId: string, now: Date): Promise<Date | null> {
+  const longest = Math.max(...SUBSCRIPTION_LIMIT_WINDOWS.map((window) => window.durationMs));
+  const [row] = await database
+    .select({ latest: sql<Date | string | null>`MAX(${inferenceUsageLedger.occurredAt})` })
     .from(inferenceUsageLedger)
     .where(
       and(
         eq(inferenceUsageLedger.userId, userId),
         eq(inferenceUsageLedger.budgetType, 'subscription'),
-        gt(inferenceUsageLedger.occurredAt, new Date(now.getTime() - durationMs)),
-        lte(inferenceUsageLedger.occurredAt, now),
-        since ? gte(inferenceUsageLedger.occurredAt, since) : undefined
+        gt(inferenceUsageLedger.occurredAt, new Date(now.getTime() - longest)),
+        lte(inferenceUsageLedger.occurredAt, now)
       )
-    )
-    .limit(1);
-  if (recent.length === 0) return null;
+    );
+  return row?.latest ? new Date(row.latest) : null;
+}
+
+async function legacyUsageWindowStart(
+  database: DrizzleExecutor,
+  userId: string,
+  now: Date,
+  durationMs: number,
+  since: Date | undefined,
+  latestEntry: Date | null
+): Promise<Date | null> {
+  // A window can be open now only from an entry within its duration (and after `since`): without one there is nothing
+  // to walk, which keeps the walk off the hot path for a user with old entries and no persisted window (read-only
+  // overviews). A recent subscription entry comes from an admitted request, and admission persists every window, so
+  // the full walk remains only for entries older than persisted windows (the first days after upgrading from such a
+  // release).
+  if (!latestEntry || latestEntry.getTime() <= now.getTime() - durationMs || (since && latestEntry < since)) {
+    return null;
+  }
   const result = await database.execute(
     sql<{ started_at: Date | string | null }>`
       WITH RECURSIVE ordered_entries AS (

@@ -1644,6 +1644,16 @@ describe('RelayPolicyService snapshots', () => {
   });
 });
 
+describe('describeGrantRefreshFailures grouping', () => {
+  it('treats refusals that differ only in numbers as one reason', () => {
+    const failures = ['node-a', 'node-b', 'node-c'].map((nodeId, index) => ({
+      nodeId,
+      reason: `revision ${40 + index} is older than 42`,
+    }));
+    expect(describeGrantRefreshFailures(failures)).toBe('revision 40 is older than 42 (node-a, node-b, node-c)');
+  });
+});
+
 describe('grantRefusalKeys', () => {
   it('keys a refusal by its daemon and its reason with the daemon id kept and numbers masked', () => {
     const id = '0f8b6c1e-3a2d-4c5b-9e7f-1a2b3c4d5e6f';

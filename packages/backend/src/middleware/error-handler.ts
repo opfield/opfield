@@ -1,6 +1,7 @@
 import type { Context, ErrorHandler } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import { ZodError } from 'zod';
+import { LOG_INGEST_PATHS } from '@/lib/log-ingest-paths.js';
 import { logger } from '@/lib/logger.js';
 import { isNodeConnectionError } from '@/lib/node-connection-error.js';
 import { redactQueryError } from '@/lib/query-error-redaction.js';
@@ -156,12 +157,6 @@ async function withLimitedAccessPointer(c: Context<AppEnv>, statusCode: number, 
   }
 }
 
-/**
- * 503 answers that a feature is switched off on this Opfield: what every caller gets while it is off, not a fault.
- * Log producers keep sending to disabled logging, so these would otherwise fill the log and the 5xx statistics.
- */
-const FEATURE_OFF_CODES: ReadonlySet<string> = new Set(['LOGGING_DISABLED']);
-
 export const errorHandler: ErrorHandler<AppEnv> = async (err, c) => {
   const requestId = c.get('requestId');
 
@@ -172,10 +167,11 @@ export const errorHandler: ErrorHandler<AppEnv> = async (err, c) => {
         c.header('Retry-After', String(retryAfterSeconds));
       }
     }
-    // A feature switched off answers every caller the same way (log producers keep sending): not a fault to report.
-    const featureOff = err.statusCode === 503 && FEATURE_OFF_CODES.has(err.code);
-    if (featureOff) c.set('featureOffRefusal', true);
-    logger[featureOff ? 'debug' : 'warn']('Application error', {
+    // Log producers keep posting while logging is off: that refusal is what each of them gets, not a fault to report.
+    // Other callers of a disabled logging (the console, agents) keep their warning.
+    const ingestRefused = err.code === 'LOGGING_DISABLED' && LOG_INGEST_PATHS.has(c.req.path);
+    if (ingestRefused) c.set('logIngestRefused', true);
+    logger[ingestRefused ? 'debug' : 'warn']('Application error', {
       requestId,
       code: err.code,
       message: err.message,

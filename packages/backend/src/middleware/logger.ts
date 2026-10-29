@@ -1,14 +1,13 @@
 import type { Context, MiddlewareHandler } from 'hono';
 import { routePath } from 'hono/route';
 import { LEGACY_HEALTH_PROBE_HEADER } from '@/lib/legacy-compat.js';
+import { LOG_INGEST_PATHS } from '@/lib/log-ingest-paths.js';
 import { logger } from '@/lib/logger.js';
 import { ONE_TIME_LINK_TOKEN_PATH } from '@/lib/one-time-link-path.js';
 import { requestStats } from '@/modules/diagnostics/request-stats.js';
 import type { AppEnv } from '@/types.js';
 
 const DOCKER_WEBHOOK_TOKEN_PATH = /^(\/api\/webhooks\/docker\/)[^/]+(?=\/|$)/;
-/** Log producers post here several times a second: their arrival is logged at debug, their outcome as usual. */
-const LOG_INGEST_PATHS: ReadonlySet<string> = new Set(['/api/logging/ingest', '/api/logging/ingest/batch']);
 
 export function redactRequestPath(path: string): string {
   return path.replace(DOCKER_WEBHOOK_TOKEN_PATH, '$1[REDACTED]').replace(ONE_TIME_LINK_TOKEN_PATH, '$1[REDACTED]');
@@ -20,6 +19,7 @@ export const loggerMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
   const method = c.req.method;
   const path = redactRequestPath(c.req.path);
 
+  // Log producers post several times a second: their arrival is logged at debug, their outcome as usual.
   logger[LOG_INGEST_PATHS.has(path) ? 'debug' : 'info']('Incoming request', {
     requestId,
     method,
@@ -42,9 +42,9 @@ export const loggerMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
   const duration = Date.now() - start;
   const status = c.res.status;
 
-  // A feature switched off is an expected answer, not a request this server served (see the error handler): it stays
-  // out of the request statistics.
-  const featureOff = c.get('featureOffRefusal') === true;
+  // Ingest refused because logging is off is an expected answer, not a request this server served (see the error
+  // handler): it stays out of the request statistics.
+  const featureOff = c.get('logIngestRefused') === true;
   // A protocol switch (WebSocket) is not a request that completes, so it would skew latency.
   if (status !== 101 && !featureOff) requestStats.record(matchedRoutePath(c), status, duration);
 

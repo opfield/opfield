@@ -247,7 +247,9 @@ export class RegistryStorageHost {
 
   /**
    * How to recreate the registry from docker-compose.yml when it runs another definition (Compose's config hash);
-   * null when it runs this one or the host is not installer-managed.
+   * null when it runs this one or the host is not installer-managed. A registry another Compose version created may
+   * hash differently for the same definition: that costs one recreate, after which its label is this helper's hash
+   * (updates never recreate it, and the storage switch uses this same helper).
    */
   async pendingDefinitionRecreate(): Promise<(() => Promise<void>) | null> {
     const context = await this.managedContext();

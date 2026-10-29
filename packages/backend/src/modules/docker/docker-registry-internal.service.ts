@@ -577,10 +577,6 @@ export class DockerInternalRegistryService {
             candidateArtifactIds: [],
             skippedEmptyRegistry: true,
           };
-          // No uploads to drain and nothing to collect, but the definition still applies (see drainUploads).
-          await this.executor.applyChangedDefinition?.().catch((error: Error) => {
-            logger.warn('The empty registry was not recreated from its current definition', { error: error.message });
-          });
           run = await this.store.updateRun(run.id, {
             phase: 'idle',
             status: 'completed',

@@ -150,9 +150,13 @@ const LEGACY_UPDATE_SIDECAR_ROLE = LEGACY_UPDATE_SIDECAR_NAME;
 /** Exited update and host move containers this process cleans up. */
 const FINISHED_CONTAINER_ROLES: readonly string[] = [UPDATE_SIDECAR_ROLE, LEGACY_UPDATE_SIDECAR_ROLE];
 /** The Docker CLI image of update sidecars started before they were labelled: pinned, or the plain `docker:<n>-cli`. */
-const UNLABELLED_SIDECAR_IMAGE = /^(?:docker\.io\/library\/)?docker:\d+-cli(?:@sha256:[0-9a-f]{64})?$/;
-/** The pinned form only, which no container of a user's own names: it alone marks a running sidecar. */
-const PINNED_SIDECAR_IMAGE = /^docker\.io\/library\/docker:\d+-cli@sha256:[0-9a-f]{64}$/;
+const UNLABELLED_SIDECAR_IMAGE = /^(?<registry>docker\.io\/library\/)?docker:\d+-cli(?<digest>@sha256:[0-9a-f]{64})?$/;
+
+/** The pinned form (registry and digest), which no container of a user's own names: it alone marks a running sidecar. */
+function isPinnedSidecarImage(image: string): boolean {
+  const groups = UNLABELLED_SIDECAR_IMAGE.exec(image)?.groups;
+  return Boolean(groups?.registry && groups.digest);
+}
 
 /**
  * Whether an unlabelled container is an update sidecar of an older release: the Docker CLI image with exactly the
@@ -982,7 +986,7 @@ export class UpdateService {
       if (role !== undefined) continue;
       // The pinned CLI image marks a sidecar by itself, as it always did; its one-off helpers count too, as they work
       // on the Compose directory. The plain tag, which CI jobs run as well, counts only with a sidecar's mounts.
-      if (PINNED_SIDECAR_IMAGE.test(item.Image)) return true;
+      if (isPinnedSidecarImage(item.Image)) return true;
       if (composeDir === undefined) composeDir = await this.composeDirectory();
       if (composeDir && (await this.isOlderReleaseSidecar(item, composeDir))) return true;
     }

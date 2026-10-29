@@ -165,7 +165,7 @@ export class DockerRegistryStorageService {
         const recreate = await this.host.pendingDefinitionRecreate();
         if (!recreate) return null;
         return async () => {
-          if (await updateUnderWay()) throw new Error('an Opfield update started');
+          if (await updateUnderWay()) throw new Error('an update or one of its Compose helpers is running');
           await recreate();
         };
       },

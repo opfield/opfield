@@ -335,15 +335,19 @@ function truncated(text: string, length: number): string {
  * naming its daemon counts as that reason, and the summary stays short however large the fleet.
  */
 export function describeGrantRefreshFailures(failures: Array<{ nodeId: string; reason: string }>): string {
-  const byReason = new Map<string, string[]>();
+  // Grouped like grantRefusalKeys (numbers masked); each group shows the reason one of its daemons gave.
+  const byReason = new Map<string, { reason: string; nodeIds: string[] }>();
   for (const failure of failures) {
     const reason = truncated(withoutNodeId(failure.reason, failure.nodeId), GRANT_REFRESH_FAILURE_REASON_LENGTH);
-    let nodeIds = byReason.get(reason);
-    if (!nodeIds) byReason.set(reason, (nodeIds = []));
-    nodeIds.push(failure.nodeId);
+    const key = reason.replace(/\d+/g, '#');
+    let group = byReason.get(key);
+    if (!group) byReason.set(key, (group = { reason, nodeIds: [] }));
+    group.nodeIds.push(failure.nodeId);
   }
-  for (const nodeIds of byReason.values()) nodeIds.sort();
-  const reasons = [...byReason].sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0]));
+  for (const group of byReason.values()) group.nodeIds.sort();
+  const reasons = [...byReason.values()]
+    .sort((a, b) => b.nodeIds.length - a.nodeIds.length || a.reason.localeCompare(b.reason))
+    .map((group) => [group.reason, group.nodeIds] as const);
   const described = reasons.slice(0, GRANT_REFRESH_FAILURE_REASONS_NAMED).map(([reason, nodeIds]) => {
     const named = nodeIds.slice(0, GRANT_REFRESH_FAILURE_NODES_NAMED).join(', ');
     const more = nodeIds.length - GRANT_REFRESH_FAILURE_NODES_NAMED;
