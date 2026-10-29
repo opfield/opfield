@@ -32,6 +32,15 @@ import {
   ADDITIONAL_ROUTES_TEMPLATE_PLACEHOLDER,
   supportsAdditionalRoutesTemplate,
 } from './additional-route-template.js';
+import {
+  ACCESS_LIST_TEMPLATE_BLOCK,
+  accessListDirectives,
+  accessListPasswordFile,
+  accessListTemplateContext,
+  maintenanceAccessListDirectives,
+  upgradeLegacyAccessListBlocks,
+  withAccessAuthLocations,
+} from './nginx-access-list.js';
 import { managedSecureLinkUpstreamBody, withAvailabilityNextUpstream } from './nginx-availability-upstream.js';
 import {
   MAINTENANCE_ABSENT_FILE,
@@ -170,8 +179,15 @@ Handlebars.registerHelper('applyAccessListToAdvancedLocations', (advancedConfig:
   if (typeof advancedConfig !== 'string') return '';
   return injectAccessListIntoAdvancedLocations(
     advancedConfig,
-    buildAccessListDirectives(accessList as ProxyHostConfig['accessList'])
+    accessListDirectives(accessList as ProxyHostConfig['accessList'])
   );
+});
+
+// The directives of a location the route's access list protects, followed by a blank line.
+Handlebars.registerHelper('accessListDirectives', (accessList: unknown) => {
+  const directives = accessListDirectives(accessList as ProxyHostConfig['accessList']);
+  if (directives.length === 0) return '';
+  return new Handlebars.SafeString(`${directives.map((directive) => `        ${directive}`).join('\n')}\n`);
 });
 
 function routeNginxValue(value: string): string {
@@ -223,7 +239,7 @@ function renderAdditionalRouteLocation(
   const upstream = route.secureLinkUpstream
     ? `${route.forwardScheme}://${upstreamName}`
     : `${route.forwardScheme}://${routeNginxValue(route.forwardHost ?? '')}:${route.forwardPort ?? 0}`;
-  const access = buildAccessListDirectives(accessList).map((directive) => `        ${directive}`);
+  const access = accessListDirectives(accessList).map((directive) => `        ${directive}`);
   const limits = rateLimitEnabled
     ? [
         '        limit_req_status 429;',
@@ -399,36 +415,8 @@ Handlebars.registerHelper(
   }
 );
 
-function accessListPasswordFile(accessListId: string): string {
-  return `/etc/nginx/opfield/htpasswd/access-list-${accessListId.replace(DANGEROUS_CHARS, '')}`;
-}
-
-/**
- * The allow/deny rules of an access list for the maintenance guard's locations: a client the list denies gets 403
- * during maintenance too, never the maintenance page (deny wins). Basic authentication stays on the route itself.
- */
-export function maintenanceAccessListDirectives(accessList: ProxyHostConfig['accessList']): string[] {
-  if (!accessList || accessList.ipRules.length === 0) return [];
-  return buildAccessListDirectives({ ...accessList, basicAuthEnabled: false });
-}
-
 function indentedDirectives(directives: readonly string[]): string {
   return directives.map((directive) => `\n        ${directive}`).join('');
-}
-
-function buildAccessListDirectives(accessList: ProxyHostConfig['accessList']): string[] {
-  if (!accessList) return [];
-
-  const directives = accessList.ipRules.map(
-    (rule) => `${rule.type.replace(DANGEROUS_CHARS, '')} ${rule.value.replace(DANGEROUS_CHARS, '')};`
-  );
-  // A list that ends in its own "deny all" needs no second one.
-  if (accessList.ipRules.length > 0 && directives.at(-1) !== 'deny all;') directives.push('deny all;');
-  if (accessList.basicAuthEnabled) {
-    directives.push('auth_basic "Restricted Access";');
-    directives.push(`auth_basic_user_file ${accessListPasswordFile(accessList.id)};`);
-  }
-  return directives;
 }
 
 // ---------------------------------------------------------------------------
@@ -469,6 +457,9 @@ server {
     location /.well-known/acme-challenge/ {
         alias /var/www/acme-challenge/.well-known/acme-challenge/;
         auth_basic off;
+{{#if accessList.authRequest}}
+        auth_request off;
+{{/if}}
     }
 
     location / {
@@ -506,6 +497,9 @@ server {
     location /.well-known/acme-challenge/ {
         alias /var/www/acme-challenge/.well-known/acme-challenge/;
         auth_basic off;
+{{#if accessList.authRequest}}
+        auth_request off;
+{{/if}}
     }
 
 {{/unless}}
@@ -522,19 +516,7 @@ ${ADDITIONAL_ROUTES_TEMPLATE_PLACEHOLDER}
     location ~ /\\. { deny all; }
 
     location = ${PAGES_CONFIG_SCRIPT_PATH} {
-{{#if accessList}}
-{{#each accessList.ipRules}}
-        {{sanitize this.type}} {{sanitize this.value}};
-{{/each}}
-{{#if accessListHasIpRules}}
-        deny all;
-{{/if}}
-{{#if accessList.basicAuthEnabled}}
-        auth_basic "Restricted Access";
-        auth_basic_user_file /etc/nginx/opfield/htpasswd/access-list-{{accessList.id}};
-{{/if}}
-
-{{/if}}
+${ACCESS_LIST_TEMPLATE_BLOCK}
 {{#if rateLimitEnabled}}
         limit_req_status 429;
         limit_req zone=ratelimit_{{id}} burst={{rateLimitBurst}} nodelay;
@@ -551,19 +533,7 @@ ${ADDITIONAL_ROUTES_TEMPLATE_PLACEHOLDER}
     }
 
     location = ${LEGACY_PAGES_CONFIG_SCRIPT_PATH} {
-{{#if accessList}}
-{{#each accessList.ipRules}}
-        {{sanitize this.type}} {{sanitize this.value}};
-{{/each}}
-{{#if accessListHasIpRules}}
-        deny all;
-{{/if}}
-{{#if accessList.basicAuthEnabled}}
-        auth_basic "Restricted Access";
-        auth_basic_user_file /etc/nginx/opfield/htpasswd/access-list-{{accessList.id}};
-{{/if}}
-
-{{/if}}
+${ACCESS_LIST_TEMPLATE_BLOCK}
 {{#if rateLimitEnabled}}
         limit_req_status 429;
         limit_req zone=ratelimit_{{id}} burst={{rateLimitBurst}} nodelay;
@@ -581,19 +551,7 @@ ${ADDITIONAL_ROUTES_TEMPLATE_PLACEHOLDER}
 
 {{/if}}
     location / {
-{{#if accessList}}
-{{#each accessList.ipRules}}
-        {{sanitize this.type}} {{sanitize this.value}};
-{{/each}}
-{{#if accessListHasIpRules}}
-        deny all;
-{{/if}}
-{{#if accessList.basicAuthEnabled}}
-        auth_basic "Restricted Access";
-        auth_basic_user_file /etc/nginx/opfield/htpasswd/access-list-{{accessList.id}};
-{{/if}}
-
-{{/if}}
+${ACCESS_LIST_TEMPLATE_BLOCK}
 {{#if rateLimitEnabled}}
         limit_req_status 429;
         limit_req zone=ratelimit_{{id}} burst={{rateLimitBurst}} nodelay;
@@ -1262,7 +1220,7 @@ export class NginxTemplateService {
     content: string,
     host: ProxyHostConfig
   ): { rendered: string; advancedConfig: string | null } {
-    const template = this.compileTemplate(upgradeLegacyRewriteArguments(content));
+    const template = this.compileTemplate(upgradeLegacyAccessListBlocks(upgradeLegacyRewriteArguments(content)));
     const baseContext = this.buildBaseContext(host);
     const advancedConfig = host.advancedConfig ? this.renderTemplateString(host.advancedConfig, baseContext) : null;
     if (advancedConfig) {
@@ -1372,9 +1330,9 @@ export class NginxTemplateService {
     const withUpstreams = supportsAdditionalRoutes
       ? this.ensureManagedAdditionalRouteUpstreams(withSecureLinkUpstreams, host)
       : withSecureLinkUpstreams;
-    const result = withAvailabilityNextUpstream(
-      withUpstreams,
-      availabilityUpstreamNames(host, supportsAdditionalRoutes)
+    const result = withAccessAuthLocations(
+      withAvailabilityNextUpstream(withUpstreams, availabilityUpstreamNames(host, supportsAdditionalRoutes)),
+      host.accessList
     );
     return host.statusPageStaleCache && host.type === 'proxy'
       ? withStatusPageStaleCache(result, host.id, hideExternalBranding)
@@ -1762,8 +1720,8 @@ ${rendered}`;
         name: header.name.replace(/[^!#$%&'*+.^_`|~0-9A-Za-z-]/g, ''),
       })),
       customRewrites: host.customRewrites,
-      accessList: host.accessList,
-      accessListHasIpRules: (host.accessList?.ipRules?.length ?? 0) > 0,
+      // accessList.ipRules and accessList.basicAuthEnabled keep templates written before sign-in based lists working.
+      ...accessListTemplateContext(host.accessList),
       logPath: `${NGINX_LOGS_PREFIX}/proxy-${host.id}`,
       pagesRouteIncludePath: host.pagesRouteIncludePath,
       pagesSpaFallback: host.pagesSpaFallback === true,

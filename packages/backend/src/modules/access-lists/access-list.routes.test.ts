@@ -77,6 +77,16 @@ describe('POST /api/access-lists', () => {
     expect(lists.create.mock.calls[0]![0]).toMatchObject({ name: 'Office', folderId: FOLDER });
   });
 
+  it('takes the sign-in fields or the legacy fields, never both in one body', async () => {
+    const { lists, call } = setup(['acl:create']);
+    const signIn = { name: 'Team', signInMethods: ['opfield'], includeRules: [{ selector: 'everyone' }] };
+
+    expect((await call('', 'POST', signIn)).status).toBe(201);
+    const mixed = await call('', 'POST', { ...signIn, ipRules: [] });
+    expect(mixed.status).toBe(400);
+    expect(lists.create).toHaveBeenCalledTimes(1);
+  });
+
   it('still refuses folderId on an update: a list changes folder through the folder move route', async () => {
     const { lists, call } = setup(['acl:edit']);
 

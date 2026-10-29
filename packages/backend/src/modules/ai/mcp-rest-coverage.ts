@@ -49,7 +49,6 @@ export const HOST_MCP_REST_COVERAGE: McpRestCoverageMap = {
   'GET /api/access-lists/{id}': mcp('manage_access_list:get'),
   'PUT /api/access-lists/{id}': mcp('manage_access_list:update'),
   'DELETE /api/access-lists/{id}': mcp('delete_access_list'),
-  'POST /api/access-lists/{id}/ip-rules/move': mcp('manage_access_list:move_rule'),
   // /api/admin
   'GET /api/admin/auth-settings': mcp('get_opfield_settings'),
   'PUT /api/admin/auth-settings': mcp('update_opfield_settings'),

@@ -75,6 +75,7 @@ import {
 import { canAccessEveryPageProject, visiblePageProjectIds } from '@/modules/pages/page-project-access.js';
 import { PageProjectFolderService } from '@/modules/pages/page-project-folder.service.js';
 import { PAGE_RUNTIME_CONFIG_MAX_BYTES } from '@/modules/pages/runtime-config/page-runtime-config.schemas.js';
+import { pagesPreviewFallbackAccess } from '@/modules/proxy/nginx-access-list.js';
 import {
   NGINX_PAGES_PREVIEW_CLIENT_IP_CAPABILITY,
   pagesPreviewClientIp,
@@ -139,4 +140,6 @@ export const pagesCommercialRuntime = {
   PageNodesRuntime,
   pagesPreviewClientIp,
   NGINX_PAGES_PREVIEW_CLIENT_IP_CAPABILITY,
+  /** Access lists: the fallback rules a preview renders until the daemon has the list's policy. */
+  pagesPreviewFallbackAccess,
 };

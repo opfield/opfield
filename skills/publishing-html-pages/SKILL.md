@@ -22,7 +22,7 @@ Start with `using-opfield` for connection, discovery, and safety rules. Before a
 3. **Decide the link before uploading:** Tag or not, expiry or not, Access List or not (sections below). The Tag and expiry are upload arguments; attach an Access List to the Project first, so the new link is never public.
 4. **Upload** with the MCP-only `upload_pages_artifact`. Send only the fields the operation uses and leave every other optional field out: `""`, `0` or an empty `source` object fails validation. With a shell, call `link` with `projectId` and the optional `tag`, `format`, `expiresInHours` or `expiresAt`, and `source`, then run one of the returned `commands` right away: `archive` or `html` sends a file with `curl --data-binary @<file>`, `folder` packs and streams a build folder (`tar czf - -C dist . | curl --data-binary @- <url>`). The link works once, for 15 minutes; its curl response is the finalize result, and a failed or interrupted transfer leaves nothing behind. Without a shell, `begin` takes `projectId`, `declaredSizeBytes`, `sha256`, `format`, an `idempotencyKey`, and the same options; keep the returned `upload.id`, send `chunk` calls in order, at most 1 MiB decoded each, continuing from the `offset` each chunk returns, then call `finalize` with the `uploadId`, or `cancel` to abandon it. `begin` takes no content, and its Deployment (status `uploading`) serves nothing until `finalize` returns status `ready`; there is no separate activate or publish step. A complete minimal example, exact arguments, errors, and a fallback without the helper are in [Upload protocol](references/upload-protocol.md).
 5. **Read the links.** The finalize result is `{ deployment, links }`. `links.preview` is the immutable Deployment link, `links.tag` the requested Tag (null without one), and `links.latest` the system `latest` Tag when it now points at this Deployment. Each link has `url`, `status` (`ready`, `pending`, or `unavailable`), and `reason`. Share a `ready` URL. For `pending`, re-read with `manage_pages({ operation: "deployment_links", projectId, deploymentId })` or `tag_list`. For `unavailable`, report the reason; see [link statuses](references/upload-protocol.md#link-statuses).
-6. **Verify** by requesting the URL yourself: HTTP 200 and recognizable content. Behind an Access List, a 401 or 403 is the expected proof that protection applies; say that the content itself was not fetched.
+6. **Verify** by requesting the URL yourself: HTTP 200 and recognizable content. Behind an Access List, a redirect to the sign-in page, a 401 or a 403 is the expected proof that protection applies; say that the content itself was not fetched.
 7. **Tell the user** what they received (template below).
 
 ## Choose the link
@@ -46,9 +46,9 @@ After the expiry, maintenance deletes the Deployment with its previews and files
 
 Previews are public: anyone who has the link can open it. The hostnames are random, not guessable, but they are not credentials. To restrict access, attach an Access List to the Project **before** uploading: `manage_pages({ operation: "project_update", projectId, accessListId })`. It needs `pages:edit` and `acl:view` on the list, and the Project's Nginx node must support preview access lists (otherwise `PAGES_DAEMON_UPDATE_REQUIRED`: the daemon needs an update).
 
-- The list protects every preview of the Project, Deployment and Tag links alike, with its IP rules and basic authentication. `accessListId: null` removes it. A list without rules or users leaves previews public.
+- The list protects every preview of the Project, Deployment and Tag links alike: visitors sign in on the Opfield sign-in page unless their address skips sign-in. `accessListId: null` removes it. A list whose skip ranges are `0.0.0.0/0` and `::/0` leaves previews public.
 - It is Project-wide, so keep protected content in its own Project instead of protecting an unrelated one.
-- Never invent, request, or relay basic-auth passwords in chat. Attach an existing list, create one with IP rules only, or let the user add basic-auth users to the list in the Opfield Console and then attach it by ID. Access List tools are in `ingress-and-domains`.
+- Never invent, request, or relay passwords in chat. Attach an existing list, create one with skip ranges, Opfield accounts or an identity provider, or let the user set passwords in the Opfield Console and then attach it by ID. Access List tools are in `ingress-and-domains`.
 
 ## Revoke, replace, roll back
 
@@ -59,10 +59,10 @@ Previews are public: anyone who has the link can open it. The hostnames are rand
 ## What to tell the user
 
 - the URL and its kind: a fixed version, or a stable Tag link that follows future uploads;
-- who can open it: anyone with the link, or only clients allowed by Access List `<name>`;
+- who can open it: anyone with the link, or only visitors Access List `<name>` lets in;
 - the expiry time, when one is set;
 - how to update it (upload again with the same Tag) and how to revoke it (rotation, deletion, expiry);
-- the verification result: fetched with HTTP 200, protected (401 or 403 as expected), or still `pending` with the reason.
+- the verification result: fetched with HTTP 200, protected (sign-in redirect, 401 or 403 as expected), or still `pending` with the reason.
 
 Never include tokens, base64 payloads, or Access List passwords.
 
