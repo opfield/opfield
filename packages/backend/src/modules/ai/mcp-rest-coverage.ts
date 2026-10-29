@@ -25,9 +25,17 @@ const OWNER_SETUP_CHECKLIST = excluded(
 const API_TOKENS = excluded('token-minting', 'Issues or manages Opfield API tokens of the caller.');
 const OAUTH_GRANTS = excluded('token-minting', 'Manages OAuth grants of the caller.');
 const OAUTH_CONSENT = excluded('token-minting', 'OAuth consent screen for granting the caller credentials.');
+const ACCESS_VISITOR_SIGN_IN = excluded(
+  'own-auth',
+  "A visitor's own sign-in to a route protected by an access list (sign-in page, providers, Opfield account)."
+);
 
 export const HOST_MCP_REST_COVERAGE: McpRestCoverageMap = {
   // /.well-known
+  'GET /.well-known/opfield-access/jwks': excluded(
+    'machine',
+    'Public keys of access tokens, for upstream applications that verify Opfield-Access-Jwt-Assertion.'
+  ),
   'GET /.well-known/oauth-authorization-server': OAUTH_DISCOVERY,
   'GET /.well-known/oauth-authorization-server/api/mcp': OAUTH_DISCOVERY,
   'GET /.well-known/oauth-protected-resource': OAUTH_DISCOVERY,
@@ -35,6 +43,12 @@ export const HOST_MCP_REST_COVERAGE: McpRestCoverageMap = {
   'GET /.well-known/oauth-protected-resource/api/mcp': OAUTH_DISCOVERY,
   'GET /.well-known/openid-configuration': OAUTH_DISCOVERY,
   'GET /.well-known/openid-configuration/api/mcp': OAUTH_DISCOVERY,
+  // /api/access-identity-providers
+  'GET /api/access-identity-providers': mcp('manage_access_sign_in:list'),
+  'POST /api/access-identity-providers': mcp('manage_access_sign_in:create'),
+  'GET /api/access-identity-providers/{id}': mcp('manage_access_sign_in:get'),
+  'PUT /api/access-identity-providers/{id}': mcp('manage_access_sign_in:update'),
+  'DELETE /api/access-identity-providers/{id}': mcp('manage_access_sign_in:delete'),
   // /api/access-lists
   'GET /api/access-lists': mcp('list_access_lists'),
   'POST /api/access-lists': mcp('create_access_list'),
@@ -50,6 +64,30 @@ export const HOST_MCP_REST_COVERAGE: McpRestCoverageMap = {
   'PUT /api/access-lists/{id}': mcp('manage_access_list:update'),
   'DELETE /api/access-lists/{id}': mcp('delete_access_list'),
   'POST /api/access-lists/{id}/ip-rules/move': mcp('manage_access_list:move_rule'),
+  // /api/access-service-tokens
+  'GET /api/access-service-tokens': mcp('manage_access_sign_in:list'),
+  'POST /api/access-service-tokens': mcp('manage_access_sign_in:create'),
+  'GET /api/access-service-tokens/{id}': mcp('manage_access_sign_in:get'),
+  'PUT /api/access-service-tokens/{id}': mcp('manage_access_sign_in:update'),
+  'DELETE /api/access-service-tokens/{id}': mcp('manage_access_sign_in:delete'),
+  // /api/access-sessions
+  'GET /api/access-sessions': mcp('manage_access_sign_in:list'),
+  'POST /api/access-sessions/{id}/revoke': mcp('manage_access_sign_in:revoke'),
+  // /api/access-settings
+  'GET /api/access-settings': mcp('manage_access_sign_in:get'),
+  'PUT /api/access-settings': mcp('manage_access_sign_in:update'),
+  // /api/access-sign-in: visitors of protected routes sign in (the sign-in page and its API)
+  'GET /api/access-sign-in/context': ACCESS_VISITOR_SIGN_IN,
+  'POST /api/access-sign-in/password': ACCESS_VISITOR_SIGN_IN,
+  'POST /api/access-sign-in/shared': ACCESS_VISITOR_SIGN_IN,
+  'POST /api/access-sign-in/sign-out': ACCESS_VISITOR_SIGN_IN,
+  'GET /api/access-sign-in/opfield/authorize': ACCESS_VISITOR_SIGN_IN,
+  // /access
+  'GET /access/sign-in': ACCESS_VISITOR_SIGN_IN,
+  'GET /access/idp/{providerId}/start': ACCESS_VISITOR_SIGN_IN,
+  'GET /access/idp/{providerId}/callback': ACCESS_VISITOR_SIGN_IN,
+  'GET /access/opfield/start': ACCESS_VISITOR_SIGN_IN,
+  'GET /access/opfield/callback': ACCESS_VISITOR_SIGN_IN,
   // /api/admin
   'GET /api/admin/auth-settings': mcp('get_opfield_settings'),
   'PUT /api/admin/auth-settings': mcp('update_opfield_settings'),

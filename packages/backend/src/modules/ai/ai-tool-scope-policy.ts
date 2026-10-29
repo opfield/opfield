@@ -46,6 +46,9 @@ const APP_TOOL_SCOPES = [
 const APP_READ_TOOL_SCOPES = [...APP_TOOL_SCOPES, ...APP_MEMBER_VIEW_SCOPES] as const;
 
 export const AI_TOOL_ANY_SCOPE_REQUIREMENTS: Readonly<Record<string, readonly string[]>> = {
+  // Sign-in settings and providers are admin:system, tokens and sessions acl:edit, reads also acl:view; the handler
+  // checks each operation like its REST route.
+  manage_access_sign_in: ['admin:system', 'acl:edit', 'acl:view'],
   list_apps: APP_READ_TOOL_SCOPES,
   get_app: APP_READ_TOOL_SCOPES,
   manage_app: APP_TOOL_SCOPES,

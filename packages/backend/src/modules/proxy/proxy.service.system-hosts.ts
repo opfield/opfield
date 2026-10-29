@@ -24,6 +24,8 @@ import { proxyHostLockKey, proxyNodeLockKey, withProxyLocks } from './proxy-host
 export { __testOnly } from './proxy.service-helpers.js';
 
 import {
+  BACKEND_SYSTEM_HOST_LABELS,
+  type BackendSystemHostKind,
   logger,
   type ProxyHostRow,
   type RegistrySystemHostInput,
@@ -76,7 +78,7 @@ export class ProxyServiceSystemHosts extends ProxyServiceReconciliation {
    * sorted order, so the current host id is read before locking.
    */
   private async withSystemHostLocks<T>(
-    kind: 'status_page' | 'docker_registry',
+    kind: BackendSystemHostKind | 'docker_registry',
     targetNodeIds: string | readonly string[] | null,
     fn: () => Promise<T>
   ): Promise<T> {
@@ -111,9 +113,19 @@ export class ProxyServiceSystemHosts extends ProxyServiceReconciliation {
   }
 
   async upsertStatusPageSystemHost(input: StatusPageSystemHostInput, userId: string): Promise<ProxyHostRow> {
+    return this.upsertBackendSystemHost('status_page', input, userId);
+  }
+
+  /** A route proxied to Opfield itself: the status page, or the access sign-in domain (setting access.signIn). */
+  async upsertBackendSystemHost(
+    kind: BackendSystemHostKind,
+    input: StatusPageSystemHostInput,
+    userId: string
+  ): Promise<ProxyHostRow> {
     const group = input.ingressGroupId ? await requireRoutableIngressGroup(this.db, input.ingressGroupId) : null;
-    return this.withSystemHostLocks('status_page', group ? group.memberNodeIds : input.nodeId, () =>
-      this.upsertStatusPageSystemHostLocked(
+    return this.withSystemHostLocks(kind, group ? group.memberNodeIds : input.nodeId, () =>
+      this.upsertBackendSystemHostLocked(
+        kind,
         group
           ? { ...input, nodeId: group.primaryNodeId, ingressGroupId: group.group.id }
           : { ...input, ingressGroupId: null },
@@ -123,14 +135,14 @@ export class ProxyServiceSystemHosts extends ProxyServiceReconciliation {
     );
   }
 
-  private async upsertStatusPageSystemHostLocked(
+  private async upsertBackendSystemHostLocked(
+    kind: BackendSystemHostKind,
     input: StatusPageSystemHostInput,
     userId: string,
     servingNodeIds: string[]
   ): Promise<ProxyHostRow> {
-    let existing = await this.db.query.proxyHosts.findFirst({
-      where: eq(proxyHosts.systemKind, 'status_page'),
-    });
+    const label = BACKEND_SYSTEM_HOST_LABELS[kind];
+    let existing = await this.db.query.proxyHosts.findFirst({ where: eq(proxyHosts.systemKind, kind) });
     const ingressGroupId = input.ingressGroupId ?? null;
     if (existing && (existing.ingressGroupId ?? null) !== ingressGroupId) {
       // Between one node and an ingress group without downtime: a node that serves the page keeps serving it.
@@ -188,7 +200,7 @@ export class ProxyServiceSystemHosts extends ProxyServiceReconciliation {
       healthCheckSlowThreshold: 3,
       healthStatus: 'disabled' as const,
       isSystem: true,
-      systemKind: 'status_page',
+      systemKind: kind,
       updatedAt: new Date(),
     };
 
@@ -226,7 +238,7 @@ export class ProxyServiceSystemHosts extends ProxyServiceReconciliation {
     try {
       await this.deliverHost(host);
     } catch (error) {
-      logger.error('Failed to apply status page system route config', {
+      logger.error(`Failed to apply ${label} system route config`, {
         hostId: host.id,
         error,
       });
@@ -243,7 +255,7 @@ export class ProxyServiceSystemHosts extends ProxyServiceReconciliation {
       throw new AppError(
         500,
         'NGINX_CONFIG_FAILED',
-        `Failed to apply status page proxy config: ${error instanceof Error ? error.message : 'unknown error'}`
+        `Failed to apply ${label} proxy config: ${error instanceof Error ? error.message : 'unknown error'}`
       );
     }
 
@@ -252,34 +264,40 @@ export class ProxyServiceSystemHosts extends ProxyServiceReconciliation {
       action: existing ? 'proxy_host.system_update' : 'proxy_host.system_create',
       resourceType: 'proxy_host',
       resourceId: host.id,
-      details: { systemKind: 'status_page', domain: input.domain, nodeId: input.nodeId, ingressGroupId },
+      details: { systemKind: kind, domain: input.domain, nodeId: input.nodeId, ingressGroupId },
     });
     this.emitHost(host.id, 'updated', input.domain);
     return host;
   }
 
   async disableStatusPageSystemHost(userId: string): Promise<ProxyHostRow | null> {
-    return this.withSystemHostLocks('status_page', null, () => this.disableStatusPageSystemHostLocked(userId));
+    return this.disableBackendSystemHost('status_page', userId);
   }
 
-  private async disableStatusPageSystemHostLocked(userId: string): Promise<ProxyHostRow | null> {
-    const existing = await this.db.query.proxyHosts.findFirst({
-      where: eq(proxyHosts.systemKind, 'status_page'),
-    });
+  async disableBackendSystemHost(kind: BackendSystemHostKind, userId: string): Promise<ProxyHostRow | null> {
+    return this.withSystemHostLocks(kind, null, () => this.disableBackendSystemHostLocked(kind, userId));
+  }
+
+  private async disableBackendSystemHostLocked(
+    kind: BackendSystemHostKind,
+    userId: string
+  ): Promise<ProxyHostRow | null> {
+    const label = BACKEND_SYSTEM_HOST_LABELS[kind];
+    const existing = await this.db.query.proxyHosts.findFirst({ where: eq(proxyHosts.systemKind, kind) });
     if (!existing) return null;
 
     try {
       await this.withdrawHost(existing);
       await this.db.delete(proxyHosts).where(eq(proxyHosts.id, existing.id));
     } catch (error) {
-      logger.error('Failed to remove status page system route config', {
+      logger.error(`Failed to remove ${label} system route config`, {
         hostId: existing.id,
         error,
       });
       throw new AppError(
         500,
         'NGINX_CONFIG_FAILED',
-        `Failed to disable status page proxy config: ${error instanceof Error ? error.message : 'unknown error'}`
+        `Failed to disable ${label} proxy config: ${error instanceof Error ? error.message : 'unknown error'}`
       );
     }
 
@@ -288,7 +306,7 @@ export class ProxyServiceSystemHosts extends ProxyServiceReconciliation {
       action: 'proxy_host.system_disable',
       resourceType: 'proxy_host',
       resourceId: existing.id,
-      details: { systemKind: 'status_page' },
+      details: { systemKind: kind },
     });
     this.emitHost(existing.id, 'deleted', existing.domainNames?.[0]);
     return existing;

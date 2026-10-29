@@ -9,6 +9,7 @@ import { compactHealthHistory } from '@/lib/health-history.js';
 import { createChildLogger } from '@/lib/logger.js';
 import { isMinorCompatible } from '@/lib/semver.js';
 import { AppError } from '@/middleware/error-handler.js';
+import { NGINX_ACCESS_AUTH_CAPABILITY, syncAccessPolicyToNode } from '@/modules/access-signin/access-policy-sync.js';
 import { DockerRuntimeStatusSchema } from '@/modules/docker/docker.schemas.js';
 import { DockerBuildService } from '@/modules/docker/docker-build.service.js';
 import { DomainsService } from '@/modules/domains/domain.service.js';
@@ -841,6 +842,19 @@ export function createControlHandlers(deps: GrpcServerDeps) {
                     error: error instanceof Error ? error.message : String(error),
                   });
                 }
+              });
+            }
+            if (nodeType === 'nginx' && msg.register.capabilities?.includes(NGINX_ACCESS_AUTH_CAPABILITY)) {
+              // The access policy (keys, lists, revocations) the daemon checks requests against: it may have none yet
+              // or an old one after being away. Best-effort; the periodic sync delivers it otherwise.
+              setImmediate(() => {
+                if (!isClaimedStreamCurrent(claimedNodeId)) return;
+                void syncAccessPolicyToNode(claimedNodeId).catch((error) =>
+                  logger.warn('Failed to sync the access policy after daemon reconnect', {
+                    nodeId: claimedNodeId,
+                    error: error instanceof Error ? error.message : String(error),
+                  })
+                );
               });
             }
             if (nodeType === 'docker') {

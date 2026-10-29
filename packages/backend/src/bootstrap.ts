@@ -26,6 +26,7 @@ import { createChildLogger, logger } from '@/lib/logger.js';
 import { AppError } from '@/middleware/error-handler.js';
 import { AccessListService } from '@/modules/access-lists/access-list.service.js';
 import { AccessListFolderService } from '@/modules/access-lists/access-list-folders.service.js';
+import { registerAccessSignIn } from '@/modules/access-signin/access-signin.registration.js';
 import { AdminUserFolderService } from '@/modules/admin/admin-user-folders.service.js';
 import { AISandboxService } from '@/modules/ai/ai.sandbox.service.js';
 import { AISandboxArtifactService } from '@/modules/ai/ai.sandbox-artifact.service.js';
@@ -1804,6 +1805,17 @@ export async function initializeContainer(): Promise<void> {
   statusPageService.setEventBus(eventBus);
   statusPageService.setLicensePolicyService(licensePolicyService);
   container.registerInstance(StatusPageService, statusPageService);
+  registerAccessSignIn({
+    db,
+    cryptoService,
+    cacheService,
+    auditService,
+    eventBus,
+    proxyService,
+    nodeRegistry,
+    nodeDispatch,
+    publicUrl: () => generalSettingsService.getPublicUrl(),
+  });
 
   const acmeService = new ACMEService();
   const http01ChallengeNodes = new Map<string, string[]>();
