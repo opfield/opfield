@@ -21,6 +21,7 @@ import {
 import { logger } from '@/lib/logger.js';
 import { RelayPolicyNotAcknowledgedError } from './relay-grant-issuer.service.js';
 import {
+  describeGrantRefreshFailures,
   LOCAL_POLICY_TRUST_UNSUPPORTED_MESSAGE,
   managedDatabaseListenerConfigsEqual,
   RelayPolicyService,
@@ -1638,6 +1639,17 @@ describe('RelayPolicyService snapshots', () => {
     expect(updateWhere).toHaveBeenCalledOnce();
     // Only the daemons that lost something get a new bundle.
     expect(new Set(grants.mock.calls.map(([nodeId]) => nodeId))).toEqual(new Set(['source-node', 'target-node']));
+  });
+});
+
+describe('describeGrantRefreshFailures', () => {
+  it('names the daemons once per distinct reason and caps the list', () => {
+    const rotation = 'new policy signing keys require signed rotation';
+    const failures = [
+      ...['n1', 'n2', 'n3', 'n4', 'n5'].map((nodeId) => ({ nodeId, reason: rotation })),
+      { nodeId: 'n6', reason: 'daemon offline' },
+    ];
+    expect(describeGrantRefreshFailures(failures)).toBe(`${rotation} (n1, n2, n3 and 2 more); daemon offline (n6)`);
   });
 });
 

@@ -1409,13 +1409,10 @@ ensure_foundation_services() {
   for service in $(compose config --services); do
     [ "$service" = app ] && continue
     # The registry holds no state outside its volumes: recreate it when its definition changed, or it keeps the
-    # first one forever (log rotation and level included). A failed recreate must not fail the update or its
-    # rollback: the registry then keeps running as it was.
+    # first one forever (log rotation and level included). A failed recreate never aborts the script by itself,
+    # least of all a rollback: the registry health checks that follow decide whether the update holds.
     if [ "$service" = registry ]; then
-      if ! compose up -d --no-deps registry; then
-        echo "Could not apply the changed registry definition; keeping the running registry" >&2
-        compose up -d --no-recreate registry
-      fi
+      compose up -d --no-deps registry || echo "Could not apply the registry definition" >&2
       continue
     fi
     compose up -d --no-recreate "$service"

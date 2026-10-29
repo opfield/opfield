@@ -307,6 +307,25 @@ function relayRoutePolicy(
   return { disableIdleTimeout: false, trafficClass: 'database' };
 }
 
+const GRANT_REFRESH_FAILURE_NODES_NAMED = 3;
+
+/** Daemons named per distinct refusal: the same reason from many daemons (a key rotation) is listed once. */
+export function describeGrantRefreshFailures(failures: Array<{ nodeId: string; reason: string }>): string {
+  const byReason = new Map<string, string[]>();
+  for (const failure of failures)
+    byReason.set(failure.reason, [...(byReason.get(failure.reason) ?? []), failure.nodeId]);
+  return [...byReason]
+    .map(([reason, nodeIds]) => {
+      const named = nodeIds.slice(0, GRANT_REFRESH_FAILURE_NODES_NAMED).join(', ');
+      const more =
+        nodeIds.length > GRANT_REFRESH_FAILURE_NODES_NAMED
+          ? ` and ${nodeIds.length - GRANT_REFRESH_FAILURE_NODES_NAMED} more`
+          : '';
+      return `${reason} (${named}${more})`;
+    })
+    .join('; ');
+}
+
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error ?? '');
 }
@@ -3252,8 +3271,9 @@ export class RelayPolicyService {
     }
     if (failures.length) {
       // Name each daemon and why it refused: a count alone leaves a failure that repeats every pass undiagnosable.
-      const detail = failures.map((failure) => `${failure.nodeId}: ${failure.reason}`).join('; ');
-      throw new Error(`Failed to refresh relay grants for ${failures.length} daemon(s): ${detail}`);
+      throw new Error(
+        `Failed to refresh relay grants for ${failures.length} daemon(s): ${describeGrantRefreshFailures(failures)}`
+      );
     }
   }
 

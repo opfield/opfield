@@ -1,11 +1,5 @@
 import { AppError } from '@/middleware/error-handler.js';
 
-/**
- * How long a log producer waits before it retries a batch the ingest refused. It equals the SDK's longest own retry
- * delay, so a producer's flush and close take no longer than before while logging stays off or unavailable.
- */
-export const LOGGING_INGEST_RETRY_AFTER_SECONDS = 30;
-
 interface LoggingConfigurationSource {
   isConfigured(): boolean;
 }
@@ -62,29 +56,31 @@ export class LoggingFeatureService {
     };
   }
 
-  requireEnabled(details?: unknown): void {
+  requireEnabled(): void {
     if (!this.isEnabled()) {
-      throw new AppError(503, 'LOGGING_DISABLED', 'External logging is disabled', details);
+      throw new AppError(503, 'LOGGING_DISABLED', 'External logging is disabled');
     }
   }
 
-  requireAvailableForStorage(details?: unknown): void {
-    this.requireEnabled(details);
+  requireAvailableForStorage(): void {
+    this.requireEnabled();
     if (!this.available) {
-      throw new AppError(503, 'LOGGING_UNAVAILABLE', 'External logging storage is unavailable', details);
+      throw new AppError(503, 'LOGGING_UNAVAILABLE', 'External logging storage is unavailable');
     }
   }
 
   requireAvailableForIngest(): void {
-    // Producers keep sending while ingest is refused: have them back off instead of retrying every batch at once.
-    const backOff = { retryAfterSeconds: LOGGING_INGEST_RETRY_AFTER_SECONDS };
-    this.requireAvailableForStorage(backOff);
+    // Not 503: producers retry that at once, and logging stays off until an administrator turns it on, so a producer
+    // kept sending several requests a second. A 409 is final for the logging SDK: it drops the batch and goes on.
+    if (!this.isEnabled()) {
+      throw new AppError(409, 'LOGGING_DISABLED', 'External logging is disabled');
+    }
+    this.requireAvailableForStorage();
     if (this.capacityExhausted) {
       throw new AppError(
         507,
         'LOGGING_CAPACITY_EXHAUSTED',
-        this.capacityReason ?? 'External logging storage capacity is exhausted',
-        backOff
+        this.capacityReason ?? 'External logging storage capacity is exhausted'
       );
     }
   }
