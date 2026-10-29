@@ -129,20 +129,30 @@ export function createDockerRegistryMaintenanceExecutor(
       return null;
     })) ?? null;
   const recreateOrRestart = async (recreate: (() => Promise<void>) | null) => {
+    let recreateError: Error | null = null;
     if (recreate) {
       try {
         await recreate();
         logger.info('The registry was recreated from its current definition');
         return;
       } catch (error) {
-        // A definition that fails to start leaves no registry to restart: the run then fails and reports it, as a
-        // failed storage switch does. Anything refused before that restarts the registry as before.
+        // Anything refused before the old container went restarts the registry as before.
+        recreateError = error as Error;
         logger.warn('The registry was not recreated from its current definition; it is restarted instead', {
-          error: (error as Error).message,
+          error: recreateError.message,
         });
       }
     }
-    await docker.restartManagedRegistry();
+    try {
+      await docker.restartManagedRegistry();
+    } catch (error) {
+      // A definition that failed to start leaves no registry to restart: the run fails with both reasons, the
+      // definition's first, as that is the one to fix.
+      if (!recreateError) throw error;
+      throw new Error(
+        `The registry could not be recreated from its current definition (${recreateError.message}) nor restarted (${(error as Error).message})`
+      );
+    }
   };
   const waitUntilRegistryReady = async () => {
     const deadline = Date.now() + 30_000;

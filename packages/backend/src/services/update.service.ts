@@ -148,6 +148,9 @@ const UPDATE_SIDECAR_ROLE = 'opfield-update-sidecar';
 // legacy-name: legacy update sidecars — started by releases before 2.12.1; only cleaned up — remove once no
 // supported update starts from a version before 2.12.1.
 const LEGACY_UPDATE_SIDECAR_ROLE = LEGACY_UPDATE_SIDECAR_NAME;
+/** How long an update asked for during a registry recreate waits for it to end. */
+const REGISTRY_RECREATE_WAIT_MS = 3 * 60_000;
+
 function assertNoRegistryRecreate(): void {
   if (registryRecreateRunning()) {
     throw new AppError(
@@ -870,6 +873,12 @@ export class UpdateService {
     artifact: TrustedOpfieldUpdateArtifact,
     userId: string | null = null
   ): Promise<void> {
+    // A registry recreate takes seconds. An update asked for meanwhile (the cloud, a paid feature's activation, which
+    // were already told it started) waits for it instead of failing.
+    const recreateDeadline = Date.now() + REGISTRY_RECREATE_WAIT_MS;
+    while (registryRecreateRunning() && Date.now() < recreateDeadline) {
+      await new Promise((resolve) => setTimeout(resolve, 1_000));
+    }
     if (this.opfieldUpdateInProgress)
       throw new AppError(409, 'UPDATE_IN_PROGRESS', 'An Opfield update is already in progress');
     // Checked right before the flag is set, with no await between: see registry-recreate-gate.

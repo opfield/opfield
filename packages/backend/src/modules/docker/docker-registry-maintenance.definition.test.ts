@@ -30,6 +30,17 @@ describe('registry maintenance drain and the registry definition', () => {
     expect(docker.restartManagedRegistry).not.toHaveBeenCalled();
   });
 
+  it('fails with the definition error first when the registry can neither be recreated nor restarted', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 401 })));
+    const { docker, drain } = drainWith({
+      pendingRecreate: async () => () => Promise.reject(new Error('bind source path does not exist')),
+    });
+    docker.restartManagedRegistry.mockRejectedValue(new Error('Managed registry container was not found'));
+    await expect(drain()).rejects.toThrow(
+      /current definition \(bind source path does not exist\) nor restarted \(Managed registry container was not found\)/
+    );
+  });
+
   it('restarts the registry as before when the recreate is refused, the check fails, or it outlasts the drain', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 401 })));
     const refused = drainWith({ pendingRecreate: async () => () => Promise.reject(new Error('an update started')) });

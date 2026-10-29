@@ -366,19 +366,27 @@ export function grantRefusalKey(failures: Array<{ nodeId: string; reason: string
     .join('\n');
 }
 
-/** A refusal's reason as shown: its daemon's id taken out, cut to length. */
-function shownReason(failure: { nodeId: string; reason: string }): string {
+/** A refusal's reason with its daemon's own id taken out. */
+function withoutOwnId(failure: { nodeId: string; reason: string }): string {
   const ownId = failure.nodeId ? new RegExp(`(?<![\\w-])${escapeRegExp(failure.nodeId)}(?![\\w-])`, 'g') : null;
-  const reason = ownId ? failure.reason.replace(ownId, '<node>') : failure.reason;
-  return truncated(reason, GRANT_REFRESH_FAILURE_REASON_LENGTH);
+  return ownId ? failure.reason.replace(ownId, '<node>') : failure.reason;
 }
 
-/** The shown reason with what changes from pass to pass (ids, hex digests, numbers) masked, so like refusals group. */
+/** A refusal's reason as shown: its daemon's id taken out, cut to length. */
+function shownReason(failure: { nodeId: string; reason: string }): string {
+  return truncated(withoutOwnId(failure), GRANT_REFRESH_FAILURE_REASON_LENGTH);
+}
+
+/**
+ * The reason with what changes from pass to pass (ids, hex digests, numbers) masked, so like refusals group. Masked
+ * before it is cut: a number that grows a digit must not move where a long reason ends.
+ */
 function refusalGroup(failure: { nodeId: string; reason: string }): string {
-  return shownReason(failure)
+  const masked = withoutOwnId(failure)
     .replace(/\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi, '#')
     .replace(/\b[0-9a-f]{12,}\b/gi, '#')
     .replace(/\d+/g, '#');
+  return truncated(masked, GRANT_REFRESH_FAILURE_REASON_LENGTH);
 }
 
 function errorMessage(error: unknown): string {

@@ -1644,6 +1644,15 @@ describe('RelayPolicyService snapshots', () => {
   });
 });
 
+describe('grantRefusalKey of long reasons', () => {
+  it('stays the same when a number in a reason cut to length grows a digit', () => {
+    const reason = (revision: number) => `revision ${revision} refused: ${'cause '.repeat(60)}`;
+    expect(grantRefusalKey([{ nodeId: 'node-1', reason: reason(99) }])).toBe(
+      grantRefusalKey([{ nodeId: 'node-1', reason: reason(100) }])
+    );
+  });
+});
+
 describe('describeGrantRefreshFailures grouping', () => {
   it('treats refusals that differ only in numbers as one reason', () => {
     const failures = ['node-a', 'node-b', 'node-c'].map((nodeId, index) => ({
