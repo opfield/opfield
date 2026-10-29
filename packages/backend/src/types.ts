@@ -74,8 +74,8 @@ export interface PublicSession {
 
 export interface AppEnv {
   Variables: {
-    /** Set by the error handler when log ingest is refused because logging is off: expected, not a server fault. */
-    logIngestRefused?: boolean;
+    /** Set by the error handler for an AppError the caller is expected to get (AppError.expected). */
+    expectedRefusal?: boolean;
     user?: User;
     sessionId?: string;
     effectiveScopes?: string[];

@@ -10,6 +10,7 @@ import {
 import { LEGACY_INTERNAL_REGISTRY_ID } from '@/lib/legacy-compat.js';
 import { createChildLogger } from '@/lib/logger.js';
 import { hasScopeForResource } from '@/lib/permissions.js';
+import { duringRegistryRecreate } from '@/lib/registry-recreate-gate.js';
 import { AppError } from '@/middleware/error-handler.js';
 import type { AuditService } from '@/modules/audit/audit.service.js';
 import type { ObjectStorageService } from '@/modules/object-storage/object-storage.service.js';
@@ -155,7 +156,7 @@ export class DockerRegistryStorageService {
   /**
    * The registry definition the maintenance run applies. Not while an update is under way: its rollback restores the
    * previous Compose files, and the registry would keep the abandoned release's definition. An update that starts while
-   * the writes drain stops the recreate too.
+   * the writes drain stops the recreate too, and none starts during it (duringRegistryRecreate).
    */
   registryDefinition(): RegistryDefinition {
     const updateUnderWay = async () => (await this.deps.updateInProgress?.()) === true;
@@ -164,10 +165,11 @@ export class DockerRegistryStorageService {
         if (await updateUnderWay()) return null;
         const recreate = await this.host.pendingDefinitionRecreate();
         if (!recreate) return null;
-        return async () => {
-          if (await updateUnderWay()) throw new Error('an update or one of its Compose helpers is running');
-          await recreate();
-        };
+        return () =>
+          duringRegistryRecreate(async () => {
+            if (await updateUnderWay()) throw new Error('an update or one of its Compose helpers is running');
+            await recreate();
+          });
       },
     };
   }

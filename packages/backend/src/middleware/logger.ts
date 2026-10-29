@@ -42,13 +42,12 @@ export const loggerMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
   const duration = Date.now() - start;
   const status = c.res.status;
 
-  // Ingest refused because logging is off is an expected answer, not a request this server served (see the error
-  // handler): it stays out of the request statistics.
-  const featureOff = c.get('logIngestRefused') === true;
+  // An expected refusal (AppError.expected) is no request this server served: it stays out of the statistics.
+  const expected = c.get('expectedRefusal') === true;
   // A protocol switch (WebSocket) is not a request that completes, so it would skew latency.
-  if (status !== 101 && !featureOff) requestStats.record(matchedRoutePath(c), status, duration);
+  if (status !== 101 && !expected) requestStats.record(matchedRoutePath(c), status, duration);
 
-  const logLevel = featureOff ? 'debug' : status >= 500 ? 'error' : status >= 400 ? 'warn' : 'info';
+  const logLevel = expected ? 'debug' : status >= 500 ? 'error' : status >= 400 ? 'warn' : 'info';
 
   logger[logLevel]('Request completed', {
     requestId,

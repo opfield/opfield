@@ -32,6 +32,7 @@ import {
   LEGACY_UPDATE_SIDECAR_NAME,
 } from '@/lib/legacy-compat.js';
 import { createChildLogger } from '@/lib/logger.js';
+import { registryRecreateRunning } from '@/lib/registry-recreate-gate.js';
 import {
   OPFIELD_IMAGE_MANIFEST_ASSET,
   type ReleaseFileSource,
@@ -147,6 +148,16 @@ const UPDATE_SIDECAR_ROLE = 'opfield-update-sidecar';
 // legacy-name: legacy update sidecars — started by releases before 2.12.1; only cleaned up — remove once no
 // supported update starts from a version before 2.12.1.
 const LEGACY_UPDATE_SIDECAR_ROLE = LEGACY_UPDATE_SIDECAR_NAME;
+function assertNoRegistryRecreate(): void {
+  if (registryRecreateRunning()) {
+    throw new AppError(
+      409,
+      'REGISTRY_RECREATING',
+      'The registry is being recreated. Start the update again in a minute.'
+    );
+  }
+}
+
 /** Exited update and host move containers this process cleans up. */
 const FINISHED_CONTAINER_ROLES: readonly string[] = [UPDATE_SIDECAR_ROLE, LEGACY_UPDATE_SIDECAR_ROLE];
 /** The Docker CLI image of update sidecars started before they were labelled: pinned, or the plain `docker:<n>-cli`. */
@@ -176,9 +187,10 @@ function hasUpdateSidecarMounts(
   mounts: Array<{ Source?: string; Destination?: string }> | undefined,
   composeDir: string
 ): boolean {
-  const composeDirs = new Set([composeDir]);
-  if (path.basename(composeDir) === OPFIELD_INSTALL_DIR_NAME) {
-    composeDirs.add(path.join(path.dirname(composeDir), LEGACY_INSTALL_DIR_NAME));
+  const normalized = path.posix.resolve(composeDir);
+  const composeDirs = new Set([normalized]);
+  if (path.posix.basename(normalized) === OPFIELD_INSTALL_DIR_NAME) {
+    composeDirs.add(path.posix.join(path.posix.dirname(normalized), LEGACY_INSTALL_DIR_NAME));
   }
   const list = mounts ?? [];
   const socket = list.some(
@@ -187,7 +199,7 @@ function hasUpdateSidecarMounts(
   const compose = list.some(
     (mount) =>
       mount.Source !== undefined &&
-      composeDirs.has(mount.Source) &&
+      composeDirs.has(path.posix.resolve(mount.Source)) &&
       (mount.Destination === mount.Source || mount.Destination === '/project')
   );
   return socket && compose && list.length === 2;
@@ -549,6 +561,7 @@ export class UpdateService {
     if (this.opfieldUpdateInProgress) {
       throw new AppError(409, 'UPDATE_IN_PROGRESS', 'An Opfield update is already in progress');
     }
+    assertNoRegistryRecreate();
     if (await this.isRelayUpdateRunning()) {
       throw new AppError(409, 'RELAY_UPDATE_IN_PROGRESS', RELAY_UPDATE_BLOCKS_OPFIELD_MESSAGE);
     }
@@ -859,6 +872,8 @@ export class UpdateService {
   ): Promise<void> {
     if (this.opfieldUpdateInProgress)
       throw new AppError(409, 'UPDATE_IN_PROGRESS', 'An Opfield update is already in progress');
+    // Checked right before the flag is set, with no await between: see registry-recreate-gate.
+    assertNoRegistryRecreate();
     this.opfieldUpdateInProgress = true;
     this.setOpfieldUpdateOperation({
       status: 'updating',
@@ -967,10 +982,13 @@ export class UpdateService {
    */
   async updateUnderWay(): Promise<boolean> {
     return (
-      this.opfieldUpdateInProgress ||
-      (await this.isRelayUpdateRunning()) ||
-      (await this.readOpfieldUpdateAttempt())?.failedAt === null ||
+      // Read first and without awaiting, as registry-recreate-gate requires.
+      (await this.isAnyUpdateRunning()) ||
       // A failed attempt stays on record for its report; it is under way only while its sidecar still rolls back.
+      (await this.readOpfieldUpdateAttempt())?.failedAt === null ||
+      // A host move renames the Compose directory and recreates the project.
+      (await this.dockerService.inspectContainerDetails(HOST_MOVE_CONTAINER_NAME).catch(() => null))?.State.Running ===
+        true ||
       (await this.updateSidecarRunning())
     );
   }
@@ -1005,11 +1023,12 @@ export class UpdateService {
    * image it was created from.
    */
   private async isOlderReleaseSidecar(item: DockerContainerListItem, composeDir: string): Promise<boolean> {
+    if (!hasUpdateSidecarMounts(item.Mounts, composeDir)) return false;
     let image = item.Image;
-    if (image.startsWith('sha256:') && hasUpdateSidecarMounts(item.Mounts, composeDir)) {
+    if (image.startsWith('sha256:')) {
       image = (await this.dockerService.inspectContainerDetails(item.Id).catch(() => null))?.Config.Image ?? image;
     }
-    return isUnlabelledUpdateSidecar({ image, mounts: item.Mounts }, composeDir);
+    return UNLABELLED_SIDECAR_IMAGE.test(image);
   }
 
   private async readOpfieldUpdateAttempt(): Promise<OpfieldUpdateAttempt | null> {

@@ -23,7 +23,7 @@ import { RelayPolicyNotAcknowledgedError } from './relay-grant-issuer.service.js
 import {
   describeGrantRefreshFailures,
   GrantRefreshPendingError,
-  grantRefusalKeys,
+  grantRefusalKey,
   LOCAL_POLICY_TRUST_UNSUPPORTED_MESSAGE,
   managedDatabaseListenerConfigsEqual,
   RelayPolicyService,
@@ -1654,15 +1654,18 @@ describe('describeGrantRefreshFailures grouping', () => {
   });
 });
 
-describe('grantRefusalKeys', () => {
-  it('keys a refusal by its daemon and its reason with the daemon id kept and numbers masked', () => {
+describe('grantRefusalKey', () => {
+  it('keys each daemon by its reason with its own id taken out and ids and numbers masked', () => {
     const id = '0f8b6c1e-3a2d-4c5b-9e7f-1a2b3c4d5e6f';
+    const stream = '9c2d4e6f-1a3b-4c5d-8e9f-0a1b2c3d4e5f';
     expect(
-      grantRefusalKeys([
+      grantRefusalKey([
         { nodeId: id, reason: `Daemon ${id} rejected relay grants: revision 41 is older than 42` },
-        { nodeId: 'node-12', reason: 'daemon offline' },
+        { nodeId: 'node-12', reason: `stream ${stream} reset` },
       ])
-    ).toEqual([`${id}:Daemon <node> rejected relay grants: revision # is older than #`, 'node-12:daemon offline']);
+    ).toBe(
+      [`${id}:Daemon <node> rejected relay grants: revision # is older than #`, 'node-12:stream # reset'].join('\n')
+    );
   });
 });
 
@@ -1709,7 +1712,7 @@ describe('RelayPolicyService pending grant refresh reports', () => {
         error: pending(2),
       });
       // The same daemons refusing with another revision in their reason stay one pending refresh.
-      const refused = (reason: string) => new GrantRefreshPendingError([`node-1:${reason}`], `Failed: ${reason}`);
+      const refused = (reason: string) => new GrantRefreshPendingError(`node-1:${reason}`, `Failed: ${reason}`);
       (service as any).reportPendingGrantRefresh(refused('revision # is older'), 400_000);
       (service as any).reportPendingGrantRefresh(refused('revision # is older'), 402_000);
       expect(info).toHaveBeenCalledTimes(4);

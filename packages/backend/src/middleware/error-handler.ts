@@ -1,7 +1,6 @@
 import type { Context, ErrorHandler } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import { ZodError } from 'zod';
-import { LOG_INGEST_PATHS } from '@/lib/log-ingest-paths.js';
 import { logger } from '@/lib/logger.js';
 import { isNodeConnectionError } from '@/lib/node-connection-error.js';
 import { redactQueryError } from '@/lib/query-error-redaction.js';
@@ -45,13 +44,19 @@ export class AppError extends Error {
   public readonly statusCode: number;
   public readonly code: string;
   public readonly details?: unknown;
+  /**
+   * An answer the caller is expected to get over and over (log ingest while logging is off): logged at debug and kept
+   * out of the request statistics, as it is no fault of this server.
+   */
+  public readonly expected: boolean;
 
-  constructor(statusCode: number, code: string, message: string, details?: unknown) {
+  constructor(statusCode: number, code: string, message: string, details?: unknown, options?: { expected?: boolean }) {
     super(permissionErrorMessage(statusCode, message, details));
     this.name = 'AppError';
     this.statusCode = statusCode;
     this.code = code;
     this.details = details;
+    this.expected = options?.expected === true;
   }
 }
 
@@ -167,11 +172,8 @@ export const errorHandler: ErrorHandler<AppEnv> = async (err, c) => {
         c.header('Retry-After', String(retryAfterSeconds));
       }
     }
-    // Log producers keep posting while logging is off: that refusal is what each of them gets, not a fault to report.
-    // Other callers of a disabled logging (the console, agents) keep their warning.
-    const ingestRefused = err.code === 'LOGGING_DISABLED' && LOG_INGEST_PATHS.has(c.req.path);
-    if (ingestRefused) c.set('logIngestRefused', true);
-    logger[ingestRefused ? 'debug' : 'warn']('Application error', {
+    if (err.expected) c.set('expectedRefusal', true);
+    logger[err.expected ? 'debug' : 'warn']('Application error', {
       requestId,
       code: err.code,
       message: err.message,
