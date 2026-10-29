@@ -87,6 +87,8 @@ export interface DockerRegistryMaintenanceExecutor {
   deleteRepositoryTags?(repository: string, keep?: ReadonlySet<string>): Promise<number>;
   pauseAdmissions(): Promise<void>;
   drainUploads(): Promise<void>;
+  /** Recreates the registry when it runs an older definition, for a run that drains nothing (an empty registry). */
+  applyChangedDefinition?(): Promise<void>;
   deleteManifest(repository: string, digest: string): Promise<void>;
   enterReadOnly(): Promise<void>;
   collectGarbage(): Promise<void>;
@@ -98,7 +100,9 @@ const logger = createChildLogger('DockerRegistryMaintenance');
 
 /**
  * The registry's definition in docker-compose.yml. Updates start the registry with --no-recreate, so one created by an
- * older release keeps that release's definition (its log rotation and level, say) until it is recreated.
+ * older release keeps that release's definition (its log rotation and level, say) until it is recreated. Every
+ * maintenance run compares again, so a registry recreated from a definition that was then rolled back (an update that
+ * started in the seconds of a recreate) returns to the restored one at the next run.
  */
 export interface RegistryDefinition {
   /** How to recreate the registry from its current definition; null when it runs that one or may not be recreated now. */
@@ -256,11 +260,17 @@ export function createDockerRegistryMaintenanceExecutor(
     drainUploads: async () => {
       const drained = wait(REGISTRY_WRITE_DRAIN_GRACE_MS);
       // Checked while the writes drain; a check still running when the drain ends counts as "unchanged", so it never
-      // lengthens the pause.
+      // lengthens the pause (it finishes on its own; the next run decides).
       const recreate = await Promise.race([pendingRecreate(), drained.then(() => null)]);
       await drained;
       // The restart that ends open uploads also takes up a definition the running registry predates.
       await recreateOrRestart(recreate);
+      await waitUntilRegistryReady();
+    },
+    applyChangedDefinition: async () => {
+      const recreate = await pendingRecreate();
+      if (!recreate) return;
+      await recreate();
       await waitUntilRegistryReady();
     },
     deleteManifest: async (repository, digest) => {

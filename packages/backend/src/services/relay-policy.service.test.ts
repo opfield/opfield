@@ -23,6 +23,7 @@ import { RelayPolicyNotAcknowledgedError } from './relay-grant-issuer.service.js
 import {
   describeGrantRefreshFailures,
   GrantRefreshPendingError,
+  grantRefusalKeys,
   LOCAL_POLICY_TRUST_UNSUPPORTED_MESSAGE,
   managedDatabaseListenerConfigsEqual,
   RelayPolicyService,
@@ -1640,6 +1641,18 @@ describe('RelayPolicyService snapshots', () => {
     expect(updateWhere).toHaveBeenCalledOnce();
     // Only the daemons that lost something get a new bundle.
     expect(new Set(grants.mock.calls.map(([nodeId]) => nodeId))).toEqual(new Set(['source-node', 'target-node']));
+  });
+});
+
+describe('grantRefusalKeys', () => {
+  it('keys a refusal by its daemon and its reason with the daemon id kept and numbers masked', () => {
+    const id = '0f8b6c1e-3a2d-4c5b-9e7f-1a2b3c4d5e6f';
+    expect(
+      grantRefusalKeys([
+        { nodeId: id, reason: `Daemon ${id} rejected relay grants: revision 41 is older than 42` },
+        { nodeId: 'node-12', reason: 'daemon offline' },
+      ])
+    ).toEqual([`${id}:Daemon <node> rejected relay grants: revision # is older than #`, 'node-12:daemon offline']);
   });
 });
 

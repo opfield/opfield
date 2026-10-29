@@ -354,6 +354,13 @@ export function describeGrantRefreshFailures(failures: Array<{ nodeId: string; r
   return described.join('; ');
 }
 
+/** One key per refusal (daemon and reason, numbers masked), sorted: what makes two pending refreshes the same. */
+export function grantRefusalKeys(failures: Array<{ nodeId: string; reason: string }>): string[] {
+  return failures
+    .map((failure) => `${failure.nodeId}:${withoutNodeId(failure.reason, failure.nodeId).replace(/\d+/g, '#')}`)
+    .sort();
+}
+
 /** A refusal's text with its daemon's own id taken out, whole ids only, so identical refusals group together. */
 function withoutNodeId(reason: string, nodeId: string): string {
   if (!nodeId) return reason;
@@ -3309,9 +3316,7 @@ export class RelayPolicyService {
     if (failures.length) {
       // Name each daemon and why it refused: a count alone leaves a failure that repeats every pass undiagnosable.
       throw new GrantRefreshPendingError(
-        failures
-          .map((failure) => `${failure.nodeId}:${withoutNodeId(failure.reason, failure.nodeId).replace(/\d+/g, '#')}`)
-          .sort(),
+        grantRefusalKeys(failures),
         `Failed to refresh relay grants for ${failures.length} daemon(s): ${describeGrantRefreshFailures(failures)}`
       );
     }

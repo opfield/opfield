@@ -965,7 +965,8 @@ export class UpdateService {
     return (
       this.opfieldUpdateInProgress ||
       (await this.isRelayUpdateRunning()) ||
-      (await this.readOpfieldUpdateAttempt()) !== null ||
+      (await this.readOpfieldUpdateAttempt())?.failedAt === null ||
+      // A failed attempt stays on record for its report; it is under way only while its sidecar still rolls back.
       (await this.updateSidecarRunning())
     );
   }
@@ -983,11 +984,7 @@ export class UpdateService {
       // on the Compose directory. The plain tag, which CI jobs run as well, counts only with a sidecar's mounts.
       if (PINNED_SIDECAR_IMAGE.test(item.Image)) return true;
       if (composeDir === undefined) composeDir = await this.composeDirectory();
-      // The mounts first: they rule out nearly every container without inspecting it.
-      if (!composeDir || !hasUpdateSidecarMounts(item.Mounts, composeDir)) continue;
-      if (isUnlabelledUpdateSidecar({ image: await this.createdImage(item), mounts: item.Mounts }, composeDir)) {
-        return true;
-      }
+      if (composeDir && (await this.isOlderReleaseSidecar(item, composeDir))) return true;
     }
     return false;
   }
@@ -998,11 +995,17 @@ export class UpdateService {
     return composeDirectoryOf(this.env, self?.Config.Labels);
   }
 
-  /** The image a listed container was created from: the list shows the bare image ID once that tag moved on. */
-  private async createdImage(item: DockerContainerListItem): Promise<string> {
-    if (!item.Image.startsWith('sha256:')) return item.Image;
-    const details = await this.dockerService.inspectContainerDetails(item.Id).catch(() => null);
-    return details?.Config.Image ?? item.Image;
+  /**
+   * Whether a listed unlabelled container is an update sidecar of an older release (isUnlabelledUpdateSidecar). The
+   * list shows the bare image ID once that tag moved on; only a container with a sidecar's mounts is inspected for the
+   * image it was created from.
+   */
+  private async isOlderReleaseSidecar(item: DockerContainerListItem, composeDir: string): Promise<boolean> {
+    let image = item.Image;
+    if (image.startsWith('sha256:') && hasUpdateSidecarMounts(item.Mounts, composeDir)) {
+      image = (await this.dockerService.inspectContainerDetails(item.Id).catch(() => null))?.Config.Image ?? image;
+    }
+    return isUnlabelledUpdateSidecar({ image, mounts: item.Mounts }, composeDir);
   }
 
   private async readOpfieldUpdateAttempt(): Promise<OpfieldUpdateAttempt | null> {
@@ -1186,11 +1189,7 @@ export class UpdateService {
         }
         const labelled = kind === 'sidecar';
         if (!labelled) {
-          // The mounts first: they rule out nearly every container without inspecting it.
-          if (!composeDir || !hasUpdateSidecarMounts(item.Mounts, composeDir)) continue;
-          if (!isUnlabelledUpdateSidecar({ image: await this.createdImage(item), mounts: item.Mounts }, composeDir)) {
-            continue;
-          }
+          if (!composeDir || !(await this.isOlderReleaseSidecar(item, composeDir))) continue;
         }
         await this.dockerService
           // Never forced: a container that started meanwhile stays.

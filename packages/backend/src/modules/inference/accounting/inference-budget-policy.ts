@@ -249,7 +249,7 @@ async function legacyUsageWindowStart(
   // recent subscription entry comes from an admitted request, and admission persists every window, so the full walk
   // remains only for entries older than persisted windows (the first days after upgrading from such a release).
   const recent = await database
-    .select({ id: inferenceUsageLedger.id })
+    .select({ occurredAt: inferenceUsageLedger.occurredAt })
     .from(inferenceUsageLedger)
     .where(
       and(
