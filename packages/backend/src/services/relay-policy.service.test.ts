@@ -1651,11 +1651,13 @@ describe('describeGrantRefreshFailures', () => {
     ];
     expect(describeGrantRefreshFailures(failures)).toBe(`${rotation} (n1, n2, n3 and 2 more); daemon offline (n6)`);
     // The fallback refusal names its daemon: still one reason, and the reasons are capped too.
-    const rejected = ['a', 'b', 'c', 'd'].map((nodeId) => ({
+    const rejected = ['node-1', 'node-2', 'node-3', 'node-4'].map((nodeId) => ({
       nodeId,
       reason: `Daemon ${nodeId} rejected relay grants`,
     }));
-    expect(describeGrantRefreshFailures(rejected)).toBe('Daemon <node> rejected relay grants (a, b, c and 1 more)');
+    expect(describeGrantRefreshFailures(rejected)).toBe(
+      'Daemon <node> rejected relay grants (node-1, node-2, node-3 and 1 more)'
+    );
     const distinct = ['w', 'x', 'y', 'z'].map((nodeId) => ({ nodeId: `${nodeId}1`, reason: `error ${nodeId}` }));
     expect(describeGrantRefreshFailures(distinct)).toBe('error w (w1); error x (x1); error y (y1); 1 other reason(s)');
   });
