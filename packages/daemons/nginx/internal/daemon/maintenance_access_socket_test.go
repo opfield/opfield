@@ -69,3 +69,57 @@ func TestMaintenanceAccessSocketBelongsToTheNginxWorkersGroup(t *testing.T) {
 		t.Fatalf("socket group = %v after %d tries, want %d", info.Sys(), calls.Load(), group)
 	}
 }
+
+type recordedWarnings struct{ messages atomic.Int32 }
+
+func (w *recordedWarnings) Warn(string, ...any) { w.messages.Add(1) }
+
+// A daemon running as a user outside the nginx workers' group cannot give the socket to it (R-6): instead of retrying
+// forever with a socket the workers cannot reach, it goes back to 0666 and says so once.
+func TestMaintenanceAccessSocketStaysReachableWhenTheGroupCannotBeSet(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root may give a socket any group; run as another user")
+	}
+	path := filepath.Join(sockettest.Dir(t), "maintenance-access.sock")
+	listener, keptName, err := listenServiceSocket(path, 0o660)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		releaseServiceSocket(listener, path, keptName, false)()
+		_ = listener.Close()
+	})
+	// A group this user is not a member of.
+	foreign := 4242
+	if groups, _ := os.Getgroups(); len(groups) > 0 {
+		for taken := true; taken; {
+			taken = false
+			for _, group := range groups {
+				if group == foreign || os.Getgid() == foreign {
+					foreign++
+					taken = true
+				}
+			}
+		}
+	}
+	warnings := &recordedWarnings{}
+	finished := make(chan struct{})
+	done := make(chan struct{})
+	defer close(done)
+	go func() {
+		grantSocketToGroup(path, func() (int, error) { return foreign, nil }, 10*time.Millisecond, done, warnings)
+		close(finished)
+	}()
+	select {
+	case <-finished:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the group change that cannot succeed is retried forever")
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode().Perm() != 0o666 || warnings.messages.Load() != 1 {
+		t.Fatalf("socket mode = %v after %d warnings, want 0666 after one", info.Mode().Perm(), warnings.messages.Load())
+	}
+}

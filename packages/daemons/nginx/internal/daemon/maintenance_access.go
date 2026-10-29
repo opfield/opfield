@@ -77,12 +77,23 @@ func startMaintenanceAccessServer(conn *grpc.ClientConn, logger interface{ Warn(
 
 // grantSocketToGroup gives the socket at path to the group gid names, trying again every retry until it succeeds or
 // done closes. Until then only the daemon's user reaches the 0660 socket; the nginx workers' group is unknown only
-// while nginx does not run, when no worker could connect anyway.
+// while nginx does not run, when no worker could connect anyway. A daemon that runs as a user outside that group
+// cannot give the socket to it: the socket goes back to 0666, as before, so the maintenance form keeps working (a
+// redemption still needs its one-time code), and the daemon says so once.
 func grantSocketToGroup(path string, gid func() (int, error), retry time.Duration, done <-chan struct{}, logger interface{ Warn(string, ...any) }) {
 	for attempt := 0; ; attempt++ {
 		group, err := gid()
 		if err == nil {
 			err = os.Chown(path, -1, group)
+			if errors.Is(err, os.ErrPermission) {
+				if chmodErr := os.Chmod(path, 0o666); chmodErr != nil {
+					err = chmodErr
+				} else {
+					logger.Warn("maintenance access socket is open to every local user: the daemon's user is not in the nginx workers' group",
+						"group", group, "error", err)
+					return
+				}
+			}
 		}
 		if err == nil {
 			return
