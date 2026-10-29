@@ -22,7 +22,7 @@ export interface OpfieldLogQueueOptions {
   onFallback?: (logs: readonly OpfieldLog[], failure: OpfieldLogFailureInfo) => void | Promise<void>;
 }
 
-/** How long the queue sends nothing after Opfield answered that logging is disabled. */
+/** How long the queue sends nothing after Opfield answered that logging is disabled there. */
 export const LOGGING_DISABLED_PAUSE_MS = 60_000;
 
 export class OpfieldLogQueue {
@@ -31,7 +31,8 @@ export class OpfieldLogQueue {
   private intervalTimer: NodeJS.Timeout | undefined;
   private flushInFlight: Promise<void> | undefined;
   private closed = false;
-  private pausedUntil = 0;
+  /** Set while logging is disabled on the Opfield: batches fail at once with this refusal instead of being sent. */
+  private pause: { until: number; error: unknown; status?: number } | undefined;
 
   constructor(private readonly options: OpfieldLogQueueOptions) {
     this.intervalTimer = setInterval(() => {
@@ -57,8 +58,6 @@ export class OpfieldLogQueue {
     }
 
     this.events.push(event);
-    // While paused the flush interval sends again once the pause is over; a flush per log would only return.
-    if (Date.now() < this.pausedUntil) return;
 
     if (this.events.length >= this.options.maxBatchSize) {
       this.scheduleFlush(0);
@@ -100,13 +99,11 @@ export class OpfieldLogQueue {
 
   private async flushLoop(): Promise<void> {
     while (this.events.length > 0) {
-      // Logging is off on the Opfield: queued logs wait (bounded by maxQueueSize) instead of being sent to be refused.
-      if (Date.now() < this.pausedUntil) {
-        if (this.closed) this.dropBatch(this.events.splice(0), 'closed');
-        return;
-      }
       const batch = this.events.splice(0, this.options.maxBatchSize);
-      await this.sendWithRetry(batch);
+      const pause = this.pause && Date.now() < this.pause.until ? this.pause : undefined;
+      // Logging stays off until an administrator turns it on: fail the batch (onError, onFallback) without asking.
+      if (pause) await this.handleDeliveryFailure(batch, 'permanent_failure', pause.error, pause.status);
+      else await this.sendWithRetry(batch);
     }
   }
 
@@ -115,8 +112,14 @@ export class OpfieldLogQueue {
       const result = await this.options.transport.send(batch);
       if (result.ok) return;
 
+      // Retrying cannot help while logging is disabled, and every retry held up flush and close: refuse for a while.
+      if (isLoggingDisabled(result.error)) {
+        this.pause = { until: Date.now() + LOGGING_DISABLED_PAUSE_MS, error: result.error, status: result.status };
+        await this.handleDeliveryFailure(batch, 'permanent_failure', result.error, result.status);
+        return;
+      }
+
       if (!result.retryable) {
-        if (isLoggingDisabled(result.status, result.error)) this.pausedUntil = Date.now() + LOGGING_DISABLED_PAUSE_MS;
         await this.handleDeliveryFailure(batch, 'permanent_failure', result.error, result.status);
         return;
       }
@@ -166,11 +169,6 @@ export class OpfieldLogQueue {
   }
 }
 
-function isLoggingDisabled(status: number | undefined, payload: unknown): boolean {
-  return (
-    status === 409 &&
-    typeof payload === 'object' &&
-    payload !== null &&
-    (payload as { code?: unknown }).code === 'LOGGING_DISABLED'
-  );
+function isLoggingDisabled(payload: unknown): boolean {
+  return typeof payload === 'object' && payload !== null && (payload as { code?: unknown }).code === 'LOGGING_DISABLED';
 }

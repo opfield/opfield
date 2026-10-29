@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, sql } from 'drizzle-orm';
+import { and, desc, eq, gt, gte, lte, sql } from 'drizzle-orm';
 import { inject, injectable } from 'tsyringe';
 import { TOKENS } from '@/container.js';
 import type { DrizzleClient, DrizzleExecutor } from '@/db/client.js';
@@ -105,8 +105,6 @@ export class InferenceBudgetPolicyService {
           // An expired persisted window may have been left behind by the old
           // disabled-limit path. Recover only entries after that window ended;
           // an explicit reset instead fences recovery at its reset timestamp.
-          // The walk reads the whole ledger only for a window with no persisted reset at all, which exists until the
-          // user's first admission persists every window; after that `since` bounds it to entries after the window.
           const since = reset?.windowActive ? new Date(reset.resetAt.getTime() + window.durationMs) : reset?.resetAt;
           return [
             window.dimension,
@@ -246,6 +244,22 @@ async function legacyUsageWindowStart(
   durationMs: number,
   since?: Date
 ): Promise<Date | null> {
+  // A window can be open now only from an entry within its duration: without one there is nothing to walk, which
+  // keeps the walk off the hot path for a user with old entries and no persisted window (read-only overviews).
+  const recent = await database
+    .select({ id: inferenceUsageLedger.id })
+    .from(inferenceUsageLedger)
+    .where(
+      and(
+        eq(inferenceUsageLedger.userId, userId),
+        eq(inferenceUsageLedger.budgetType, 'subscription'),
+        gt(inferenceUsageLedger.occurredAt, new Date(now.getTime() - durationMs)),
+        lte(inferenceUsageLedger.occurredAt, now),
+        since ? gte(inferenceUsageLedger.occurredAt, since) : undefined
+      )
+    )
+    .limit(1);
+  if (recent.length === 0) return null;
   const result = await database.execute(
     sql<{ started_at: Date | string | null }>`
       WITH RECURSIVE ordered_entries AS (

@@ -74,6 +74,8 @@ export interface PublicSession {
 
 export interface AppEnv {
   Variables: {
+    /** Set by the error handler when the answer is a feature being off: an expected refusal, not a server fault. */
+    featureOffRefusal?: boolean;
     user?: User;
     sessionId?: string;
     effectiveScopes?: string[];

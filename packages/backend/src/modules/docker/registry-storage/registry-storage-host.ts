@@ -202,7 +202,7 @@ export class RegistryStorageHost {
     });
   }
 
-  private async compose(context: RegistryStorageHostContext, args: string[]): Promise<void> {
+  private async compose(context: RegistryStorageHostContext, args: string[]): Promise<string> {
     if (!(await this.docker.imageExists(DOCKER_COMPOSE_CLI_IMAGE_REF))) {
       await this.docker.pullImageRef(DOCKER_COMPOSE_CLI_IMAGE_REF);
     }
@@ -233,14 +233,22 @@ export class RegistryStorageHost {
     if (result.exitCode !== 0) {
       throw new Error(`docker compose ${args[0]} failed: ${result.output.trim().split('\n').slice(-3).join(' ')}`);
     }
+    return result.output;
   }
 
-  /**
-   * Starts the registry as docker-compose.yml defines it now: Compose recreates it only when the running one differs
-   * (an older release's definition), then waits until it serves.
-   */
+  /** Whether the running registry was created from another definition than docker-compose.yml holds now. */
+  async registryDefinitionChanged(context: RegistryStorageHostContext): Promise<boolean> {
+    const [output, registry] = await Promise.all([
+      this.compose(context, ['config', '--hash', 'registry']),
+      this.docker.inspectManagedRegistry(),
+    ]);
+    const hash = /^registry\s+([0-9a-f]+)\s*$/m.exec(output)?.[1];
+    if (!hash) throw new Error('docker compose printed no definition hash for the registry');
+    return hash !== registry.Config.Labels?.['com.docker.compose.config-hash'];
+  }
+
+  /** Recreates the registry from docker-compose.yml and waits until it serves. */
   async applyRegistryDefinition(context: RegistryStorageHostContext, registryUrl: string): Promise<void> {
-    await this.compose(context, ['config', '--quiet']);
     await this.compose(context, ['up', '-d', '--no-deps', 'registry']);
     await this.waitUntilReady(registryUrl);
   }

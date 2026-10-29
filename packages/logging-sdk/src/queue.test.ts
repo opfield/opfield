@@ -3,15 +3,15 @@ import { OpfieldLogQueue } from './queue.js';
 import type { NormalizedOpfieldLogEvent } from './types.js';
 
 describe('OpfieldLogQueue while logging is disabled', () => {
-  it('stops sending after the first refusal and drops what is left on close', async () => {
+  it('asks once, then fails batches to the fallback without sending or retrying', async () => {
     const send = vi.fn().mockResolvedValue({
       ok: false,
-      retryable: false,
+      retryable: true,
       rateLimited: false,
-      status: 409,
+      status: 503,
       error: { code: 'LOGGING_DISABLED' },
     });
-    const onDrop = vi.fn();
+    const onFallback = vi.fn();
     const queue = new OpfieldLogQueue({
       transport: { send },
       maxBatchSize: 100,
@@ -20,18 +20,16 @@ describe('OpfieldLogQueue while logging is disabled', () => {
       maxQueueSize: 1_000,
       overflow: 'drop-oldest',
       retry: { maxAttempts: 5, minDelayMs: 500, maxDelayMs: 30_000, jitter: false },
-      onDrop,
+      onFallback,
     });
-    for (let index = 0; index < 250; index += 1)
+    for (let index = 0; index < 250; index += 1) {
       queue.enqueue({ message: `log ${index}` } as NormalizedOpfieldLogEvent);
-
-    await queue.flush();
-    await queue.flush();
-    // One refused batch, no retry and no further batches while paused.
-    expect(send).toHaveBeenCalledOnce();
+    }
 
     await queue.close();
+    // One request, no retry; every log reached the fallback as refused.
     expect(send).toHaveBeenCalledOnce();
-    expect(onDrop.mock.calls.filter(([, reason]) => reason === 'closed')).toHaveLength(150);
+    expect(onFallback.mock.calls.flatMap(([logs]) => logs)).toHaveLength(250);
+    expect(onFallback.mock.calls.every(([, failure]) => failure.reason === 'permanent_failure')).toBe(true);
   });
 });

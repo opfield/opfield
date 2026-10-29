@@ -10,6 +10,7 @@ import {
 import { LEGACY_INTERNAL_REGISTRY_ID } from '@/lib/legacy-compat.js';
 import { createChildLogger } from '@/lib/logger.js';
 import { hasScopeForResource } from '@/lib/permissions.js';
+import { isRunningLabelledUpdateSidecar } from '@/lib/update-sidecar.js';
 import { AppError } from '@/middleware/error-handler.js';
 import type { AuditService } from '@/modules/audit/audit.service.js';
 import type { ObjectStorageService } from '@/modules/object-storage/object-storage.service.js';
@@ -45,6 +46,9 @@ import { RegistryS3Client } from './s3-client.js';
 const logger = createChildLogger('DockerRegistryStorageService');
 const REGISTRY_ID = LEGACY_INTERNAL_REGISTRY_ID;
 const RECOVERY_RETRY_MS = 60_000;
+/** How often, and how many times, applying the registry definition waits for an update sidecar to finish. */
+const DEFINITION_APPLY_RETRY_MS = 30_000;
+const DEFINITION_APPLY_ATTEMPTS = 60;
 /** Helpers a stopped Opfield left behind are looked for this often. */
 const LEFTOVER_SWEEP_MS = 30 * 60_000;
 
@@ -289,21 +293,52 @@ export class DockerRegistryStorageService {
   }
 
   /**
-   * At start-up, when no switch or maintenance holds the registry: updates start the registry with --no-recreate, so
-   * one created by an older release kept that release's definition (no log rotation, debug logs). Compose recreates it
-   * only when docker-compose.yml defines it differently. A failure is logged and changes nothing else.
+   * After start-up: updates start the registry with --no-recreate, so one created by an older release kept that
+   * release's definition (no log rotation, debug logs). Once no update sidecar runs (it may still roll back), and only
+   * when docker-compose.yml defines the registry differently, the registry is recreated under the maintenance lease, so
+   * no switch or maintenance run meets it half-way. A busy lease or a failure is logged and changes nothing else.
    */
-  async applyDefinitionAfterStart(now = new Date()): Promise<void> {
+  async applyDefinitionAfterStart(attempt = 1): Promise<void> {
     try {
       const context = await this.host.context().catch(() => null);
       // Not an installer-managed host (development): no Compose definition to apply.
       if (!context) return;
-      const state = await this.store.getState();
-      const leased = state.maintenanceLeaseOwner && (state.maintenanceLeaseExpiresAt?.getTime() ?? 0) > now.getTime();
-      if (leased) return;
-      await this.host.applyRegistryDefinition(context, this.registryUrl);
+      const containers = await this.deps.docker.listLocalContainers();
+      if (containers.some(isRunningLabelledUpdateSidecar)) {
+        if (attempt < DEFINITION_APPLY_ATTEMPTS) {
+          setTimeout(() => void this.applyDefinitionAfterStart(attempt + 1), DEFINITION_APPLY_RETRY_MS).unref?.();
+        }
+        return;
+      }
+      if (!(await this.host.registryDefinitionChanged(context))) return;
+      const owner = `registry-definition:${randomUUID()}`;
+      const now = new Date();
+      this.emit(
+        'maintenance',
+        await this.store.acquireLease(owner, new Date(now.getTime() + DEFAULT_REGISTRY_MAINTENANCE_LEASE_MS), now)
+      );
+      let lastError: string | null = null;
+      try {
+        await this.host.applyRegistryDefinition(context, this.registryUrl);
+        logger.info('The registry was recreated with its current definition');
+      } catch (error) {
+        lastError = `The registry could not be recreated with its current definition: ${(error as Error).message}`;
+        throw error;
+      } finally {
+        const state = await this.store
+          .updateState({
+            status: lastError ? 'degraded' : 'ready',
+            writable: true,
+            maintenancePhase: 'idle',
+            maintenanceLeaseOwner: null,
+            maintenanceLeaseExpiresAt: null,
+            lastError,
+          })
+          .catch(() => null);
+        if (state) this.emit('storage', state);
+      }
     } catch (error) {
-      logger.warn('The registry could not be started with its current definition', { error: (error as Error).message });
+      logger.warn('The registry definition was not applied after the start', { error: (error as Error).message });
     }
   }
 

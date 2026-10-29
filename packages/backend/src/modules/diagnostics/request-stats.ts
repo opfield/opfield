@@ -10,6 +10,8 @@ const RETAINED_BUCKETS = 60;
 const BUCKET_LATENCY_SAMPLES = 2_000;
 const ROUTE_LATENCY_SAMPLES = 200;
 const UNMATCHED_ROUTE = '(no route)';
+/** Any 4xx status tallies alike. */
+const FEATURE_OFF_TALLY_STATUS = 400;
 
 interface Tally {
   count: number;
@@ -88,6 +90,11 @@ function summarizeTallies(tallies: Tally[]): Omit<RequestSummary, 'from' | 'to'>
 
 export class RequestStats {
   private readonly buckets: Bucket[] = [];
+
+  /** A request answered "this feature is switched off": tallied with the client errors, not as a fault of this server. */
+  recordFeatureOff(route: string | null, durationMs: number, now = Date.now()): void {
+    this.record(route, FEATURE_OFF_TALLY_STATUS, durationMs, now);
+  }
 
   record(route: string | null, status: number, durationMs: number, now = Date.now()): void {
     const minute = Math.floor(now / BUCKET_MS) * BUCKET_MS;

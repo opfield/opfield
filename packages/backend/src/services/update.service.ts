@@ -29,7 +29,6 @@ import {
   LEGACY_LOCK_RELAY_POOL_REBALANCE,
   LEGACY_RELAY_MIN_VERSION_KEY,
   LEGACY_UPDATE_ATTEMPT_KEY,
-  LEGACY_UPDATE_SIDECAR_NAME,
 } from '@/lib/legacy-compat.js';
 import { createChildLogger } from '@/lib/logger.js';
 import {
@@ -48,6 +47,7 @@ import {
   verifyOpfieldImageManifest,
   verifyRelayImageManifest,
 } from '@/lib/update-artifact-trust.js';
+import { UPDATE_SIDECAR_LABEL, UPDATE_SIDECAR_ROLE, UPDATE_SIDECAR_ROLES } from '@/lib/update-sidecar.js';
 import { AppError } from '@/middleware/error-handler.js';
 import type { GeneralSettingsService, UpdateChannel } from '@/modules/settings/general-settings.service.js';
 import { type DockerContainerListItem, type DockerService, ONE_SHOT_LABEL } from './docker.service.js';
@@ -141,14 +141,8 @@ const OPFIELD_UPDATE_ATTEMPT_KEY = LEGACY_UPDATE_ATTEMPT_KEY;
  * long, so the version it rolls back to still finds the record and reports it.
  */
 const OPFIELD_UPDATE_TARGET_GRACE_MS = 10 * 60_000;
-/** Marks the container that runs an Opfield self-update, so it is removed once it has finished. */
-const UPDATE_SIDECAR_LABEL = 'net.opfield.role';
-const UPDATE_SIDECAR_ROLE = 'opfield-update-sidecar';
-// legacy-name: legacy update sidecars — started by releases before 2.12.1; only cleaned up — remove once no
-// supported update starts from a version before 2.12.1.
-const LEGACY_UPDATE_SIDECAR_ROLE = LEGACY_UPDATE_SIDECAR_NAME;
 /** Exited update and host move containers this process cleans up. */
-const FINISHED_CONTAINER_ROLES: readonly string[] = [UPDATE_SIDECAR_ROLE, LEGACY_UPDATE_SIDECAR_ROLE];
+const FINISHED_CONTAINER_ROLES = UPDATE_SIDECAR_ROLES;
 /** The Docker CLI image of update sidecars started before they were labelled: pinned, or the plain `docker:<n>-cli`. */
 const UNLABELLED_SIDECAR_IMAGE = /^(?:docker\.io\/library\/)?docker:\d+-cli(?:@sha256:[0-9a-f]{64})?$/;
 /** The pinned form only, which no container of a user's own names: it alone marks a running sidecar. */
@@ -1438,6 +1432,8 @@ export class UpdateService {
         `set -eu
 compose() { docker compose --project-name ${composeProject} --project-directory ${composeDir} -f ${composeDir}/docker-compose.yml "$@"; }
 service_exists() { compose config --services | grep -qx "$1"; }
+# The release being updated from wrote this script, so a changed registry definition is applied by the new app after
+# it starts (DockerRegistryStorageService.applyDefinitionAfterStart), not here.
 ensure_foundation_services() {
   for service in $(compose config --services); do
     [ "$service" = app ] && continue

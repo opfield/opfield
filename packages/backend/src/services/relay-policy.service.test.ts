@@ -1686,14 +1686,13 @@ describe('RelayPolicyService pending grant refresh reports', () => {
         error: pending(2),
       });
       // The same daemons refusing with another revision in their reason stay one pending refresh.
-      const refused = (revision: number) =>
-        new GrantRefreshPendingError(
-          ['node-1'],
-          `Failed to refresh relay grants for 1 daemon(s): revision ${revision}`
-        );
-      (service as any).reportPendingGrantRefresh(refused(1), 400_000);
-      (service as any).reportPendingGrantRefresh(refused(2), 402_000);
+      const refused = (reason: string) => new GrantRefreshPendingError([`node-1:${reason}`], `Failed: ${reason}`);
+      (service as any).reportPendingGrantRefresh(refused('revision # is older'), 400_000);
+      (service as any).reportPendingGrantRefresh(refused('revision # is older'), 402_000);
       expect(info).toHaveBeenCalledTimes(4);
+      // Another reason from the same daemon is news.
+      (service as any).reportPendingGrantRefresh(refused('daemon offline'), 404_000);
+      expect(info).toHaveBeenCalledTimes(5);
     } finally {
       info.mockRestore();
       debug.mockRestore();
