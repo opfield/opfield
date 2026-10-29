@@ -1,6 +1,7 @@
 import type { Context, MiddlewareHandler } from 'hono';
 import { routePath } from 'hono/route';
 import { LEGACY_HEALTH_PROBE_HEADER } from '@/lib/legacy-compat.js';
+import { LOG_INGEST_PATHS } from '@/lib/log-ingest-paths.js';
 import { logger } from '@/lib/logger.js';
 import { ONE_TIME_LINK_TOKEN_PATH } from '@/lib/one-time-link-path.js';
 import { requestStats } from '@/modules/diagnostics/request-stats.js';
@@ -18,7 +19,8 @@ export const loggerMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
   const method = c.req.method;
   const path = redactRequestPath(c.req.path);
 
-  logger.info('Incoming request', {
+  // Log producers post several times a second: their arrival is logged at debug, their outcome as usual.
+  logger[LOG_INGEST_PATHS.has(path) ? 'debug' : 'info']('Incoming request', {
     requestId,
     method,
     path,
@@ -40,10 +42,12 @@ export const loggerMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
   const duration = Date.now() - start;
   const status = c.res.status;
 
+  // An expected refusal (AppError.expected) is no request this server served: it stays out of the statistics.
+  const expected = c.get('expectedRefusal') === true;
   // A protocol switch (WebSocket) is not a request that completes, so it would skew latency.
-  if (status !== 101) requestStats.record(matchedRoutePath(c), status, duration);
+  if (status !== 101 && !expected) requestStats.record(matchedRoutePath(c), status, duration);
 
-  const logLevel = status >= 500 ? 'error' : status >= 400 ? 'warn' : 'info';
+  const logLevel = expected ? 'debug' : status >= 500 ? 'error' : status >= 400 ? 'warn' : 'info';
 
   logger[logLevel]('Request completed', {
     requestId,

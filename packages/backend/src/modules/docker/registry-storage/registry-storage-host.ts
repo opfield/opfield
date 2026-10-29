@@ -4,6 +4,7 @@ import {
   type RegistryS3Settings,
   type RegistryStorageBackend,
 } from '@/foundation/registry-storage.js';
+import { composeDirectoryOf } from '@/lib/compose-directory.js';
 import { AppError } from '@/middleware/error-handler.js';
 import type { DockerContainerDetails, DockerService } from '@/services/docker.service.js';
 
@@ -35,6 +36,8 @@ export interface RegistryStorageHostContext {
   network: string;
   /** Docker volume (or host path) mounted at the registry's data directory. */
   dataSource: string;
+  /** The Compose config hash the running registry was created from. */
+  registryConfigHash?: string;
 }
 
 function lastJsonLine(output: string): Record<string, unknown> | null {
@@ -76,7 +79,7 @@ export class RegistryStorageHost {
     if (!self) throw unmanaged('Opfield does not run in a Docker container');
     if (!registry) throw unmanaged('the registry container was not found');
     const labels = self.Config.Labels ?? {};
-    const composeDir = this.composeProjectDir || labels['com.docker.compose.project.working_dir'];
+    const composeDir = composeDirectoryOf({ COMPOSE_PROJECT_DIR: this.composeProjectDir }, labels);
     const composeProject = labels['com.docker.compose.project'];
     if (!composeDir || !SAFE_ABSOLUTE_PATH.test(composeDir)) throw unmanaged('the Compose directory is unknown');
     if (!composeProject || !SAFE_PROJECT.test(composeProject)) throw unmanaged('the Compose project is unknown');
@@ -90,7 +93,14 @@ export class RegistryStorageHost {
     if (!dataSource || !(SAFE_NAME.test(dataSource) || SAFE_ABSOLUTE_PATH.test(dataSource))) {
       throw unmanaged('the registry data volume was not found');
     }
-    return { appImage: self.Config.Image, composeDir, composeProject, network, dataSource };
+    return {
+      appImage: self.Config.Image,
+      composeDir,
+      composeProject,
+      network,
+      dataSource,
+      registryConfigHash: registry.Config.Labels?.['com.docker.compose.config-hash'],
+    };
   }
 
   private async runCli(
@@ -201,7 +211,7 @@ export class RegistryStorageHost {
     });
   }
 
-  private async compose(context: RegistryStorageHostContext, args: string[]): Promise<void> {
+  private async compose(context: RegistryStorageHostContext, args: string[]): Promise<string> {
     if (!(await this.docker.imageExists(DOCKER_COMPOSE_CLI_IMAGE_REF))) {
       await this.docker.pullImageRef(DOCKER_COMPOSE_CLI_IMAGE_REF);
     }
@@ -232,6 +242,33 @@ export class RegistryStorageHost {
     if (result.exitCode !== 0) {
       throw new Error(`docker compose ${args[0]} failed: ${result.output.trim().split('\n').slice(-3).join(' ')}`);
     }
+    return result.output;
+  }
+
+  /**
+   * How to recreate the registry from docker-compose.yml when it runs another definition (Compose's config hash);
+   * null when it runs this one or the host is not installer-managed. A registry another Compose version created may
+   * hash differently for the same definition: that costs one recreate, after which its label is this helper's hash
+   * (updates never recreate it, and the storage switch uses this same helper).
+   */
+  async pendingDefinitionRecreate(): Promise<(() => Promise<void>) | null> {
+    const context = await this.managedContext();
+    if (!context) return null;
+    const output = await this.compose(context, ['config', '--hash', 'registry']);
+    const hash = /^registry\s+([0-9a-f]+)\s*$/m.exec(output)?.[1];
+    if (!hash) throw new Error('docker compose printed no definition hash for the registry');
+    if (hash === context.registryConfigHash) return null;
+    return async () => {
+      await this.compose(context, ['up', '-d', '--no-deps', '--force-recreate', 'registry']);
+    };
+  }
+
+  /** The installation context, or null on a host that is not installer-managed (development). */
+  private async managedContext(): Promise<RegistryStorageHostContext | null> {
+    return this.context().catch((error) => {
+      if (error instanceof AppError && error.code === 'REGISTRY_STORAGE_UNMANAGED') return null;
+      throw error;
+    });
   }
 
   /** Validates the rewritten files, recreates the registry from them and waits until it serves. */

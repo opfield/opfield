@@ -21,6 +21,9 @@ import {
 import { logger } from '@/lib/logger.js';
 import { RelayPolicyNotAcknowledgedError } from './relay-grant-issuer.service.js';
 import {
+  describeGrantRefreshFailures,
+  GrantRefreshPendingError,
+  grantRefusalKey,
   LOCAL_POLICY_TRUST_UNSUPPORTED_MESSAGE,
   managedDatabaseListenerConfigsEqual,
   RelayPolicyService,
@@ -1641,6 +1644,61 @@ describe('RelayPolicyService snapshots', () => {
   });
 });
 
+describe('grantRefusalKey of long reasons', () => {
+  it('stays the same when a number in a reason cut to length grows a digit', () => {
+    const reason = (revision: number) => `revision ${revision} refused: ${'cause '.repeat(60)}`;
+    expect(grantRefusalKey([{ nodeId: 'node-1', reason: reason(99) }])).toBe(
+      grantRefusalKey([{ nodeId: 'node-1', reason: reason(100) }])
+    );
+  });
+});
+
+describe('describeGrantRefreshFailures grouping', () => {
+  it('treats refusals that differ only in numbers as one reason', () => {
+    const failures = ['node-a', 'node-b', 'node-c'].map((nodeId, index) => ({
+      nodeId,
+      reason: `revision ${40 + index} is older than 42`,
+    }));
+    expect(describeGrantRefreshFailures(failures)).toBe('revision 40 is older than 42 (node-a, node-b, node-c)');
+  });
+});
+
+describe('grantRefusalKey', () => {
+  it('keys each daemon by its reason with its own id taken out and ids and numbers masked', () => {
+    const id = '0f8b6c1e-3a2d-4c5b-9e7f-1a2b3c4d5e6f';
+    const stream = '9c2d4e6f-1a3b-4c5d-8e9f-0a1b2c3d4e5f';
+    expect(
+      grantRefusalKey([
+        { nodeId: id, reason: `Daemon ${id} rejected relay grants: revision 41 is older than 42` },
+        { nodeId: 'node-12', reason: `stream ${stream} reset` },
+      ])
+    ).toBe(
+      [`${id}:Daemon <node> rejected relay grants: revision # is older than #`, 'node-12:stream # reset'].join('\n')
+    );
+  });
+});
+
+describe('describeGrantRefreshFailures', () => {
+  it('names the daemons once per distinct reason and caps the list', () => {
+    const rotation = 'new policy signing keys require signed rotation';
+    const failures = [
+      ...['n1', 'n2', 'n3', 'n4', 'n5'].map((nodeId) => ({ nodeId, reason: rotation })),
+      { nodeId: 'n6', reason: 'daemon offline' },
+    ];
+    expect(describeGrantRefreshFailures(failures)).toBe(`${rotation} (n1, n2, n3 and 2 more); daemon offline (n6)`);
+    // The fallback refusal names its daemon: still one reason, and the reasons are capped too.
+    const rejected = ['node-1', 'node-2', 'node-3', 'node-4'].map((nodeId) => ({
+      nodeId,
+      reason: `Daemon ${nodeId} rejected relay grants`,
+    }));
+    expect(describeGrantRefreshFailures(rejected)).toBe(
+      'Daemon <node> rejected relay grants (node-1, node-2, node-3 and 1 more)'
+    );
+    const distinct = ['w', 'x', 'y', 'z'].map((nodeId) => ({ nodeId: `${nodeId}1`, reason: `error ${nodeId}` }));
+    expect(describeGrantRefreshFailures(distinct)).toBe('error w (w1); error x (x1); error y (y1); 1 other reason(s)');
+  });
+});
+
 describe('RelayPolicyService pending grant refresh reports', () => {
   it('reports the same pending refresh once per interval and a different one at once', () => {
     const service = createService({}, { applySnapshot: vi.fn() });
@@ -1662,6 +1720,14 @@ describe('RelayPolicyService pending grant refresh reports', () => {
       expect(info).toHaveBeenLastCalledWith('Relay policy reconciled but some daemon grant bundles remain pending', {
         error: pending(2),
       });
+      // The same daemons refusing with another revision in their reason stay one pending refresh.
+      const refused = (reason: string) => new GrantRefreshPendingError(`node-1:${reason}`, `Failed: ${reason}`);
+      (service as any).reportPendingGrantRefresh(refused('revision # is older'), 400_000);
+      (service as any).reportPendingGrantRefresh(refused('revision # is older'), 402_000);
+      expect(info).toHaveBeenCalledTimes(4);
+      // Another reason from the same daemon is news.
+      (service as any).reportPendingGrantRefresh(refused('daemon offline'), 404_000);
+      expect(info).toHaveBeenCalledTimes(5);
     } finally {
       info.mockRestore();
       debug.mockRestore();

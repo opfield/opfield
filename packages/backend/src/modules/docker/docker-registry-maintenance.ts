@@ -18,6 +18,7 @@ import {
   settings,
 } from '@/db/schema/index.js';
 import { LEGACY_INTERNAL_REGISTRY_ID, LEGACY_REGISTRY_NAMESPACE } from '@/lib/legacy-compat.js';
+import { createChildLogger } from '@/lib/logger.js';
 import { AppError } from '@/middleware/error-handler.js';
 import type { DockerService } from '@/services/docker.service.js';
 import { ACTIVE_BUILD_STATUSES, WORKER_ACTIVE_BUILD_STATUSES } from './docker-build-policy.js';
@@ -93,13 +94,66 @@ export interface DockerRegistryMaintenanceExecutor {
   restoreWrites(): Promise<void>;
 }
 
+const logger = createChildLogger('DockerRegistryMaintenance');
+
+/**
+ * The registry's definition in docker-compose.yml. Updates start the registry with --no-recreate, so one created by an
+ * older release keeps that release's definition (its log rotation and level, say) until it is recreated. A run that
+ * drains writes compares, so an empty registry (nothing built yet) takes the definition at its first such run. Every
+ * run compares again, so a registry recreated from a definition that was then rolled back (an update that started in
+ * the seconds of a recreate) returns to the restored one at the next run.
+ */
+export interface RegistryDefinition {
+  /** How to recreate the registry from its current definition; null when it runs that one or may not be recreated now. */
+  pendingRecreate(): Promise<(() => Promise<void>) | null>;
+}
+
 export function createDockerRegistryMaintenanceExecutor(
   docker: DockerService,
   tokenService: DockerRegistryTokenService,
-  registryUrl = process.env.OPFIELD_INTERNAL_REGISTRY_URL || 'http://registry:5000',
-  wait: (milliseconds: number) => Promise<void> = (milliseconds) =>
-    new Promise((resolve) => setTimeout(resolve, milliseconds))
+  options: {
+    registryUrl?: string;
+    wait?: (milliseconds: number) => Promise<void>;
+    registryDefinition?: RegistryDefinition;
+  } = {}
 ): DockerRegistryMaintenanceExecutor {
+  const registryUrl = options.registryUrl ?? (process.env.OPFIELD_INTERNAL_REGISTRY_URL || 'http://registry:5000');
+  const wait =
+    options.wait ?? ((milliseconds: number) => new Promise<void>((resolve) => setTimeout(resolve, milliseconds)));
+  // A definition that cannot be checked leaves the registry as it is: the run restarts it as before.
+  const pendingRecreate = async () =>
+    (await options.registryDefinition?.pendingRecreate().catch((error: Error) => {
+      logger.warn('The registry definition could not be checked; the registry is restarted as before', {
+        error: error.message,
+      });
+      return null;
+    })) ?? null;
+  const recreateOrRestart = async (recreate: (() => Promise<void>) | null) => {
+    let recreateError: Error | null = null;
+    if (recreate) {
+      try {
+        await recreate();
+        logger.info('The registry was recreated from its current definition');
+        return;
+      } catch (error) {
+        // Anything refused before the old container went restarts the registry as before.
+        recreateError = error as Error;
+        logger.warn('The registry was not recreated from its current definition; it is restarted instead', {
+          error: recreateError.message,
+        });
+      }
+    }
+    try {
+      await docker.restartManagedRegistry();
+    } catch (error) {
+      // A definition that failed to start leaves no registry to restart: the run fails with both reasons, the
+      // definition's first, as that is the one to fix.
+      if (!recreateError) throw error;
+      throw new Error(
+        `The registry could not be recreated from its current definition (${recreateError.message}) nor restarted (${(error as Error).message})`
+      );
+    }
+  };
   const waitUntilRegistryReady = async () => {
     const deadline = Date.now() + 30_000;
     let lastError: unknown;
@@ -213,8 +267,13 @@ export function createDockerRegistryMaintenanceExecutor(
     purgeStaleUploads: (olderThanMinutes) => docker.purgeManagedRegistryUploads(olderThanMinutes),
     pauseAdmissions: async () => undefined,
     drainUploads: async () => {
-      await wait(REGISTRY_WRITE_DRAIN_GRACE_MS);
-      await docker.restartManagedRegistry();
+      const drained = wait(REGISTRY_WRITE_DRAIN_GRACE_MS);
+      // Checked while the writes drain; a check still running when the drain ends counts as "unchanged", so it never
+      // lengthens the pause (it finishes on its own; the next run decides).
+      const recreate = await Promise.race([pendingRecreate(), drained.then(() => null)]);
+      await drained;
+      // The restart that ends open uploads also takes up a definition the running registry predates.
+      await recreateOrRestart(recreate);
       await waitUntilRegistryReady();
     },
     deleteManifest: async (repository, digest) => {

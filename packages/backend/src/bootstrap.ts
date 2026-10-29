@@ -2161,9 +2161,6 @@ export async function initializeContainer(): Promise<void> {
 
   // Docker service (kept for self-update and image pruning only)
   const dockerService = new DockerService('/var/run/docker.sock', '');
-  dockerInternalRegistryService.setExecutor(
-    createDockerRegistryMaintenanceExecutor(dockerService, dockerRegistryTokenService)
-  );
   const dockerRegistryStorageService = new DockerRegistryStorageService({
     db,
     docker: dockerService,
@@ -2172,7 +2169,15 @@ export async function initializeContainer(): Promise<void> {
     eventBus,
     objectStorage: () => objectStorageService,
     composeProjectDir: env.COMPOSE_PROJECT_DIR,
+    // Registered further down; until then (a maintenance run recovered at start) an update counts as running.
+    updateInProgress: async () =>
+      !container.isRegistered(UpdateService) || container.resolve(UpdateService).updateUnderWay(),
   });
+  dockerInternalRegistryService.setExecutor(
+    createDockerRegistryMaintenanceExecutor(dockerService, dockerRegistryTokenService, {
+      registryDefinition: dockerRegistryStorageService.registryDefinition(),
+    })
+  );
   // A storage switch a restart interrupted is finished or rolled back first; it then owns the registry maintenance.
   if (!(await dockerRegistryStorageService.recoverAfterRestart())) {
     await dockerInternalRegistryService.recoverInterruptedMaintenance().catch((error) => {

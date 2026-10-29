@@ -11,6 +11,7 @@ import {
   OPFIELD_COMPOSE_PROJECT,
   OPFIELD_DATABASE,
 } from '@/foundation/opfield-names.js';
+import { composeDirectoryOf } from '@/lib/compose-directory.js';
 import { createChildLogger } from '@/lib/logger.js';
 import type { DockerCreateContainerConfig, DockerService } from './docker.service.js';
 
@@ -204,7 +205,7 @@ export class HostMoveLauncher {
     if (env.NODE_ENV !== 'production') return;
     const self = await docker.inspectSelf();
     const labels = self.Config.Labels ?? {};
-    const composeDir = env.COMPOSE_PROJECT_DIR || labels['com.docker.compose.project.working_dir'] || null;
+    const composeDir = composeDirectoryOf(env, labels);
     const composeProject = labels['com.docker.compose.project'] ?? null;
     const moveContainer = await docker.inspectContainerDetails(HOST_MOVE_CONTAINER_NAME);
     const decision = hostMoveLaunchDecision({

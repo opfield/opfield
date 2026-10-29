@@ -10,6 +10,7 @@ import {
 import { LEGACY_INTERNAL_REGISTRY_ID } from '@/lib/legacy-compat.js';
 import { createChildLogger } from '@/lib/logger.js';
 import { hasScopeForResource } from '@/lib/permissions.js';
+import { duringRegistryRecreate } from '@/lib/registry-recreate-gate.js';
 import { AppError } from '@/middleware/error-handler.js';
 import type { AuditService } from '@/modules/audit/audit.service.js';
 import type { ObjectStorageService } from '@/modules/object-storage/object-storage.service.js';
@@ -20,6 +21,7 @@ import {
   createDockerRegistryMaintenanceStore,
   DEFAULT_REGISTRY_MAINTENANCE_LEASE_MS,
   type DockerRegistryMaintenanceStore,
+  type RegistryDefinition,
   type RegistryState,
 } from '../docker-registry-maintenance.js';
 import type { DockerRegistryTokenService } from '../docker-registry-token.service.js';
@@ -72,6 +74,8 @@ export interface DockerRegistryStorageDeps {
   objectStorage?: () => ObjectStorageService;
   composeProjectDir?: string;
   registryUrl?: string;
+  /** Whether an Opfield update is under way, which may still roll the Compose files back. */
+  updateInProgress?: () => Promise<boolean>;
 }
 
 function sameLocation(left: RegistryS3Settings, right: RegistryS3Settings): boolean {
@@ -147,6 +151,27 @@ export class DockerRegistryStorageService {
         this.repair = status;
       },
     });
+  }
+
+  /**
+   * The registry definition the maintenance run applies. Not while an update is under way: its rollback restores the
+   * previous Compose files, and the registry would keep the abandoned release's definition. An update that starts while
+   * the writes drain stops the recreate too, and none starts during it (duringRegistryRecreate).
+   */
+  registryDefinition(): RegistryDefinition {
+    const updateUnderWay = async () => (await this.deps.updateInProgress?.()) === true;
+    return {
+      pendingRecreate: async () => {
+        if (await updateUnderWay()) return null;
+        const recreate = await this.host.pendingDefinitionRecreate();
+        if (!recreate) return null;
+        return () =>
+          duringRegistryRecreate(async () => {
+            if (await updateUnderWay()) throw new Error('an update or one of its Compose helpers is running');
+            await recreate();
+          });
+      },
+    };
   }
 
   async getView(): Promise<RegistryStorageView> {

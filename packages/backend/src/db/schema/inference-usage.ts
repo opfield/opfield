@@ -86,6 +86,8 @@ export const inferenceRequests = pgTable(
     index('inference_requests_user_created_idx').on(table.userId, table.createdAt),
     index('inference_requests_status_idx').on(table.status, table.startedAt),
     index('inference_requests_model_created_idx').on(table.modelId, table.createdAt),
+    // The unpriced-usage warning reads recent requests that ran without a price.
+    index('inference_requests_unpriced_created_idx').on(table.createdAt).where(sql`${table.costUnknown}`),
     check(
       'inference_requests_charges_nonnegative',
       sql`${table.creditsCharged} >= 0 AND ${table.apiMicrodollarsCharged} >= 0 AND ${table.serviceTierMultiplier} > 0`
@@ -171,7 +173,17 @@ export const inferenceUsageLedger = pgTable(
     createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
   },
   (table) => [
+    // A user's entries over time across budget types (the per-user usage overview); the budget checks use the next one.
     index('inference_usage_ledger_user_time_idx').on(table.userId, table.occurredAt),
+    // Budget checks sum a user's open windows from the index alone. Credits and API cost are key columns because
+    // drizzle cannot declare INCLUDE; this keeps the schema and the database identical for later migrations.
+    index('inference_usage_ledger_user_budget_time_idx').on(
+      table.userId,
+      table.budgetType,
+      table.occurredAt,
+      table.credits,
+      table.apiMicrodollars
+    ),
     index('inference_usage_ledger_request_idx').on(table.requestId),
     uniqueIndex('inference_usage_ledger_settlement_attempt_unique')
       .on(table.attemptId)

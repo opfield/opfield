@@ -1,3 +1,4 @@
+import path from 'node:path';
 import { and, desc, eq, inArray, max, sql } from 'drizzle-orm';
 import { DOCKER_COMPOSE_CLI_IMAGE_REF } from '@/config/docker-compose-cli-image.js';
 import type { Env } from '@/config/env.js';
@@ -19,15 +20,19 @@ import {
   LEGACY_DATABASE_ROLE,
   LEGACY_DATABASE_SNAPSHOT_FILE,
   LEGACY_FOUNDATION_BACKUPS_DIR,
+  OPFIELD_INSTALL_DIR_NAME,
 } from '@/foundation/opfield-names.js';
+import { composeDirectoryOf } from '@/lib/compose-directory.js';
 import {
   LEGACY_APP_IMAGE_MANIFEST_ASSET,
+  LEGACY_INSTALL_DIR_NAME,
   LEGACY_LOCK_RELAY_POOL_REBALANCE,
   LEGACY_RELAY_MIN_VERSION_KEY,
   LEGACY_UPDATE_ATTEMPT_KEY,
   LEGACY_UPDATE_SIDECAR_NAME,
 } from '@/lib/legacy-compat.js';
 import { createChildLogger } from '@/lib/logger.js';
+import { registryRecreateRunning } from '@/lib/registry-recreate-gate.js';
 import {
   OPFIELD_IMAGE_MANIFEST_ASSET,
   type ReleaseFileSource,
@@ -143,10 +148,65 @@ const UPDATE_SIDECAR_ROLE = 'opfield-update-sidecar';
 // legacy-name: legacy update sidecars — started by releases before 2.12.1; only cleaned up — remove once no
 // supported update starts from a version before 2.12.1.
 const LEGACY_UPDATE_SIDECAR_ROLE = LEGACY_UPDATE_SIDECAR_NAME;
+/** How long an update asked for during a registry recreate waits for it to end. */
+const REGISTRY_RECREATE_WAIT_MS = 3 * 60_000;
+
+function assertNoRegistryRecreate(): void {
+  if (registryRecreateRunning()) {
+    throw new AppError(
+      409,
+      'REGISTRY_RECREATING',
+      'The registry is being recreated. Start the update again in a minute.'
+    );
+  }
+}
+
 /** Exited update and host move containers this process cleans up. */
 const FINISHED_CONTAINER_ROLES: readonly string[] = [UPDATE_SIDECAR_ROLE, LEGACY_UPDATE_SIDECAR_ROLE];
-/** The Docker CLI image of update sidecars started before they were labelled (any pinned version). */
-const UNLABELLED_SIDECAR_IMAGE = /^docker\.io\/library\/docker:\d+-cli@sha256:[0-9a-f]{64}$/;
+/** The Docker CLI image of update sidecars started before they were labelled: pinned, or the plain `docker:<n>-cli`. */
+const UNLABELLED_SIDECAR_IMAGE = /^(?<registry>docker\.io\/library\/)?docker:\d+-cli(?<digest>@sha256:[0-9a-f]{64})?$/;
+
+/** The pinned form (registry and digest), which no container of a user's own names: it alone marks a running sidecar. */
+function isPinnedSidecarImage(image: string): boolean {
+  const groups = UNLABELLED_SIDECAR_IMAGE.exec(image)?.groups;
+  return Boolean(groups?.registry && groups.digest);
+}
+
+/**
+ * Whether an unlabelled container is an update sidecar of an older release: the Docker CLI image with exactly the
+ * Docker socket and the Compose directory mounted. Sidecars mounted the Compose directory at its own path or at
+ * /project; those started before a host move mounted the legacy directory it renamed. A user's own docker:cli
+ * containers do not mount both.
+ */
+export function isUnlabelledUpdateSidecar(
+  container: { image: string; mounts?: Array<{ Source?: string; Destination?: string }> },
+  composeDir: string
+): boolean {
+  return UNLABELLED_SIDECAR_IMAGE.test(container.image) && hasUpdateSidecarMounts(container.mounts, composeDir);
+}
+
+/** Exactly the Docker socket and the Compose directory (its own path, /project, or the pre-move legacy directory). */
+function hasUpdateSidecarMounts(
+  mounts: Array<{ Source?: string; Destination?: string }> | undefined,
+  composeDir: string
+): boolean {
+  const normalized = path.posix.resolve(composeDir);
+  const composeDirs = new Set([normalized]);
+  if (path.posix.basename(normalized) === OPFIELD_INSTALL_DIR_NAME) {
+    composeDirs.add(path.posix.join(path.posix.dirname(normalized), LEGACY_INSTALL_DIR_NAME));
+  }
+  const list = mounts ?? [];
+  const socket = list.some(
+    (mount) => mount.Source === '/var/run/docker.sock' && mount.Destination === '/var/run/docker.sock'
+  );
+  const compose = list.some(
+    (mount) =>
+      mount.Source !== undefined &&
+      composeDirs.has(path.posix.resolve(mount.Source)) &&
+      (mount.Destination === mount.Source || mount.Destination === '/project')
+  );
+  return socket && compose && list.length === 2;
+}
 /**
  * What the cleanup of finished update containers does with a listed container, before inspecting it: only containers
  * that ran and ended count (one just created is about to start, and removing it killed a registry storage switch's
@@ -504,6 +564,7 @@ export class UpdateService {
     if (this.opfieldUpdateInProgress) {
       throw new AppError(409, 'UPDATE_IN_PROGRESS', 'An Opfield update is already in progress');
     }
+    assertNoRegistryRecreate();
     if (await this.isRelayUpdateRunning()) {
       throw new AppError(409, 'RELAY_UPDATE_IN_PROGRESS', RELAY_UPDATE_BLOCKS_OPFIELD_MESSAGE);
     }
@@ -812,8 +873,16 @@ export class UpdateService {
     artifact: TrustedOpfieldUpdateArtifact,
     userId: string | null = null
   ): Promise<void> {
+    // A registry recreate takes seconds. An update asked for meanwhile (the cloud, a paid feature's activation, which
+    // were already told it started) waits for it instead of failing.
+    const recreateDeadline = Date.now() + REGISTRY_RECREATE_WAIT_MS;
+    while (registryRecreateRunning() && Date.now() < recreateDeadline) {
+      await new Promise((resolve) => setTimeout(resolve, 1_000));
+    }
     if (this.opfieldUpdateInProgress)
       throw new AppError(409, 'UPDATE_IN_PROGRESS', 'An Opfield update is already in progress');
+    // Checked right before the flag is set, with no await between: see registry-recreate-gate.
+    assertNoRegistryRecreate();
     this.opfieldUpdateInProgress = true;
     this.setOpfieldUpdateOperation({
       status: 'updating',
@@ -910,22 +979,65 @@ export class UpdateService {
   private async hostMoveNeeded(): Promise<boolean> {
     const self = await this.dockerService.inspectSelf();
     const labels = self.Config.Labels ?? {};
-    const composeDir = this.env.COMPOSE_PROJECT_DIR || labels['com.docker.compose.project.working_dir'];
+    const composeDir = composeDirectoryOf(this.env, labels);
     const composeProject = labels['com.docker.compose.project'];
     if (!composeDir || !composeProject) return false;
     return hasLegacyLayout({ composeDir, composeProject, databaseUrl: this.env.DATABASE_URL });
   }
 
+  /**
+   * Whether an Opfield or Relay Pool update runs or has not settled: until then the Compose files may still change or
+   * roll back.
+   */
+  async updateUnderWay(): Promise<boolean> {
+    return (
+      // Read first and without awaiting, as registry-recreate-gate requires.
+      (await this.isAnyUpdateRunning()) ||
+      // A failed attempt stays on record for its report; it is under way only while its sidecar still rolls back.
+      (await this.readOpfieldUpdateAttempt())?.failedAt === null ||
+      // A host move renames the Compose directory and recreates the project.
+      (await this.dockerService.inspectContainerDetails(HOST_MOVE_CONTAINER_NAME).catch(() => null))?.State.Running ===
+        true ||
+      (await this.updateSidecarRunning())
+    );
+  }
+
   /** Whether an update sidecar (of this release or an earlier one) still runs. */
   private async updateSidecarRunning(): Promise<boolean> {
     const containers = await this.dockerService.listLocalContainers();
+    let composeDir: string | null | undefined;
     for (const item of containers) {
       if (item.State !== 'running') continue;
       const role = item.Labels?.[UPDATE_SIDECAR_LABEL];
       if (role !== undefined && FINISHED_CONTAINER_ROLES.includes(role)) return true;
-      if (role === undefined && UNLABELLED_SIDECAR_IMAGE.test(item.Image)) return true;
+      if (role !== undefined) continue;
+      // The pinned CLI image marks a sidecar by itself, as it always did; its one-off helpers count too, as they work
+      // on the Compose directory. The plain tag, which CI jobs run as well, counts only with a sidecar's mounts.
+      if (isPinnedSidecarImage(item.Image)) return true;
+      if (composeDir === undefined) composeDir = await this.composeDirectory();
+      if (composeDir && (await this.isOlderReleaseSidecar(item, composeDir))) return true;
     }
     return false;
+  }
+
+  /** This installation's Compose directory; null when it cannot be told. */
+  private async composeDirectory(): Promise<string | null> {
+    const self = this.env.COMPOSE_PROJECT_DIR ? null : await this.dockerService.inspectSelf().catch(() => null);
+    return composeDirectoryOf(this.env, self?.Config.Labels);
+  }
+
+  /**
+   * Whether a listed unlabelled container is an update sidecar of an older release (isUnlabelledUpdateSidecar). The
+   * list shows the bare image ID once that tag moved on; only a container with a sidecar's mounts is inspected for the
+   * image it was created from.
+   */
+  private async isOlderReleaseSidecar(item: DockerContainerListItem, composeDir: string): Promise<boolean> {
+    if (!hasUpdateSidecarMounts(item.Mounts, composeDir)) return false;
+    let image = item.Image;
+    if (image.startsWith('sha256:')) {
+      image = (await this.dockerService.inspectContainerDetails(item.Id).catch(() => null))?.Config.Image ?? image;
+    }
+    return UNLABELLED_SIDECAR_IMAGE.test(image);
   }
 
   private async readOpfieldUpdateAttempt(): Promise<OpfieldUpdateAttempt | null> {
@@ -1092,14 +1204,11 @@ export class UpdateService {
    * Removes update sidecars that have exited, except `keepId`. A sidecar is kept after it exits so a failed
    * update can point at its logs; once the update completed or its failure was acknowledged it is clutter (and
    * shows up in the container list when the Opfield host is also a Docker node). Sidecars started before they
-   * were labelled are recognized by the pinned Docker CLI image plus the Docker socket and the Compose
-   * directory mounted at the same path, so a user's own docker:cli containers are left alone.
+   * were labelled are recognized by isUnlabelledUpdateSidecar, so a user's own docker:cli containers are left alone.
    */
   private async removeFinishedUpdateSidecars(keepId: string | null): Promise<void> {
     try {
-      const self = await this.dockerService.inspectSelf();
-      const composeDir =
-        this.env.COMPOSE_PROJECT_DIR || self.Config.Labels['com.docker.compose.project.working_dir'] || null;
+      const composeDir = await this.composeDirectory();
       const containers = await this.dockerService.listLocalContainers();
       for (const item of containers) {
         const kind = finishedContainerSweepKind(item, keepId);
@@ -1112,15 +1221,7 @@ export class UpdateService {
         }
         const labelled = kind === 'sidecar';
         if (!labelled) {
-          if (!composeDir) continue;
-          const details = await this.dockerService.inspectContainerDetails(item.Id);
-          if (!details || !UNLABELLED_SIDECAR_IMAGE.test(details.Config.Image)) continue;
-          const mounts = details.Mounts ?? [];
-          const socket = mounts.some(
-            (mount) => mount.Source === '/var/run/docker.sock' && mount.Destination === '/var/run/docker.sock'
-          );
-          const compose = mounts.some((mount) => mount.Source === composeDir && mount.Destination === composeDir);
-          if (!socket || !compose || mounts.length !== 2) continue;
+          if (!composeDir || !(await this.isOlderReleaseSidecar(item, composeDir))) continue;
         }
         await this.dockerService
           // Never forced: a container that started meanwhile stays.
@@ -1214,7 +1315,7 @@ export class UpdateService {
     const selfInfo = await this.dockerService.inspectSelf();
     const labels = selfInfo.Config.Labels;
 
-    const composeDir = this.env.COMPOSE_PROJECT_DIR || labels['com.docker.compose.project.working_dir'];
+    const composeDir = composeDirectoryOf(this.env, labels);
     const composeProject = labels['com.docker.compose.project'];
 
     if (!composeDir) throw new Error('Cannot determine compose project directory');
@@ -1389,6 +1490,8 @@ export class UpdateService {
         `set -eu
 compose() { docker compose --project-name ${composeProject} --project-directory ${composeDir} -f ${composeDir}/docker-compose.yml "$@"; }
 service_exists() { compose config --services | grep -qx "$1"; }
+# The release being updated from wrote this script; a changed registry definition is applied by the registry
+# maintenance run instead, which recreates the registry under its lease (createDockerRegistryMaintenanceExecutor).
 ensure_foundation_services() {
   for service in $(compose config --services); do
     [ "$service" = app ] && continue
@@ -1949,7 +2052,7 @@ true`,
     const version = normalizeVersionTag(targetVersion);
     const selfInfo = await this.dockerService.inspectSelf();
     const labels = selfInfo.Config.Labels;
-    const composeDir = this.env.COMPOSE_PROJECT_DIR || labels['com.docker.compose.project.working_dir'];
+    const composeDir = composeDirectoryOf(this.env, labels);
     const composeProject = labels['com.docker.compose.project'];
     if (!composeDir || !/^\/[a-zA-Z0-9/_.-]+$/.test(composeDir)) throw new Error('Invalid Compose directory');
     if (!composeProject || !/^[a-zA-Z0-9_-]+$/.test(composeProject)) throw new Error('Invalid Compose project');

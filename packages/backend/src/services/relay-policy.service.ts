@@ -17,6 +17,7 @@ import {
   relayRoutes,
 } from '@/db/schema/index.js';
 import type { RelayManagedDatabaseListenerConfig, RelaySecureLinkEgressConfig } from '@/db/schema/relay.js';
+import { escapeRegExp } from '@/foundation/opfield-names.js';
 import {
   LEGACY_RELAY_PATH_ID,
   RELAY_MAX_FRAME_BYTES,
@@ -307,6 +308,87 @@ function relayRoutePolicy(
   return { disableIdleTimeout: false, trafficClass: 'database' };
 }
 
+/**
+ * A grant refresh some daemons refused. `key` (each daemon with its reason, ids and numbers masked) tells one pending
+ * refresh from another: a changed reason is reported again, a revision or stream id that moved on is not.
+ */
+export class GrantRefreshPendingError extends Error {
+  constructor(
+    readonly key: string,
+    message: string
+  ) {
+    super(message);
+    this.name = 'GrantRefreshPendingError';
+  }
+}
+
+const GRANT_REFRESH_FAILURE_NODES_NAMED = 3;
+const GRANT_REFRESH_FAILURE_REASONS_NAMED = 3;
+/** Daemon and gRPC errors can carry whole cause chains: each reason is cut to this many characters. */
+const GRANT_REFRESH_FAILURE_REASON_LENGTH = 200;
+
+function truncated(text: string, length: number): string {
+  return text.length > length ? `${text.slice(0, length - 1)}…` : text;
+}
+
+/**
+ * Daemons named per distinct refusal: the same reason from many daemons (a key rotation) is listed once, a reason
+ * naming its daemon counts as that reason, and the summary stays short however large the fleet.
+ */
+export function describeGrantRefreshFailures(failures: Array<{ nodeId: string; reason: string }>): string {
+  // Grouped like grantRefusalKey; each group shows the reason one of its daemons gave.
+  const byReason = new Map<string, { reason: string; nodeIds: string[] }>();
+  for (const failure of failures) {
+    const key = refusalGroup(failure);
+    let group = byReason.get(key);
+    if (!group) byReason.set(key, (group = { reason: shownReason(failure), nodeIds: [] }));
+    group.nodeIds.push(failure.nodeId);
+  }
+  for (const group of byReason.values()) group.nodeIds.sort();
+  const reasons = [...byReason.values()]
+    .sort((a, b) => b.nodeIds.length - a.nodeIds.length || a.reason.localeCompare(b.reason))
+    .map((group) => [group.reason, group.nodeIds] as const);
+  const described = reasons.slice(0, GRANT_REFRESH_FAILURE_REASONS_NAMED).map(([reason, nodeIds]) => {
+    const named = nodeIds.slice(0, GRANT_REFRESH_FAILURE_NODES_NAMED).join(', ');
+    const more = nodeIds.length - GRANT_REFRESH_FAILURE_NODES_NAMED;
+    return `${reason} (${named}${more > 0 ? ` and ${more} more` : ''})`;
+  });
+  const otherReasons = reasons.length - GRANT_REFRESH_FAILURE_REASONS_NAMED;
+  if (otherReasons > 0) described.push(`${otherReasons} other reason(s)`);
+  return described.join('; ');
+}
+
+/** What makes two pending refreshes the same: each daemon with its reason as the summary groups it, sorted. */
+export function grantRefusalKey(failures: Array<{ nodeId: string; reason: string }>): string {
+  return failures
+    .map((failure) => `${failure.nodeId}:${refusalGroup(failure)}`)
+    .sort()
+    .join('\n');
+}
+
+/** A refusal's reason with its daemon's own id taken out. */
+function withoutOwnId(failure: { nodeId: string; reason: string }): string {
+  const ownId = failure.nodeId ? new RegExp(`(?<![\\w-])${escapeRegExp(failure.nodeId)}(?![\\w-])`, 'g') : null;
+  return ownId ? failure.reason.replace(ownId, '<node>') : failure.reason;
+}
+
+/** A refusal's reason as shown: its daemon's id taken out, cut to length. */
+function shownReason(failure: { nodeId: string; reason: string }): string {
+  return truncated(withoutOwnId(failure), GRANT_REFRESH_FAILURE_REASON_LENGTH);
+}
+
+/**
+ * The reason with what changes from pass to pass (ids, hex digests, numbers) masked, so like refusals group. Masked
+ * before it is cut: a number that grows a digit must not move where a long reason ends.
+ */
+function refusalGroup(failure: { nodeId: string; reason: string }): string {
+  const masked = withoutOwnId(failure)
+    .replace(/\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi, '#')
+    .replace(/\b[0-9a-f]{12,}\b/gi, '#')
+    .replace(/\d+/g, '#');
+  return truncated(masked, GRANT_REFRESH_FAILURE_REASON_LENGTH);
+}
+
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error ?? '');
 }
@@ -538,7 +620,7 @@ export class RelayPolicyService {
   private lastLocalPolicyTrustResetAt = 0;
   private lastLocalPolicyLossSyncAt = 0;
   /** The pending grant refresh last reported; see reportPendingGrantRefresh. */
-  private pendingGrantRefresh: { message: string; reportedAt: number } | null = null;
+  private pendingGrantRefresh: { key: string; reportedAt: number } | null = null;
   private initialAssignmentPlanner?: (
     endpointId: string
   ) => Promise<Array<{ relayInstanceId: string; role: RelayAssignmentRole }> | null>;
@@ -1645,12 +1727,14 @@ export class RelayPolicyService {
    */
   private reportPendingGrantRefresh(error: unknown, now = Date.now()): void {
     const message = error instanceof Error ? error.message : String(error);
+    // The same daemons refusing for the same reasons is the same pending refresh, whatever revision those name.
+    const key = error instanceof GrantRefreshPendingError ? error.key : message;
     const last = this.pendingGrantRefresh;
-    if (last?.message === message && now - last.reportedAt < PENDING_GRANT_REFRESH_REPORT_MS) {
+    if (last?.key === key && now - last.reportedAt < PENDING_GRANT_REFRESH_REPORT_MS) {
       logger.debug('Relay policy reconciled but some daemon grant bundles remain pending', { error: message });
       return;
     }
-    this.pendingGrantRefresh = { message, reportedAt: now };
+    this.pendingGrantRefresh = { key, reportedAt: now };
     logger.info('Relay policy reconciled but some daemon grant bundles remain pending', { error: message });
   }
 
@@ -3241,13 +3325,21 @@ export class RelayPolicyService {
     const connected = nodeIds.filter((nodeId) => this.dispatch?.isNodeConnected(nodeId));
     const options = force ? {} : ROUTINE_GRANT_SYNC;
     const results = await Promise.allSettled(connected.map((nodeId) => this.syncNodeGrants(nodeId, options)));
-    this.failedGrantRefreshNodeIds = new Set(connected.filter((_, index) => results[index]!.status === 'rejected'));
+    const failures = connected.flatMap((nodeId, index) => {
+      const result = results[index]!;
+      return result.status === 'rejected' ? [{ nodeId, reason: errorMessage(result.reason) }] : [];
+    });
+    this.failedGrantRefreshNodeIds = new Set(failures.map((failure) => failure.nodeId));
     if (due) {
       this.lastGrantRefreshAt = Date.now();
       this.lastGrantRefreshRevision = revision;
     }
-    if (this.failedGrantRefreshNodeIds.size) {
-      throw new Error(`Failed to refresh relay grants for ${this.failedGrantRefreshNodeIds.size} daemon(s)`);
+    if (failures.length) {
+      // Name each daemon and why it refused: a count alone leaves a failure that repeats every pass undiagnosable.
+      throw new GrantRefreshPendingError(
+        grantRefusalKey(failures),
+        `Failed to refresh relay grants for ${failures.length} daemon(s): ${describeGrantRefreshFailures(failures)}`
+      );
     }
   }
 

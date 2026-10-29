@@ -1,10 +1,9 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { Socket } from 'node:net';
+import { LOG_INGEST_PATHS } from '@/lib/log-ingest-paths.js';
 
 export type OpfieldLifecycleState = 'running' | 'draining_user' | 'draining_logs' | 'terminating';
 export type OpfieldTrafficClass = 'health' | 'status_page' | 'structured_logs' | 'user';
-
-const LOG_INGEST_PATHS = new Set(['/api/logging/ingest', '/api/logging/ingest/batch']);
 
 export class OpfieldLifecycleService {
   private state: OpfieldLifecycleState = 'running';

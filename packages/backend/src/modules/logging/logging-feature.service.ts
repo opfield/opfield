@@ -70,6 +70,11 @@ export class LoggingFeatureService {
   }
 
   requireAvailableForIngest(): void {
+    // Log producers keep posting while logging is off; each refusal is expected, not a fault to report. The console and
+    // agents that meet disabled logging (requireEnabled) keep their warning.
+    if (!this.isEnabled()) {
+      throw new AppError(503, 'LOGGING_DISABLED', 'External logging is disabled', undefined, { expected: true });
+    }
     this.requireAvailableForStorage();
     if (this.capacityExhausted) {
       throw new AppError(

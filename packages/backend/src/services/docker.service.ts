@@ -1435,6 +1435,7 @@ export interface DockerContainerListItem {
   State: string;
   Status: string;
   Labels?: Record<string, string>;
+  Mounts?: Array<{ Type?: string; Source?: string; Destination?: string }>;
   NetworkSettings?: {
     Networks?: Record<string, { IPAddress?: string; GlobalIPv6Address?: string }>;
   };

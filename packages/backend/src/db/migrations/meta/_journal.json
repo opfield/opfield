@@ -1940,6 +1940,13 @@
       "when": 1794850251000,
       "tag": "0276_backup_run_executor_set_null",
       "breakpoints": true
+    },
+    {
+      "idx": 277,
+      "version": "7",
+      "when": 1794850252000,
+      "tag": "0277_inference_usage_scan_indexes",
+      "breakpoints": true
     }
   ]
 }
