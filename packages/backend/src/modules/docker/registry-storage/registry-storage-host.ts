@@ -237,15 +237,11 @@ export class RegistryStorageHost {
   }
 
   /**
-   * Recreates the registry when it was created from another definition than docker-compose.yml holds now (Compose's
-   * config hash), as a registry an older release created was: updates start it with --no-recreate. Returns whether it
-   * did; a host that is not installer-managed has no definition to apply. The caller drains writes and waits for it.
+   * Whether the running registry was created from another definition than docker-compose.yml holds now (Compose's
+   * config hash). A host that is not installer-managed has no definition to compare.
    */
-  async applyChangedDefinition(): Promise<boolean> {
-    const context = await this.context().catch((error) => {
-      if (error instanceof AppError && error.code === 'REGISTRY_STORAGE_UNMANAGED') return null;
-      throw error;
-    });
+  async registryDefinitionChanged(): Promise<boolean> {
+    const context = await this.managedContext();
     if (!context) return false;
     const [output, registry] = await Promise.all([
       this.compose(context, ['config', '--hash', 'registry']),
@@ -253,9 +249,22 @@ export class RegistryStorageHost {
     ]);
     const hash = /^registry\s+([0-9a-f]+)\s*$/m.exec(output)?.[1];
     if (!hash) throw new Error('docker compose printed no definition hash for the registry');
-    if (hash === registry.Config.Labels?.['com.docker.compose.config-hash']) return false;
-    await this.compose(context, ['up', '-d', '--no-deps', 'registry']);
-    return true;
+    return hash !== registry.Config.Labels?.['com.docker.compose.config-hash'];
+  }
+
+  /** Recreates the registry from docker-compose.yml; the caller waits until it serves. */
+  async recreateRegistryFromDefinition(): Promise<void> {
+    const context = await this.managedContext();
+    if (!context) throw new Error('the registry is not installer-managed');
+    await this.compose(context, ['up', '-d', '--no-deps', '--force-recreate', 'registry']);
+  }
+
+  /** The installation context, or null on a host that is not installer-managed (development). */
+  private async managedContext(): Promise<RegistryStorageHostContext | null> {
+    return this.context().catch((error) => {
+      if (error instanceof AppError && error.code === 'REGISTRY_STORAGE_UNMANAGED') return null;
+      throw error;
+    });
   }
 
   /** Validates the rewritten files, recreates the registry from them and waits until it serves. */

@@ -156,8 +156,11 @@ async function withLimitedAccessPointer(c: Context<AppEnv>, statusCode: number, 
   }
 }
 
-/** Codes of a feature that is switched off on this Opfield: the answer to a request while it is off, not a fault. */
-const FEATURE_OFF_CODES: ReadonlySet<string> = new Set(['LOGGING_DISABLED', 'AI_INFERENCE_DISABLED']);
+/**
+ * 503 answers that a feature is switched off on this Opfield: what every caller gets while it is off, not a fault.
+ * Log producers keep sending to disabled logging, so these would otherwise fill the log and the 5xx statistics.
+ */
+const FEATURE_OFF_CODES: ReadonlySet<string> = new Set(['LOGGING_DISABLED']);
 
 export const errorHandler: ErrorHandler<AppEnv> = async (err, c) => {
   const requestId = c.get('requestId');
@@ -170,7 +173,7 @@ export const errorHandler: ErrorHandler<AppEnv> = async (err, c) => {
       }
     }
     // A feature switched off answers every caller the same way (log producers keep sending): not a fault to report.
-    const featureOff = FEATURE_OFF_CODES.has(err.code);
+    const featureOff = err.statusCode === 503 && FEATURE_OFF_CODES.has(err.code);
     if (featureOff) c.set('featureOffRefusal', true);
     logger[featureOff ? 'debug' : 'warn']('Application error', {
       requestId,

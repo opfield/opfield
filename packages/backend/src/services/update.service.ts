@@ -164,22 +164,29 @@ export function isUnlabelledUpdateSidecar(
   container: { image: string; mounts?: Array<{ Source?: string; Destination?: string }> },
   composeDir: string
 ): boolean {
-  if (!UNLABELLED_SIDECAR_IMAGE.test(container.image)) return false;
+  return UNLABELLED_SIDECAR_IMAGE.test(container.image) && hasUpdateSidecarMounts(container.mounts, composeDir);
+}
+
+/** Exactly the Docker socket and the Compose directory (its own path, /project, or the pre-move legacy directory). */
+function hasUpdateSidecarMounts(
+  mounts: Array<{ Source?: string; Destination?: string }> | undefined,
+  composeDir: string
+): boolean {
   const composeDirs = new Set([composeDir]);
   if (path.basename(composeDir) === OPFIELD_INSTALL_DIR_NAME) {
     composeDirs.add(path.join(path.dirname(composeDir), LEGACY_INSTALL_DIR_NAME));
   }
-  const mounts = container.mounts ?? [];
-  const socket = mounts.some(
+  const list = mounts ?? [];
+  const socket = list.some(
     (mount) => mount.Source === '/var/run/docker.sock' && mount.Destination === '/var/run/docker.sock'
   );
-  const compose = mounts.some(
+  const compose = list.some(
     (mount) =>
       mount.Source !== undefined &&
       composeDirs.has(mount.Source) &&
       (mount.Destination === mount.Source || mount.Destination === '/project')
   );
-  return socket && compose && mounts.length === 2;
+  return socket && compose && list.length === 2;
 }
 /**
  * What the cleanup of finished update containers does with a listed container, before inspecting it: only containers
@@ -951,22 +958,20 @@ export class UpdateService {
   }
 
   /** Whether an update sidecar (of this release or an earlier one) still runs. */
-  private async updateSidecarRunning(): Promise<boolean> {
+  async updateSidecarRunning(): Promise<boolean> {
     const containers = await this.dockerService.listLocalContainers();
     let composeDir: string | null | undefined;
     for (const item of containers) {
       if (item.State !== 'running') continue;
       const role = item.Labels?.[UPDATE_SIDECAR_LABEL];
       if (role !== undefined && FINISHED_CONTAINER_ROLES.includes(role)) return true;
-      // One-off helpers carry their own label and are no update sidecar.
-      if (role !== undefined || item.Labels?.[ONE_SHOT_LABEL] !== undefined) continue;
-      const image = await this.createdImage(item);
-      // The pinned CLI image marks a sidecar by itself, as it always did. The plain tag, which CI jobs run too, counts
-      // only with a sidecar's mounts (the cleanup's test).
-      if (PINNED_SIDECAR_IMAGE.test(image)) return true;
-      if (!UNLABELLED_SIDECAR_IMAGE.test(image)) continue;
-      composeDir ??= await this.composeDirectory();
-      if (composeDir && isUnlabelledUpdateSidecar({ image, mounts: item.Mounts }, composeDir)) return true;
+      if (role !== undefined) continue;
+      // The pinned CLI image marks a sidecar by itself, as it always did; its one-off helpers count too, as they work
+      // on the Compose directory. The plain tag, which CI jobs run as well, counts only with a sidecar's mounts.
+      if (PINNED_SIDECAR_IMAGE.test(item.Image)) return true;
+      if (composeDir === undefined) composeDir = await this.composeDirectory();
+      if (!composeDir || !hasUpdateSidecarMounts(item.Mounts, composeDir)) continue;
+      if (UNLABELLED_SIDECAR_IMAGE.test(await this.createdImage(item))) return true;
     }
     return false;
   }
@@ -1165,9 +1170,9 @@ export class UpdateService {
         }
         const labelled = kind === 'sidecar';
         if (!labelled) {
-          if (!composeDir) continue;
-          const image = await this.createdImage(item);
-          if (!isUnlabelledUpdateSidecar({ image, mounts: item.Mounts }, composeDir)) continue;
+          // The mounts first: they rule out nearly every container without inspecting it.
+          if (!composeDir || !hasUpdateSidecarMounts(item.Mounts, composeDir)) continue;
+          if (!UNLABELLED_SIDECAR_IMAGE.test(await this.createdImage(item))) continue;
         }
         await this.dockerService
           // Never forced: a container that started meanwhile stays.

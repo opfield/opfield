@@ -20,6 +20,7 @@ import {
   createDockerRegistryMaintenanceStore,
   DEFAULT_REGISTRY_MAINTENANCE_LEASE_MS,
   type DockerRegistryMaintenanceStore,
+  type RegistryDefinition,
   type RegistryState,
 } from '../docker-registry-maintenance.js';
 import type { DockerRegistryTokenService } from '../docker-registry-token.service.js';
@@ -72,6 +73,8 @@ export interface DockerRegistryStorageDeps {
   objectStorage?: () => ObjectStorageService;
   composeProjectDir?: string;
   registryUrl?: string;
+  /** Whether an Opfield update is under way, which may still roll the Compose files back. */
+  updateInProgress?: () => Promise<boolean>;
 }
 
 function sameLocation(left: RegistryS3Settings, right: RegistryS3Settings): boolean {
@@ -147,6 +150,17 @@ export class DockerRegistryStorageService {
         this.repair = status;
       },
     });
+  }
+
+  /**
+   * The registry definition the maintenance run applies. Not while an update runs: its rollback restores the previous
+   * Compose files, and the registry would keep the abandoned release's definition.
+   */
+  registryDefinition(): RegistryDefinition {
+    return {
+      changed: async () => !(await this.deps.updateInProgress?.()) && (await this.host.registryDefinitionChanged()),
+      recreate: () => this.host.recreateRegistryFromDefinition(),
+    };
   }
 
   async getView(): Promise<RegistryStorageView> {

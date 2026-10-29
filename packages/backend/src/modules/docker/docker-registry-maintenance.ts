@@ -18,6 +18,7 @@ import {
   settings,
 } from '@/db/schema/index.js';
 import { LEGACY_INTERNAL_REGISTRY_ID, LEGACY_REGISTRY_NAMESPACE } from '@/lib/legacy-compat.js';
+import { createChildLogger } from '@/lib/logger.js';
 import { AppError } from '@/middleware/error-handler.js';
 import type { DockerService } from '@/services/docker.service.js';
 import { ACTIVE_BUILD_STATUSES, WORKER_ACTIVE_BUILD_STATUSES } from './docker-build-policy.js';
@@ -93,15 +94,53 @@ export interface DockerRegistryMaintenanceExecutor {
   restoreWrites(): Promise<void>;
 }
 
+const logger = createChildLogger('DockerRegistryMaintenance');
+
+/**
+ * The registry's definition in docker-compose.yml. Updates start the registry with --no-recreate, so one created by an
+ * older release keeps that release's definition (its log rotation and level, say) until it is recreated.
+ */
+export interface RegistryDefinition {
+  /** Whether the running registry predates the definition and may be recreated now. */
+  changed(): Promise<boolean>;
+  /** Recreates the registry from the definition. */
+  recreate(): Promise<void>;
+}
+
 export function createDockerRegistryMaintenanceExecutor(
   docker: DockerService,
   tokenService: DockerRegistryTokenService,
-  registryUrl = process.env.OPFIELD_INTERNAL_REGISTRY_URL || 'http://registry:5000',
-  wait: (milliseconds: number) => Promise<void> = (milliseconds) =>
-    new Promise((resolve) => setTimeout(resolve, milliseconds)),
-  /** Recreates the registry when docker-compose.yml defines it differently; whether it did. */
-  applyChangedDefinition: () => Promise<boolean> = async () => false
+  options: {
+    registryUrl?: string;
+    wait?: (milliseconds: number) => Promise<void>;
+    registryDefinition?: RegistryDefinition;
+  } = {}
 ): DockerRegistryMaintenanceExecutor {
+  const registryUrl = options.registryUrl ?? (process.env.OPFIELD_INTERNAL_REGISTRY_URL || 'http://registry:5000');
+  const wait =
+    options.wait ?? ((milliseconds: number) => new Promise<void>((resolve) => setTimeout(resolve, milliseconds)));
+  // A definition that cannot be checked or applied leaves the registry as it is: the run restarts it as before.
+  const definitionChanged = async () =>
+    (await options.registryDefinition?.changed().catch((error: Error) => {
+      logger.warn('The registry definition could not be checked; the registry is restarted as before', {
+        error: error.message,
+      });
+      return false;
+    })) ?? false;
+  const recreateOrRestart = async (changed: boolean) => {
+    if (changed && options.registryDefinition) {
+      try {
+        await options.registryDefinition.recreate();
+        logger.info('The registry was recreated from its current definition');
+        return;
+      } catch (error) {
+        logger.warn('The registry could not be recreated from its current definition; it is restarted instead', {
+          error: (error as Error).message,
+        });
+      }
+    }
+    await docker.restartManagedRegistry();
+  };
   const waitUntilRegistryReady = async () => {
     const deadline = Date.now() + 30_000;
     let lastError: unknown;
@@ -215,10 +254,10 @@ export function createDockerRegistryMaintenanceExecutor(
     purgeStaleUploads: (olderThanMinutes) => docker.purgeManagedRegistryUploads(olderThanMinutes),
     pauseAdmissions: async () => undefined,
     drainUploads: async () => {
-      await wait(REGISTRY_WRITE_DRAIN_GRACE_MS);
-      // The restart that ends open uploads also takes up a definition the running registry predates (its log
-      // rotation and level, say): updates never recreate the registry.
-      if (!(await applyChangedDefinition())) await docker.restartManagedRegistry();
+      // The definition is checked while the writes drain, so the check does not lengthen the pause.
+      const [changed] = await Promise.all([definitionChanged(), wait(REGISTRY_WRITE_DRAIN_GRACE_MS)]);
+      // The restart that ends open uploads also takes up a definition the running registry predates.
+      await recreateOrRestart(changed);
       await waitUntilRegistryReady();
     },
     deleteManifest: async (repository, digest) => {
