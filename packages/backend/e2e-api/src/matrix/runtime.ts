@@ -1144,9 +1144,10 @@ async function crossLane(ctx: MatrixContext, docker: DockerState, storage: Recor
       ctx.onCleanup(`route ${routeId}`, async () => {
         await removeOrThrow(ctx, `/api/proxy-hosts/${routeId}`, { template: '/api/proxy-hosts/{id}' });
       });
+      // The node's default server answers /health itself ("OK"): only Opfield's JSON shows the route is in place.
       const up = await probeUntil(`http://${nginx.address}/health`, {
         host: domain,
-        expect: (status) => status === 200,
+        expect: (status, body) => status === 200 && body.includes('"status"'),
         timeoutMs: 180_000,
         intervalMs: ctx.config.pollMs,
       });
