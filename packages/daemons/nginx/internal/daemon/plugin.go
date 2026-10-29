@@ -219,6 +219,7 @@ func (p *NginxPlugin) Init(baseCfg *lifecycle.BaseConfig, logger *slog.Logger) e
 	p.logger = logger
 	// The names this start uses (opfield_names.go): before anything reads a path of the node.
 	p.namesMigrationDue = resolveNames(p.cfg, baseCfg.StateDir, logger)
+	ensureWorkerReadableDirs(workerReadableDirs(&p.cfg.Nginx), logger)
 
 	// Verify nginx is available
 	mgr := nginx.NewManager(p.cfg.Nginx.Binary, p.cfg.Nginx.ConfigDir, p.cfg.Nginx.CertsDir, p.cfg.Nginx.GlobalConfig)

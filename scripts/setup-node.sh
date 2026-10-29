@@ -3666,6 +3666,11 @@ create_directories() {
         : > /var/lib/nginx-daemon/opfield-names
     fi
     grant_daemon_paths_to_run_user
+    # nginx workers run as an unprivileged user and read htpasswd files, maintenance flags and ACME challenges at
+    # request time: a restrictive umask of the caller (hosted installs run under 077) must not leave these private.
+    chmod go+rx "$NGINX_OPFIELD_DIR" "$NGINX_HTPASSWD_DIR" /var/www /var/www/acme-challenge \
+        /var/www/acme-challenge/.well-known /var/www/acme-challenge/.well-known/acme-challenge 2>> "$LOG_FILE" ||
+        warn "Could not make the nginx directories readable for nginx workers."
 
     ok "Directories created"
 }
