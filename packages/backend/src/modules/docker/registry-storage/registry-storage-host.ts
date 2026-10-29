@@ -36,6 +36,8 @@ export interface RegistryStorageHostContext {
   network: string;
   /** Docker volume (or host path) mounted at the registry's data directory. */
   dataSource: string;
+  /** The Compose config hash the running registry was created from. */
+  registryConfigHash?: string;
 }
 
 function lastJsonLine(output: string): Record<string, unknown> | null {
@@ -91,7 +93,14 @@ export class RegistryStorageHost {
     if (!dataSource || !(SAFE_NAME.test(dataSource) || SAFE_ABSOLUTE_PATH.test(dataSource))) {
       throw unmanaged('the registry data volume was not found');
     }
-    return { appImage: self.Config.Image, composeDir, composeProject, network, dataSource };
+    return {
+      appImage: self.Config.Image,
+      composeDir,
+      composeProject,
+      network,
+      dataSource,
+      registryConfigHash: registry.Config.Labels?.['com.docker.compose.config-hash'],
+    };
   }
 
   private async runCli(
@@ -237,26 +246,19 @@ export class RegistryStorageHost {
   }
 
   /**
-   * Whether the running registry was created from another definition than docker-compose.yml holds now (Compose's
-   * config hash). A host that is not installer-managed has no definition to compare.
+   * How to recreate the registry from docker-compose.yml when it runs another definition (Compose's config hash);
+   * null when it runs this one or the host is not installer-managed.
    */
-  async registryDefinitionChanged(): Promise<boolean> {
+  async pendingDefinitionRecreate(): Promise<(() => Promise<void>) | null> {
     const context = await this.managedContext();
-    if (!context) return false;
-    const [output, registry] = await Promise.all([
-      this.compose(context, ['config', '--hash', 'registry']),
-      this.docker.inspectManagedRegistry(),
-    ]);
+    if (!context) return null;
+    const output = await this.compose(context, ['config', '--hash', 'registry']);
     const hash = /^registry\s+([0-9a-f]+)\s*$/m.exec(output)?.[1];
     if (!hash) throw new Error('docker compose printed no definition hash for the registry');
-    return hash !== registry.Config.Labels?.['com.docker.compose.config-hash'];
-  }
-
-  /** Recreates the registry from docker-compose.yml; the caller waits until it serves. */
-  async recreateRegistryFromDefinition(): Promise<void> {
-    const context = await this.managedContext();
-    if (!context) throw new Error('the registry is not installer-managed');
-    await this.compose(context, ['up', '-d', '--no-deps', '--force-recreate', 'registry']);
+    if (hash === context.registryConfigHash) return null;
+    return async () => {
+      await this.compose(context, ['up', '-d', '--no-deps', '--force-recreate', 'registry']);
+    };
   }
 
   /** The installation context, or null on a host that is not installer-managed (development). */

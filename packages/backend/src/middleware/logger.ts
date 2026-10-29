@@ -7,6 +7,8 @@ import { requestStats } from '@/modules/diagnostics/request-stats.js';
 import type { AppEnv } from '@/types.js';
 
 const DOCKER_WEBHOOK_TOKEN_PATH = /^(\/api\/webhooks\/docker\/)[^/]+(?=\/|$)/;
+/** Log producers post here several times a second: their arrival is logged at debug, their outcome as usual. */
+const LOG_INGEST_PATHS: ReadonlySet<string> = new Set(['/api/logging/ingest', '/api/logging/ingest/batch']);
 
 export function redactRequestPath(path: string): string {
   return path.replace(DOCKER_WEBHOOK_TOKEN_PATH, '$1[REDACTED]').replace(ONE_TIME_LINK_TOKEN_PATH, '$1[REDACTED]');
@@ -18,7 +20,7 @@ export const loggerMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
   const method = c.req.method;
   const path = redactRequestPath(c.req.path);
 
-  logger.info('Incoming request', {
+  logger[LOG_INGEST_PATHS.has(path) ? 'debug' : 'info']('Incoming request', {
     requestId,
     method,
     path,
@@ -40,11 +42,11 @@ export const loggerMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
   const duration = Date.now() - start;
   const status = c.res.status;
 
-  // A feature switched off is an expected answer, not an error of this server (see the error handler): it is
-  // tallied with the client errors (any 4xx counts alike).
+  // A feature switched off is an expected answer, not a request this server served (see the error handler): it stays
+  // out of the request statistics.
   const featureOff = c.get('featureOffRefusal') === true;
   // A protocol switch (WebSocket) is not a request that completes, so it would skew latency.
-  if (status !== 101) requestStats.record(matchedRoutePath(c), featureOff ? 400 : status, duration);
+  if (status !== 101 && !featureOff) requestStats.record(matchedRoutePath(c), status, duration);
 
   const logLevel = featureOff ? 'debug' : status >= 500 ? 'error' : status >= 400 ? 'warn' : 'info';
 

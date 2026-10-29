@@ -2171,7 +2171,7 @@ export async function initializeContainer(): Promise<void> {
     composeProjectDir: env.COMPOSE_PROJECT_DIR,
     // Registered further down; until then (a maintenance run recovered at start) an update counts as running.
     updateInProgress: async () =>
-      !container.isRegistered(UpdateService) || container.resolve(UpdateService).updateSidecarRunning(),
+      !container.isRegistered(UpdateService) || container.resolve(UpdateService).updateUnderWay(),
   });
   dockerInternalRegistryService.setExecutor(
     createDockerRegistryMaintenanceExecutor(dockerService, dockerRegistryTokenService, {

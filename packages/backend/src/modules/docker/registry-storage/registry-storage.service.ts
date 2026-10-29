@@ -153,13 +153,22 @@ export class DockerRegistryStorageService {
   }
 
   /**
-   * The registry definition the maintenance run applies. Not while an update runs: its rollback restores the previous
-   * Compose files, and the registry would keep the abandoned release's definition.
+   * The registry definition the maintenance run applies. Not while an update is under way: its rollback restores the
+   * previous Compose files, and the registry would keep the abandoned release's definition. An update that starts while
+   * the writes drain stops the recreate too.
    */
   registryDefinition(): RegistryDefinition {
+    const updateUnderWay = async () => (await this.deps.updateInProgress?.()) === true;
     return {
-      changed: async () => !(await this.deps.updateInProgress?.()) && (await this.host.registryDefinitionChanged()),
-      recreate: () => this.host.recreateRegistryFromDefinition(),
+      pendingRecreate: async () => {
+        if (await updateUnderWay()) return null;
+        const recreate = await this.host.pendingDefinitionRecreate();
+        if (!recreate) return null;
+        return async () => {
+          if (await updateUnderWay()) throw new Error('an Opfield update started');
+          await recreate();
+        };
+      },
     };
   }
 

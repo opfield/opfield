@@ -957,8 +957,21 @@ export class UpdateService {
     return hasLegacyLayout({ composeDir, composeProject, databaseUrl: this.env.DATABASE_URL });
   }
 
+  /**
+   * Whether an Opfield or Relay Pool update runs or has not settled: until then the Compose files may still change or
+   * roll back.
+   */
+  async updateUnderWay(): Promise<boolean> {
+    return (
+      this.opfieldUpdateInProgress ||
+      (await this.isRelayUpdateRunning()) ||
+      (await this.readOpfieldUpdateAttempt()) !== null ||
+      (await this.updateSidecarRunning())
+    );
+  }
+
   /** Whether an update sidecar (of this release or an earlier one) still runs. */
-  async updateSidecarRunning(): Promise<boolean> {
+  private async updateSidecarRunning(): Promise<boolean> {
     const containers = await this.dockerService.listLocalContainers();
     let composeDir: string | null | undefined;
     for (const item of containers) {
@@ -970,8 +983,11 @@ export class UpdateService {
       // on the Compose directory. The plain tag, which CI jobs run as well, counts only with a sidecar's mounts.
       if (PINNED_SIDECAR_IMAGE.test(item.Image)) return true;
       if (composeDir === undefined) composeDir = await this.composeDirectory();
+      // The mounts first: they rule out nearly every container without inspecting it.
       if (!composeDir || !hasUpdateSidecarMounts(item.Mounts, composeDir)) continue;
-      if (UNLABELLED_SIDECAR_IMAGE.test(await this.createdImage(item))) return true;
+      if (isUnlabelledUpdateSidecar({ image: await this.createdImage(item), mounts: item.Mounts }, composeDir)) {
+        return true;
+      }
     }
     return false;
   }
@@ -1172,7 +1188,9 @@ export class UpdateService {
         if (!labelled) {
           // The mounts first: they rule out nearly every container without inspecting it.
           if (!composeDir || !hasUpdateSidecarMounts(item.Mounts, composeDir)) continue;
-          if (!UNLABELLED_SIDECAR_IMAGE.test(await this.createdImage(item))) continue;
+          if (!isUnlabelledUpdateSidecar({ image: await this.createdImage(item), mounts: item.Mounts }, composeDir)) {
+            continue;
+          }
         }
         await this.dockerService
           // Never forced: a container that started meanwhile stays.

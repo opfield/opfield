@@ -101,10 +101,8 @@ const logger = createChildLogger('DockerRegistryMaintenance');
  * older release keeps that release's definition (its log rotation and level, say) until it is recreated.
  */
 export interface RegistryDefinition {
-  /** Whether the running registry predates the definition and may be recreated now. */
-  changed(): Promise<boolean>;
-  /** Recreates the registry from the definition. */
-  recreate(): Promise<void>;
+  /** How to recreate the registry from its current definition; null when it runs that one or may not be recreated now. */
+  pendingRecreate(): Promise<(() => Promise<void>) | null>;
 }
 
 export function createDockerRegistryMaintenanceExecutor(
@@ -119,22 +117,24 @@ export function createDockerRegistryMaintenanceExecutor(
   const registryUrl = options.registryUrl ?? (process.env.OPFIELD_INTERNAL_REGISTRY_URL || 'http://registry:5000');
   const wait =
     options.wait ?? ((milliseconds: number) => new Promise<void>((resolve) => setTimeout(resolve, milliseconds)));
-  // A definition that cannot be checked or applied leaves the registry as it is: the run restarts it as before.
-  const definitionChanged = async () =>
-    (await options.registryDefinition?.changed().catch((error: Error) => {
+  // A definition that cannot be checked leaves the registry as it is: the run restarts it as before.
+  const pendingRecreate = async () =>
+    (await options.registryDefinition?.pendingRecreate().catch((error: Error) => {
       logger.warn('The registry definition could not be checked; the registry is restarted as before', {
         error: error.message,
       });
-      return false;
-    })) ?? false;
-  const recreateOrRestart = async (changed: boolean) => {
-    if (changed && options.registryDefinition) {
+      return null;
+    })) ?? null;
+  const recreateOrRestart = async (recreate: (() => Promise<void>) | null) => {
+    if (recreate) {
       try {
-        await options.registryDefinition.recreate();
+        await recreate();
         logger.info('The registry was recreated from its current definition');
         return;
       } catch (error) {
-        logger.warn('The registry could not be recreated from its current definition; it is restarted instead', {
+        // A definition that fails to start leaves no registry to restart: the run then fails and reports it, as a
+        // failed storage switch does. Anything refused before that restarts the registry as before.
+        logger.warn('The registry was not recreated from its current definition; it is restarted instead', {
           error: (error as Error).message,
         });
       }
@@ -254,10 +254,13 @@ export function createDockerRegistryMaintenanceExecutor(
     purgeStaleUploads: (olderThanMinutes) => docker.purgeManagedRegistryUploads(olderThanMinutes),
     pauseAdmissions: async () => undefined,
     drainUploads: async () => {
-      // The definition is checked while the writes drain, so the check does not lengthen the pause.
-      const [changed] = await Promise.all([definitionChanged(), wait(REGISTRY_WRITE_DRAIN_GRACE_MS)]);
+      const drained = wait(REGISTRY_WRITE_DRAIN_GRACE_MS);
+      // Checked while the writes drain; a check still running when the drain ends counts as "unchanged", so it never
+      // lengthens the pause.
+      const recreate = await Promise.race([pendingRecreate(), drained.then(() => null)]);
+      await drained;
       // The restart that ends open uploads also takes up a definition the running registry predates.
-      await recreateOrRestart(changed);
+      await recreateOrRestart(recreate);
       await waitUntilRegistryReady();
     },
     deleteManifest: async (repository, digest) => {
