@@ -21,7 +21,10 @@ describe('DaemonUpdateService.checkForUpdates', () => {
   afterEach(() => vi.unstubAllGlobals());
 
   /** Drizzle as checkForUpdates uses it: node rows, the local relay, and the settings it writes. */
-  function fakeDb(nodeRows: Array<{ type: string; daemonVersion: string | null }>, localRelay: string | null) {
+  function fakeDb(
+    nodeRows: Array<{ type: string; daemonVersion: string | null; status?: string }>,
+    localRelay: string | null
+  ) {
     const written = new Map<string, string>();
     const rowsOf = (table: unknown) =>
       table === nodes
@@ -92,6 +95,21 @@ describe('DaemonUpdateService.checkForUpdates', () => {
     // The pool runs the newest release on the feed: that is the relays' latest.
     expect(written.get('daemon-update:relay:latest_version')).toBe('v2.12.1-rc.3');
     expect(written.get('daemon-update:docker:latest_version')).toBe('v2.12.1-rc.4');
+  });
+
+  it('stages a type from its online nodes, not from an old offline one', async () => {
+    const { db, written } = fakeDb(
+      [
+        { type: 'docker', daemonVersion: 'v2.12.6', status: 'offline' },
+        { type: 'docker', daemonVersion: 'v2.12.8', status: 'online' },
+      ],
+      null
+    );
+    resolver({ 'docker-daemon@v2.12.6': 'v2.12.8-docker', 'docker-daemon@v2.12.8': 'v2.13.0-rc.1-docker' });
+
+    await service(db).checkForUpdates();
+
+    expect(written.get('daemon-update:docker:latest_version')).toBe('v2.13.0-rc.1');
   });
 
   it("takes the pool's next release when the feed has one", async () => {

@@ -417,8 +417,8 @@ export function daemonTypeForNodeType(nodeType: string): DaemonType | null {
 }
 
 /**
- * The version the release resolver stages the next release of a daemon type from: the oldest version its nodes
- * report, or, for relays, the release their pool runs. A Relay Pool update moves every relay to the pool's next
+ * The version the release resolver stages the next release of a daemon type from: the oldest version its online
+ * nodes report (all of them when none is online), or, for relays, the release their pool runs. A Relay Pool update moves every relay to the pool's next
  * release, so an old relay (one offline for a while) must not hold the whole type on its own line.
  */
 export function daemonUpdateBaseline(
@@ -523,8 +523,12 @@ export class DaemonUpdateService {
       for (const type of DAEMON_TYPES) {
         const suffix = TAG_SUFFIX_MAP[type];
         const poolVersion = type === 'relay' ? relayPool : null;
+        const typeNodes = allNodes.filter((node) => NODE_TYPE_MAP[node.type] === type);
+        // An offline node (gone for good but never deleted, or down for a while) held every online node of its type
+        // on its own old line. It takes the staged releases from its own version once it is back.
+        const onlineNodes = typeNodes.filter((node) => node.status === 'online');
         const currentVersion = daemonUpdateBaseline(
-          allNodes.filter((node) => NODE_TYPE_MAP[node.type] === type).map((node) => node.daemonVersion),
+          (onlineNodes.length > 0 ? onlineNodes : typeNodes).map((node) => node.daemonVersion),
           poolVersion
         );
         const release = currentVersion

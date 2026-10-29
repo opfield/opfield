@@ -212,6 +212,9 @@ export type DockerSnapshotReadBack = (
   change?: { volume: string; removed?: boolean }
 ) => Promise<void>;
 
+/** See DockerSnapshotReconciler.readBackRecreatedContainer. */
+export type DockerRecreateReadBack = (nodeId: string, name: string, newId: string, oldId: string) => Promise<void>;
+
 export class DockerManagementService {
   private static readonly LONG_DOCKER_OPERATION_TIMEOUT_MS = 600000; // 10 minutes
 
@@ -224,6 +227,7 @@ export class DockerManagementService {
 
   private taskService?: DockerTaskService;
   private snapshotReadBack?: DockerSnapshotReadBack;
+  private recreateReadBack?: DockerRecreateReadBack;
   private environmentService?: DockerEnvironmentService;
   private runtimeSettingsService?: DockerRuntimeSettingsService;
   private secretService?: DockerSecretService;
@@ -289,6 +293,19 @@ export class DockerManagementService {
   /** Reads a changed volume or network list back into the snapshots before a create or remove answers. */
   setSnapshotReadBack(readBack: DockerSnapshotReadBack): void {
     this.snapshotReadBack = readBack;
+  }
+
+  /** Reads a recreated container back into the snapshots before the recreate's transition clears. */
+  setRecreateReadBack(readBack: DockerRecreateReadBack): void {
+    this.recreateReadBack = readBack;
+  }
+
+  /**
+   * Reads a recreated container back into the snapshots: a caller that waited for the replacement itself (by a live
+   * inspect) calls it before it answers, so a read right after the answer finds the replacement.
+   */
+  async readBackRecreatedContainer(nodeId: string, name: string, newId: string, oldId: string): Promise<void> {
+    await this.recreateReadBack?.(nodeId, name, newId, oldId);
   }
 
   protected async readBackSnapshot(...args: Parameters<DockerSnapshotReadBack>): Promise<void> {
@@ -719,6 +736,8 @@ export class DockerManagementService {
       failTask: (taskId, error, nodeId, containerName) => this.failTask(taskId, error, nodeId, containerName),
       preserveContainerIdentity: (nodeId, name, runtimeId) =>
         this.accessResourceService?.preserveContainerRuntimeId(nodeId, name, runtimeId) ?? Promise.resolve(),
+      readBackRecreatedContainer: (nodeId, name, newId, oldId) =>
+        this.readBackRecreatedContainer(nodeId, name, newId, oldId),
     };
   }
 

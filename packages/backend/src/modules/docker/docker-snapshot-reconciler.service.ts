@@ -223,6 +223,26 @@ export class DockerSnapshotReconciler {
     }
   }
 
+  /**
+   * Reads a recreated container back from its node before its recreate answers: the list, and its cached inspect
+   * under the name, which still described the removed container until the queued refresh ran. A read right after a
+   * binding or environment change got the removed container's id, and an action on that id answered 404. A failed
+   * read is left to the refresh the container's event queues.
+   */
+  async readBackRecreatedContainer(nodeId: string, name: string, newId: string, oldId: string): Promise<void> {
+    try {
+      await this.finalizeContainerRecreate(nodeId, newId);
+      if (oldId && oldId !== newId) await this.snapshots.deleteDetails(nodeId, 'container-detail', [oldId]);
+      await this.refreshNow(nodeId, 'container-detail', name);
+    } catch (error) {
+      logger.debug('Docker recreated container read-back failed', {
+        nodeId,
+        name,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
   async finalizeContainerRecreate(nodeId: string, newContainerId: string): Promise<void> {
     if (this.snapshots.isNodeDeleted(nodeId)) return;
     const result = await this.dispatch.sendDockerContainerCommand(nodeId, 'list', {}, DAEMON_TIMEOUT_MS);

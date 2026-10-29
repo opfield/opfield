@@ -1,5 +1,13 @@
 import { z } from '@hono/zod-openapi';
-import { appRoute, createdJson, IdParamSchema, jsonBody, okJson, UnknownDataResponseSchema } from '@/lib/openapi.js';
+import {
+  appRoute,
+  createdJson,
+  IdParamSchema,
+  jsonBody,
+  okJson,
+  UnknownDataResponseSchema,
+  withDocumentedConditionals,
+} from '@/lib/openapi.js';
 import {
   AlertListQuerySchema,
   AlertRuleListQuerySchema,
@@ -8,6 +16,24 @@ import {
 } from './notification-alert-rule.schemas.js';
 import { CreateWebhookSchema, UpdateWebhookSchema, WebhookListQuerySchema } from './notification-webhook.schemas.js';
 
+/** The create body with the fields each rule type requires (enforced by the schema's refinements). */
+const CreateAlertRuleDocumentedSchema = withDocumentedConditionals(CreateAlertRuleSchema, [
+  {
+    when: { properties: { type: { const: 'threshold' } } },
+    requires: { required: ['metric', 'operator', 'thresholdValue'] },
+  },
+  { when: { properties: { type: { const: 'event' } } }, requires: { required: ['eventPattern'] } },
+  {
+    when: {
+      required: ['category', 'type'],
+      properties: { category: { const: 'hosting_account' }, type: { const: 'threshold' } },
+    },
+    requires: {
+      required: ['metricTarget'],
+      properties: { metric: { enum: ['balance', 'monthly_expenses'] }, metricTarget: { pattern: '^[A-Z]{3}$' } },
+    },
+  },
+]);
 export const listNotificationCategoriesRoute = appRoute({
   method: 'get',
   path: '/categories',
@@ -61,7 +87,7 @@ export const createNotificationAlertRuleRoute = appRoute({
   summary: 'Create a notification alert rule',
   description:
     'Required by type (400 VALIDATION_ERROR otherwise): type threshold needs metric, operator and thresholdValue (a hosting_account threshold: metric balance or monthly_expenses and a three-letter currency in metricTarget); type event needs eventPattern.',
-  request: jsonBody(CreateAlertRuleSchema),
+  request: jsonBody(CreateAlertRuleDocumentedSchema),
   responses: createdJson(UnknownDataResponseSchema),
 });
 

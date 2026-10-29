@@ -1135,6 +1135,9 @@ async function crossLane(ctx: MatrixContext, docker: DockerState, storage: Recor
         forwardScheme: upstream.protocol === 'https:' ? 'https' : 'http',
         forwardHost: upstream.hostname,
         forwardPort: Number(upstream.port || (upstream.protocol === 'https:' ? 443 : 80)),
+        // Opfield answers only its own host: the route sends it instead of the test domain, as a route in front of an
+        // Opfield reached by its public address does.
+        customHeaders: [{ name: 'Host', value: upstream.host }],
       });
       expectOk(route, 'route in front of the Opfield API');
       const routeId = String(data<any>(route)?.id);

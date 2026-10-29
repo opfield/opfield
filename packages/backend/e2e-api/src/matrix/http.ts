@@ -22,6 +22,8 @@ export type CallRecord = { method: string; template: string; status: number; ms:
 
 /** Every request of the run goes through here, so the global "no 5xx anywhere" invariant sees all of them. */
 export class MatrixClient {
+  /** Configuration-state 503 codes already noted. */
+  private readonly configStates = new Set<string>();
   readonly calls: CallRecord[] = [];
 
   constructor(
@@ -109,17 +111,14 @@ export class MatrixClient {
     this.calls.push({ method, template, status: response.status, ms: response.ms, phase: this.report.currentPhase });
     const request = { method, path, body: requestExcerpt(options) };
     const code = errorCode(response) ?? '';
-    // A feature switched off or not configured answers 503 <X>_DISABLED / <X>_NOT_CONFIGURED: one info finding per code.
+    // A feature switched off or not configured answers 503 <X>_DISABLED / <X>_NOT_CONFIGURED by contract (published
+    // clients read these codes): not a finding, one note per code.
     const configState = response.status === 503 && /(DISABLED|NOT_CONFIGURED)$/.test(code);
     if (configState && !options.allow5xx) {
-      this.report.add({
-        severity: 'info',
-        invariant: 'no-5xx',
-        title: `503 ${code} is used for a configuration state (first seen on ${method} ${template})`,
-        dedupeKey: `config-503|${code}`,
-        request,
-        response: { status: response.status, excerpt: excerpt(response.body, response.text) },
-      });
+      if (!this.configStates.has(code)) {
+        this.configStates.add(code);
+        this.report.note(`feature off on this installation: 503 ${code} (first seen on ${method} ${template})`);
+      }
     } else if (response.status >= 500 && !options.allow5xx) {
       this.report.add({
         // 500 is an unhandled error; a 502/503/504 with a specific code is a mapped upstream failure.

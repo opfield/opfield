@@ -1,5 +1,5 @@
 import { type OpenAPIHono, z } from '@hono/zod-openapi';
-import { appRoute, jsonBody, pathParamSchema } from '@/lib/openapi.js';
+import { appRoute, jsonBody, pathParamSchema, withDocumentedConditionals } from '@/lib/openapi.js';
 import {
   CreateHostingConnectorSchema,
   DiscoverHostingConnectorSchema,
@@ -9,6 +9,7 @@ import {
   UpdateHostingConnectorSchema,
 } from '@/modules/hosting/hosting.schemas.js';
 import { HostingFirewallUpdateSchema } from '@/modules/hosting/hosting-firewall.types.js';
+import { PROVIDER_ORIGINS } from '@/modules/hosting/hosting-http.js';
 import { HostingSnapshotInputSchema } from '@/modules/hosting/hosting-snapshots.service.js';
 import type { AppEnv } from '@/types.js';
 
@@ -45,6 +46,18 @@ const SnapshotFolderActionSchema = z
 const PERMISSIONS =
   'Needs the hosting permissions of the connector or resource (integrations and hosting:resources:* scopes).';
 
+/** The create body with what each provider requires: its official API origin, or a Proxmox token ID. */
+const CreateHostingConnectorDocumentedSchema = withDocumentedConditionals(CreateHostingConnectorSchema, [
+  ...Object.entries(PROVIDER_ORIGINS).map(([provider, origin]) => ({
+    when: { properties: { provider: { const: provider } } },
+    requires: { properties: { baseUrl: { const: origin } } },
+  })),
+  {
+    when: { properties: { provider: { const: 'proxmox' } } },
+    requires: { required: ['settings'], properties: { settings: { required: ['tokenId'] } } },
+  },
+]);
+
 const integrationRoutes = [
   appRoute({
     method: 'get',
@@ -58,7 +71,7 @@ const integrationRoutes = [
     path: '/test',
     tags: [TAG],
     summary: 'Test a hosting connector before saving it',
-    request: jsonBody(CreateHostingConnectorSchema),
+    request: jsonBody(CreateHostingConnectorDocumentedSchema),
     responses: ok('The provider check'),
   }),
   appRoute({
@@ -74,7 +87,7 @@ const integrationRoutes = [
     path: '/',
     tags: [TAG],
     summary: 'Create a hosting connector',
-    request: jsonBody(CreateHostingConnectorSchema),
+    request: jsonBody(CreateHostingConnectorDocumentedSchema),
     responses: created('The connector (without its token)'),
   }),
   appRoute({

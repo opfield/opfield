@@ -1,5 +1,13 @@
 import { z } from '@hono/zod-openapi';
-import { appRoute, createdJson, IdParamSchema, jsonBody, okJson, UnknownDataResponseSchema } from '@/lib/openapi.js';
+import {
+  appRoute,
+  createdJson,
+  IdParamSchema,
+  jsonBody,
+  okJson,
+  UnknownDataResponseSchema,
+  withDocumentedConditionals,
+} from '@/lib/openapi.js';
 import {
   CreateResourceFolderSchema,
   MoveResourceFolderSchema,
@@ -22,6 +30,23 @@ import {
 } from './object-storage.schemas.js';
 
 const TAG = 'Object Storage';
+
+/** The create body with the connection fields each provider requires (enforced by the schema's refinement). */
+const CreateObjectStorageConnectionDocumentedSchema = withDocumentedConditionals(CreateObjectStorageConnectionSchema, [
+  {
+    when: { properties: { provider: { enum: ['ftp', 'ftps', 'sftp'] } } },
+    requires: { properties: { config: { required: ['host', 'username'] } } },
+    otherwise: { properties: { config: { required: ['region', 'accessKeyId', 'secretAccessKey'] } } },
+  },
+  {
+    when: { properties: { provider: { const: 'sftp' } } },
+    requires: {
+      properties: {
+        config: { required: ['hostKeyFingerprint'], anyOf: [{ required: ['password'] }, { required: ['privateKey'] }] },
+      },
+    },
+  },
+]);
 export const BucketQuerySchema = z.object({ bucket: z.string().min(1).max(255) });
 
 // ── Connections ─────────────────────────────────────────────────────
@@ -42,7 +67,7 @@ export const createObjectStorageConnectionRoute = appRoute({
   summary: 'Create an object storage connection',
   description:
     'Required by provider (400 VALIDATION_ERROR otherwise): an S3 provider (aws and every other S3-compatible one) needs config.region, config.accessKeyId and config.secretAccessKey; ftp and ftps need config.host and config.username (an empty password is allowed for anonymous servers); sftp needs config.host, config.username, config.hostKeyFingerprint (SHA256:...) and config.password or config.privateKey.',
-  request: jsonBody(CreateObjectStorageConnectionSchema),
+  request: jsonBody(CreateObjectStorageConnectionDocumentedSchema),
   responses: createdJson(UnknownDataResponseSchema),
 });
 

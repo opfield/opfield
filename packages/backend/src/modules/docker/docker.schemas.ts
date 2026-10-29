@@ -24,7 +24,9 @@ const DockerPortBindIpSchema = z.string().ip().default('0.0.0.0');
 const DockerFilePathSchema = z
   .string()
   .min(1)
-  .refine((path) => path.startsWith('/'), 'Path must be absolute')
+  // A pattern, not a refinement: the OpenAPI document carries it, so a client building the body from it sends an
+  // absolute path.
+  .regex(/^\//, 'Path must be absolute')
   .refine((path) => !path.split('/').includes('..'), "Path must not contain '..'")
   .describe('Absolute path: starts with "/" and has no ".." segment');
 
