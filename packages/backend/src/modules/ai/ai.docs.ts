@@ -1,5 +1,6 @@
 import { hasScopeBase } from '@/lib/permissions.js';
 import { ACCESS_LIST_DOCS } from './ai.docs.access-lists.js';
+import { ACCESS_SIGN_IN_DOCS } from './ai.docs.access-sign-in.js';
 import { APP_DOCS } from './ai.docs.apps.js';
 import { CONNECTIVITY_DOCS } from './ai.docs.connectivity.js';
 import { FOUNDATION_DOCS } from './ai.docs.foundation.js';
@@ -13,6 +14,7 @@ import { PLATFORM_DOCS } from './ai.docs.platform.js';
 export const INTERNAL_DOCS: Record<string, string> = {
   ...FOUNDATION_DOCS,
   ...ACCESS_LIST_DOCS,
+  ...ACCESS_SIGN_IN_DOCS,
   ...INGRESS_GROUP_DOCS,
   ...APP_DOCS,
   ...INFRASTRUCTURE_DOCS,
@@ -49,6 +51,7 @@ export const DOC_TOPIC_SCOPES: Record<string, string | string[]> = {
     'pages:view',
   ],
   'access-lists': 'acl:view',
+  'access-sign-in': ['acl:view', 'acl:edit', 'admin:system'],
   templates: 'pki:templates:view',
   acme: 'ssl:cert:view',
   users: 'admin:users',

@@ -9,6 +9,7 @@ import type {
   CommandResult,
   OpfieldCommand,
   ProxyMaintenanceFlag,
+  SyncAccessPolicyCommand,
   RelayGrantAssignment as WireRelayGrantAssignment,
 } from '@/grpc/generated/types.js';
 import { createChildLogger } from '@/lib/logger.js';
@@ -739,6 +740,19 @@ export class NodeDispatchService {
       { syncRelayPolicy: { applySnapshotRequest, revision, expiresAtUnix } },
       timeoutMs
     );
+  }
+
+  /**
+   * Pushes the full access policy to an nginx node that checks access lists itself (nginx_access_auth_v1); null when
+   * the node does not (it renders access lists as nginx directives).
+   */
+  async sendAccessPolicy(
+    nodeId: string,
+    policy: SyncAccessPolicyCommand,
+    timeoutMs = 30_000
+  ): Promise<CommandResult | null> {
+    if (!this.registry.hasCapability(nodeId, 'nginx_access_auth_v1')) return null;
+    return this.registry.sendCommand(nodeId, { syncAccessPolicy: policy }, timeoutMs);
   }
 
   async setRelayDrain(

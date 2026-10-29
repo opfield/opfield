@@ -625,6 +625,24 @@ const COMPOSITE_OPERATION_POLICIES: Record<
       delete: ['environment.delete', 'schema.delete', 'token.delete'],
     }),
   },
+  manage_access_sign_in: {
+    arguments: ['resource', 'operation'],
+    operations: operationPolicies({
+      read: [
+        'settings.get',
+        'identity_providers.list',
+        'identity_providers.get',
+        'service_tokens.list',
+        'service_tokens.get',
+        'sessions.list',
+      ],
+      create: ['identity_providers.create'],
+      update: ['settings.update', 'identity_providers.update', 'service_tokens.update'],
+      delete: ['identity_providers.delete', 'service_tokens.delete', 'sessions.revoke'],
+      // The client secret of a new service token reaches the model.
+      execute: ['service_tokens.create'],
+    }),
+  },
   manage_status_page: {
     arguments: ['resource', 'operation'],
     operations: operationPolicies({

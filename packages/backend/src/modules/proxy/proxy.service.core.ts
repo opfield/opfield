@@ -132,6 +132,13 @@ export interface StatusPageSystemHostInput {
   upstreamUrl?: string | null;
 }
 
+/** System routes proxied to Opfield itself: the public status page and the access sign-in domain. */
+export type BackendSystemHostKind = 'status_page' | 'access_sign_in';
+export const BACKEND_SYSTEM_HOST_LABELS: Record<BackendSystemHostKind, string> = {
+  status_page: 'status page',
+  access_sign_in: 'access sign-in',
+};
+
 export interface RegistrySystemHostInput {
   domain: string;
   nodeId: string;
