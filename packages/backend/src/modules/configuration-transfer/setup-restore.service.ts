@@ -5,6 +5,7 @@ import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import type { ReadableStream as WebReadableStream } from 'node:stream/web';
 import { DOCKER_COMPOSE_CLI_IMAGE_REF } from '@/config/docker-compose-cli-image.js';
+import { composeDirectoryOf } from '@/lib/compose-directory.js';
 import { LEGACY_VOLUME_APP_DATA } from '@/lib/legacy-compat.js';
 import { createChildLogger } from '@/lib/logger.js';
 import { AppError } from '@/middleware/error-handler.js';
@@ -210,7 +211,7 @@ export class SetupRestoreService {
     const self = await this.docker.inspectSelf();
     const labels = self.Config.Labels ?? {};
     const project = labels['com.docker.compose.project'];
-    const composeDir = this.env.COMPOSE_PROJECT_DIR || labels['com.docker.compose.project.working_dir'];
+    const composeDir = composeDirectoryOf(this.env, labels);
     if (!project || !/^[a-zA-Z0-9_.-]+$/.test(project) || !composeDir || !/^\/[a-zA-Z0-9/_.-]+$/.test(composeDir)) {
       throw new AppError(409, 'SETUP_RESTORE_UNAVAILABLE', 'Opfield cannot find its Docker Compose installation');
     }

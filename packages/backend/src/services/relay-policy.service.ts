@@ -307,6 +307,17 @@ function relayRoutePolicy(
   return { disableIdleTimeout: false, trafficClass: 'database' };
 }
 
+/** A grant refresh some daemons refused; `nodeIds` (sorted) tells one pending refresh from another. */
+export class GrantRefreshPendingError extends Error {
+  constructor(
+    readonly nodeIds: string[],
+    message: string
+  ) {
+    super(message);
+    this.name = 'GrantRefreshPendingError';
+  }
+}
+
 const GRANT_REFRESH_FAILURE_NODES_NAMED = 3;
 const GRANT_REFRESH_FAILURE_REASONS_NAMED = 3;
 
@@ -322,7 +333,8 @@ export function describeGrantRefreshFailures(failures: Array<{ nodeId: string; r
     if (!nodeIds) byReason.set(reason, (nodeIds = []));
     nodeIds.push(failure.nodeId);
   }
-  const reasons = [...byReason].sort((a, b) => b[1].length - a[1].length);
+  for (const nodeIds of byReason.values()) nodeIds.sort();
+  const reasons = [...byReason].sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0]));
   const described = reasons.slice(0, GRANT_REFRESH_FAILURE_REASONS_NAMED).map(([reason, nodeIds]) => {
     const named = nodeIds.slice(0, GRANT_REFRESH_FAILURE_NODES_NAMED).join(', ');
     const more = nodeIds.length - GRANT_REFRESH_FAILURE_NODES_NAMED;
@@ -564,7 +576,7 @@ export class RelayPolicyService {
   private lastLocalPolicyTrustResetAt = 0;
   private lastLocalPolicyLossSyncAt = 0;
   /** The pending grant refresh last reported; see reportPendingGrantRefresh. */
-  private pendingGrantRefresh: { message: string; reportedAt: number } | null = null;
+  private pendingGrantRefresh: { key: string; reportedAt: number } | null = null;
   private initialAssignmentPlanner?: (
     endpointId: string
   ) => Promise<Array<{ relayInstanceId: string; role: RelayAssignmentRole }> | null>;
@@ -1671,12 +1683,14 @@ export class RelayPolicyService {
    */
   private reportPendingGrantRefresh(error: unknown, now = Date.now()): void {
     const message = error instanceof Error ? error.message : String(error);
+    // The same daemons refusing again is the same pending refresh, whatever revision their reasons name.
+    const key = error instanceof GrantRefreshPendingError ? error.nodeIds.join(',') : message;
     const last = this.pendingGrantRefresh;
-    if (last?.message === message && now - last.reportedAt < PENDING_GRANT_REFRESH_REPORT_MS) {
+    if (last?.key === key && now - last.reportedAt < PENDING_GRANT_REFRESH_REPORT_MS) {
       logger.debug('Relay policy reconciled but some daemon grant bundles remain pending', { error: message });
       return;
     }
-    this.pendingGrantRefresh = { message, reportedAt: now };
+    this.pendingGrantRefresh = { key, reportedAt: now };
     logger.info('Relay policy reconciled but some daemon grant bundles remain pending', { error: message });
   }
 
@@ -3278,7 +3292,8 @@ export class RelayPolicyService {
     }
     if (failures.length) {
       // Name each daemon and why it refused: a count alone leaves a failure that repeats every pass undiagnosable.
-      throw new Error(
+      throw new GrantRefreshPendingError(
+        failures.map((failure) => failure.nodeId).sort(),
         `Failed to refresh relay grants for ${failures.length} daemon(s): ${describeGrantRefreshFailures(failures)}`
       );
     }

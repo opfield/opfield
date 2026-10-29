@@ -57,6 +57,8 @@ export class OpfieldLogQueue {
     }
 
     this.events.push(event);
+    // While paused the flush interval sends again once the pause is over; a flush per log would only return.
+    if (Date.now() < this.pausedUntil) return;
 
     if (this.events.length >= this.options.maxBatchSize) {
       this.scheduleFlush(0);

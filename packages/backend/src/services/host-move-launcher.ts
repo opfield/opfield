@@ -11,6 +11,7 @@ import {
   OPFIELD_COMPOSE_PROJECT,
   OPFIELD_DATABASE,
 } from '@/foundation/opfield-names.js';
+import { composeDirectoryOf } from '@/lib/compose-directory.js';
 import { createChildLogger } from '@/lib/logger.js';
 import type { DockerCreateContainerConfig, DockerService } from './docker.service.js';
 
@@ -55,14 +56,6 @@ export type HostMoveLaunchDecision =
   | { launch: true; retry: boolean; removeContainer: boolean };
 
 /** Whether the installation still uses (part of) the layout of the releases before 2.12.1. */
-/** The installation's Compose directory: the configured one, else the one Compose started this container from. */
-export function composeDirectoryOf(
-  env: { COMPOSE_PROJECT_DIR?: string },
-  labels: Record<string, string> | undefined
-): string | null {
-  return env.COMPOSE_PROJECT_DIR || labels?.['com.docker.compose.project.working_dir'] || null;
-}
-
 export function hasLegacyLayout(input: { composeDir: string; composeProject: string; databaseUrl: string }): boolean {
   return (
     path.basename(input.composeDir) === LEGACY_INSTALL_DIR_NAME ||

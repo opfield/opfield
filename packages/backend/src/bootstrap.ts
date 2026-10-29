@@ -2178,6 +2178,8 @@ export async function initializeContainer(): Promise<void> {
     await dockerInternalRegistryService.recoverInterruptedMaintenance().catch((error) => {
       logger.error('Failed to recover interrupted internal registry maintenance', { error });
     });
+    // In the background: the registry keeps serving unless its definition changed.
+    void dockerRegistryStorageService.applyDefinitionAfterStart();
   }
   container.registerInstance(DockerService, dockerService);
   container.registerInstance(DockerRegistryStorageService, dockerRegistryStorageService);

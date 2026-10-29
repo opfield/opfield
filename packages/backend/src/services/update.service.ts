@@ -22,6 +22,7 @@ import {
   LEGACY_FOUNDATION_BACKUPS_DIR,
   OPFIELD_INSTALL_DIR_NAME,
 } from '@/foundation/opfield-names.js';
+import { composeDirectoryOf } from '@/lib/compose-directory.js';
 import {
   LEGACY_APP_IMAGE_MANIFEST_ASSET,
   LEGACY_INSTALL_DIR_NAME,
@@ -50,7 +51,7 @@ import {
 import { AppError } from '@/middleware/error-handler.js';
 import type { GeneralSettingsService, UpdateChannel } from '@/modules/settings/general-settings.service.js';
 import { type DockerContainerListItem, type DockerService, ONE_SHOT_LABEL } from './docker.service.js';
-import { composeDirectoryOf, HOST_MOVE_ROLE, HostMoveLauncher, hasLegacyLayout } from './host-move-launcher.js';
+import { HOST_MOVE_ROLE, HostMoveLauncher, hasLegacyLayout } from './host-move-launcher.js';
 import {
   type OrchestrationActivitySource,
   type PendingOrchestrationOperation,
@@ -150,6 +151,8 @@ const LEGACY_UPDATE_SIDECAR_ROLE = LEGACY_UPDATE_SIDECAR_NAME;
 const FINISHED_CONTAINER_ROLES: readonly string[] = [UPDATE_SIDECAR_ROLE, LEGACY_UPDATE_SIDECAR_ROLE];
 /** The Docker CLI image of update sidecars started before they were labelled: pinned, or the plain `docker:<n>-cli`. */
 const UNLABELLED_SIDECAR_IMAGE = /^(?:docker\.io\/library\/)?docker:\d+-cli(?:@sha256:[0-9a-f]{64})?$/;
+/** The pinned form only, which no container of a user's own names: it alone marks a running sidecar. */
+const PINNED_SIDECAR_IMAGE = /^docker\.io\/library\/docker:\d+-cli@sha256:[0-9a-f]{64}$/;
 
 /**
  * Whether an unlabelled container is an update sidecar of an older release: the Docker CLI image with exactly the
@@ -957,21 +960,30 @@ export class UpdateService {
       if (role !== undefined && FINISHED_CONTAINER_ROLES.includes(role)) return true;
       // One-off helpers carry their own label and are no update sidecar.
       if (role !== undefined || item.Labels?.[ONE_SHOT_LABEL] !== undefined) continue;
-      if (!UNLABELLED_SIDECAR_IMAGE.test(item.Image)) continue;
-      // An unlabelled Docker CLI container is a sidecar only with the mounts one has (the cleanup's test); without a
-      // known Compose directory it counts as one, so an update never starts beside a running sidecar.
+      const image = await this.createdImage(item);
+      // The pinned CLI image marks a sidecar by itself. The plain tag, which CI jobs run too, counts only with a
+      // sidecar's mounts (the cleanup's test) or when the Compose directory is unknown: an update never starts beside
+      // a running sidecar.
+      if (PINNED_SIDECAR_IMAGE.test(image)) return true;
+      if (!UNLABELLED_SIDECAR_IMAGE.test(image)) continue;
       composeDir ??= await this.composeDirectory();
       if (!composeDir) return true;
-      if (isUnlabelledUpdateSidecar({ image: item.Image, mounts: item.Mounts }, composeDir)) return true;
+      if (isUnlabelledUpdateSidecar({ image, mounts: item.Mounts }, composeDir)) return true;
     }
     return false;
   }
 
   /** This installation's Compose directory; null when it cannot be told. */
   private async composeDirectory(): Promise<string | null> {
-    if (this.env.COMPOSE_PROJECT_DIR) return this.env.COMPOSE_PROJECT_DIR;
-    const self = await this.dockerService.inspectSelf().catch(() => null);
+    const self = this.env.COMPOSE_PROJECT_DIR ? null : await this.dockerService.inspectSelf().catch(() => null);
     return composeDirectoryOf(this.env, self?.Config.Labels);
+  }
+
+  /** The image a listed container was created from: the list shows the bare image ID once that tag moved on. */
+  private async createdImage(item: DockerContainerListItem): Promise<string> {
+    if (!item.Image.startsWith('sha256:')) return item.Image;
+    const details = await this.dockerService.inspectContainerDetails(item.Id).catch(() => null);
+    return details?.Config.Image ?? item.Image;
   }
 
   private async readOpfieldUpdateAttempt(): Promise<OpfieldUpdateAttempt | null> {
@@ -1156,7 +1168,8 @@ export class UpdateService {
         const labelled = kind === 'sidecar';
         if (!labelled) {
           if (!composeDir) continue;
-          if (!isUnlabelledUpdateSidecar({ image: item.Image, mounts: item.Mounts }, composeDir)) continue;
+          const image = await this.createdImage(item);
+          if (!isUnlabelledUpdateSidecar({ image, mounts: item.Mounts }, composeDir)) continue;
         }
         await this.dockerService
           // Never forced: a container that started meanwhile stays.
@@ -1428,17 +1441,6 @@ service_exists() { compose config --services | grep -qx "$1"; }
 ensure_foundation_services() {
   for service in $(compose config --services); do
     [ "$service" = app ] && continue
-    # The other services stay as they run: postgres and redis hold Opfield's state, and recreating them here would
-    # stop it before the snapshot; the relay is recreated by its own drain path. The registry holds no state outside
-    # its volumes: recreate it when its definition changed, or it keeps the first one forever (log rotation and level
-    # included). Compose restarts it only when the definition differs, so
-    # in-flight pushes and pulls are cut only by the rare update that changes it (and by a rollback restoring the old
-    # one), as a registry maintenance run cuts them. A failed recreate never aborts the script by itself, least of
-    # all a rollback: the registry health checks that follow decide whether the update holds.
-    if [ "$service" = registry ]; then
-      compose up -d --no-deps registry || echo "Could not apply the registry definition" >&2
-      continue
-    fi
     compose up -d --no-recreate "$service"
   done
 }

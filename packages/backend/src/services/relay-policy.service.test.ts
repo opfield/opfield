@@ -22,6 +22,7 @@ import { logger } from '@/lib/logger.js';
 import { RelayPolicyNotAcknowledgedError } from './relay-grant-issuer.service.js';
 import {
   describeGrantRefreshFailures,
+  GrantRefreshPendingError,
   LOCAL_POLICY_TRUST_UNSUPPORTED_MESSAGE,
   managedDatabaseListenerConfigsEqual,
   RelayPolicyService,
@@ -1684,6 +1685,15 @@ describe('RelayPolicyService pending grant refresh reports', () => {
       expect(info).toHaveBeenLastCalledWith('Relay policy reconciled but some daemon grant bundles remain pending', {
         error: pending(2),
       });
+      // The same daemons refusing with another revision in their reason stay one pending refresh.
+      const refused = (revision: number) =>
+        new GrantRefreshPendingError(
+          ['node-1'],
+          `Failed to refresh relay grants for 1 daemon(s): revision ${revision}`
+        );
+      (service as any).reportPendingGrantRefresh(refused(1), 400_000);
+      (service as any).reportPendingGrantRefresh(refused(2), 402_000);
+      expect(info).toHaveBeenCalledTimes(4);
     } finally {
       info.mockRestore();
       debug.mockRestore();

@@ -4,6 +4,7 @@ import {
   type RegistryS3Settings,
   type RegistryStorageBackend,
 } from '@/foundation/registry-storage.js';
+import { composeDirectoryOf } from '@/lib/compose-directory.js';
 import { AppError } from '@/middleware/error-handler.js';
 import type { DockerContainerDetails, DockerService } from '@/services/docker.service.js';
 
@@ -76,7 +77,7 @@ export class RegistryStorageHost {
     if (!self) throw unmanaged('Opfield does not run in a Docker container');
     if (!registry) throw unmanaged('the registry container was not found');
     const labels = self.Config.Labels ?? {};
-    const composeDir = this.composeProjectDir || labels['com.docker.compose.project.working_dir'];
+    const composeDir = composeDirectoryOf({ COMPOSE_PROJECT_DIR: this.composeProjectDir }, labels);
     const composeProject = labels['com.docker.compose.project'];
     if (!composeDir || !SAFE_ABSOLUTE_PATH.test(composeDir)) throw unmanaged('the Compose directory is unknown');
     if (!composeProject || !SAFE_PROJECT.test(composeProject)) throw unmanaged('the Compose project is unknown');
@@ -232,6 +233,16 @@ export class RegistryStorageHost {
     if (result.exitCode !== 0) {
       throw new Error(`docker compose ${args[0]} failed: ${result.output.trim().split('\n').slice(-3).join(' ')}`);
     }
+  }
+
+  /**
+   * Starts the registry as docker-compose.yml defines it now: Compose recreates it only when the running one differs
+   * (an older release's definition), then waits until it serves.
+   */
+  async applyRegistryDefinition(context: RegistryStorageHostContext, registryUrl: string): Promise<void> {
+    await this.compose(context, ['config', '--quiet']);
+    await this.compose(context, ['up', '-d', '--no-deps', 'registry']);
+    await this.waitUntilReady(registryUrl);
   }
 
   /** Validates the rewritten files, recreates the registry from them and waits until it serves. */

@@ -288,6 +288,25 @@ export class DockerRegistryStorageService {
     }
   }
 
+  /**
+   * At start-up, when no switch or maintenance holds the registry: updates start the registry with --no-recreate, so
+   * one created by an older release kept that release's definition (no log rotation, debug logs). Compose recreates it
+   * only when docker-compose.yml defines it differently. A failure is logged and changes nothing else.
+   */
+  async applyDefinitionAfterStart(now = new Date()): Promise<void> {
+    try {
+      const context = await this.host.context().catch(() => null);
+      // Not an installer-managed host (development): no Compose definition to apply.
+      if (!context) return;
+      const state = await this.store.getState();
+      const leased = state.maintenanceLeaseOwner && (state.maintenanceLeaseExpiresAt?.getTime() ?? 0) > now.getTime();
+      if (leased) return;
+      await this.host.applyRegistryDefinition(context, this.registryUrl);
+    } catch (error) {
+      logger.warn('The registry could not be started with its current definition', { error: (error as Error).message });
+    }
+  }
+
   /** What the registry, the host files and the switch record show now, and what to do about it. */
   private async observe(context: RegistryStorageHostContext): Promise<RegistryStorageObserved> {
     const record = await readSwitchRecord(this.deps.db);

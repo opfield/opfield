@@ -534,7 +534,6 @@ describe('UpdateService foundation migration', () => {
     expect(sidecarCommand).toContain('for service in $(compose config --services); do');
     expect(sidecarCommand).toContain('[ "$service" = app ] && continue');
     expect(sidecarCommand).toContain('compose up -d --no-recreate "$service"');
-    expect(sidecarCommand).toContain('compose up -d --no-deps registry || echo');
     expect(sidecarCommand).toContain('registry_ready()');
     expect(sidecarCommand).toContain('sleep 2\nensure_foundation_services\n');
     // The snapshot is taken before the target app can apply its migrations.
