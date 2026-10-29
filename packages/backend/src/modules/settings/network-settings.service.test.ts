@@ -54,9 +54,17 @@ describe('client IP trust settings', () => {
     const config = await service.getConfig();
     expect(config).toMatchObject({ clientIpSource: 'auto', reverseProxyWithoutTrustedProxies: true });
 
-    // Forwarded headers are no longer believed from any peer, and the settings page says why.
-    const resolution = resolveClientIp(new Headers({ 'x-forwarded-for': '203.0.113.9' }), '198.51.100.20', config);
-    expect(resolution).toMatchObject({ ipAddress: '198.51.100.20', warning: REVERSE_PROXY_WITHOUT_PROXIES_WARNING });
+    // Forwarded headers stay believed from the private-network proxy, no longer from public peers, and the settings
+    // page says why.
+    const forwarded = new Headers({ 'x-forwarded-for': '203.0.113.9' });
+    expect(resolveClientIp(forwarded, '172.18.0.2', config)).toMatchObject({
+      ipAddress: '203.0.113.9',
+      warning: REVERSE_PROXY_WITHOUT_PROXIES_WARNING,
+    });
+    expect(resolveClientIp(forwarded, '198.51.100.20', config)).toMatchObject({
+      ipAddress: '198.51.100.20',
+      warning: REVERSE_PROXY_WITHOUT_PROXIES_WARNING,
+    });
 
     // Saving anything else stores plain auto; the marker is never written.
     await service.updateConfig({ trustCloudflareHeaders: true });

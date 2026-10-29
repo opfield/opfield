@@ -131,9 +131,10 @@ describe('resolveClientIp: addresses that do not tell clients apart (M-03)', () 
     expect(behindProxy).toMatchObject({ ipAddress: '172.18.0.5', sharedAddress: true });
   });
 
-  it('marks it shared for settings with the reverse_proxy-without-trusted-proxies marker', () => {
-    const marked = resolveClientIp(headers({}), '172.18.0.5', { ...auto, reverseProxyWithoutTrustedProxies: true });
-    expect(marked).toMatchObject({ ipAddress: '172.18.0.5', sharedAddress: true });
+  it('marks it shared for settings with the reverse_proxy-without-trusted-proxies marker when headers are ignored', () => {
+    const legacy = { ...auto, reverseProxyWithoutTrustedProxies: true as const };
+    const marked = resolveClientIp(headers({ 'x-forwarded-for': '198.51.100.10' }), '203.0.113.5', legacy);
+    expect(marked).toMatchObject({ ipAddress: '203.0.113.5', sharedAddress: true });
   });
 
   it('keeps direct peers and trusted proxy clients distinct', () => {
@@ -145,5 +146,38 @@ describe('resolveClientIp: addresses that do not tell clients apart (M-03)', () 
     });
     expect(trusted).toMatchObject({ ipAddress: '198.51.100.10' });
     expect(trusted.sharedAddress).toBeUndefined();
+  });
+});
+
+describe('resolveClientIp: reverse proxy saved without trusted proxies (before 2.12.9)', () => {
+  const legacy = {
+    clientIpSource: 'auto' as const,
+    trustedProxyCidrs: [],
+    trustCloudflareHeaders: false,
+    reverseProxyWithoutTrustedProxies: true as const,
+  };
+
+  it.each([
+    ['a loopback', '127.0.0.1'],
+    ['a private', '172.18.0.5'],
+    ['a link-local', '169.254.10.1'],
+    ['an IPv6 unique local', 'fd00::5'],
+    ['an IPv4-mapped private', '::ffff:10.0.0.2'],
+  ])('believes forwarded headers from %s peer', (_peer, remote) => {
+    const forwarded = resolveClientIp(headers({ 'x-forwarded-for': '1.2.3.4, 198.51.100.10' }), remote, legacy);
+    expect(forwarded).toMatchObject({ ipAddress: '198.51.100.10', source: 'forwarded' });
+    expect(forwarded.sharedAddress).toBeUndefined();
+    expect(forwarded.warning).toContain('private-network peers');
+    const realIp = resolveClientIp(headers({ 'x-real-ip': '198.51.100.11' }), remote, legacy);
+    expect(realIp).toMatchObject({ ipAddress: '198.51.100.11', source: 'real-ip' });
+  });
+
+  it('never believes them from a public peer', () => {
+    const result = resolveClientIp(
+      headers({ 'x-forwarded-for': '198.51.100.10', 'x-real-ip': '198.51.100.10' }),
+      '203.0.113.20',
+      legacy
+    );
+    expect(result).toMatchObject({ ipAddress: '203.0.113.20', source: 'remote', sharedAddress: true });
   });
 });

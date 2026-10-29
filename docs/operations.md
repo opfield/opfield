@@ -610,6 +610,12 @@ The choice is kept in `.env` (`OPFIELD_REGISTRY_STORAGE` and `OPFIELD_REGISTRY_S
 
 A configuration export carries the bucket settings and keys, like the other stored credentials, and the restored installation runs its registry on the same bucket. Do not keep the old installation running on that bucket: both registries would collect garbage in it.
 
+## Client IP Source
+
+**Settings > Network** decides which address Opfield treats as the client for rate limits, token and inference key address limits, and audit records. Changing it needs `admin:system`. **Reverse proxy** believes `X-Real-IP` / `X-Forwarded-For` only from the **Trusted proxy CIDRs** and needs at least one range; a save without one is refused.
+
+Upgrade note: earlier releases accepted Reverse proxy with an empty range list and then believed forwarded headers from any peer, so any client could choose its own address. An install upgraded with that setting keeps working behind its usual proxy: forwarded headers are believed only when the proxy connects from loopback or a private, unique-local or link-local address (`127.0.0.0/8`, `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, `169.254.0.0/16`, `::1`, `fc00::/7`, `fe80::/10`), never from a public address. The setting shows as Auto with a warning until you enter the proxy's ranges and choose Reverse proxy again.
+
 ## Security Notes
 
 For the full security model, including daemon PKI, mTLS enrollment, token boundaries, and hardening guidance, see [Security model](security.md).

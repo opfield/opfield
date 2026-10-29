@@ -24,16 +24,40 @@ export interface ClientIpResolution {
   sharedAddress?: true;
 }
 
+/** Loopback, private (RFC 1918, ULA) and link-local peers: where a reverse proxy without configured ranges sits. */
+const LEGACY_REVERSE_PROXY_PEERS = [
+  '127.0.0.0/8',
+  '10.0.0.0/8',
+  '172.16.0.0/12',
+  '192.168.0.0/16',
+  '169.254.0.0/16',
+  '::1/128',
+  'fc00::/7',
+  'fe80::/10',
+];
+
 export function resolveClientIp(
   headers: Pick<Headers, 'get'>,
   remoteAddress: string | undefined,
   settings: NetworkSecuritySettings = DEFAULT_NETWORK_SECURITY_SETTINGS
 ): ClientIpResolution {
-  const resolution = resolveConfiguredClientIp(headers, remoteAddress, settings);
-  // Settings saved before reverse_proxy required trusted proxies are read as auto; the settings page says so.
+  // Settings saved before reverse_proxy required trusted proxies: the proxy in front of such an install is nearly
+  // always on the same host or network, so forwarded headers are believed from loopback and private-network peers
+  // only, never from public ones. The settings page says so until proxies are set.
   if (settings.reverseProxyWithoutTrustedProxies) {
-    return { ...resolution, warning: REVERSE_PROXY_WITHOUT_PROXIES_WARNING, sharedAddress: true };
+    const resolution = resolveConfiguredClientIp(headers, remoteAddress, {
+      ...settings,
+      clientIpSource: 'reverse_proxy',
+      trustedProxyCidrs: LEGACY_REVERSE_PROXY_PEERS,
+    });
+    const ignoredHeaders = resolution.source === 'remote' && resolution.warning;
+    return {
+      ...resolution,
+      warning: REVERSE_PROXY_WITHOUT_PROXIES_WARNING,
+      ...(ignoredHeaders || resolution.source === 'unknown' ? { sharedAddress: true as const } : {}),
+    };
   }
+  const resolution = resolveConfiguredClientIp(headers, remoteAddress, settings);
   // A fallback to the peer with a warning means proxy headers were present and ignored.
   return resolution.source === 'remote' && resolution.warning ? { ...resolution, sharedAddress: true } : resolution;
 }

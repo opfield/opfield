@@ -14,7 +14,8 @@ export interface NetworkSecuritySettings {
   trustCloudflareHeaders: boolean;
   /**
    * Never saved: the stored settings ask for reverse_proxy without trusted proxies, which trusted forwarded headers
-   * from any peer and which earlier releases accepted. They are read as auto (REVERSE_PROXY_WITHOUT_PROXIES_WARNING).
+   * from any peer and which earlier releases accepted. They are read as auto plus this marker: forwarded headers are
+   * then believed from loopback and private-network peers only (resolveClientIp and its warning).
    */
   reverseProxyWithoutTrustedProxies?: true;
 }
@@ -29,7 +30,7 @@ export const DEFAULT_NETWORK_SECURITY_SETTINGS: NetworkSecuritySettings = {
 };
 
 export const REVERSE_PROXY_WITHOUT_PROXIES_WARNING =
-  'Client IP source is set to Reverse proxy without trusted proxy CIDRs, so Opfield uses Auto and trusts no forwarded headers. Add the proxy ranges and choose Reverse proxy again.';
+  'Client IP source is set to Reverse proxy without trusted proxy CIDRs, so Opfield trusts forwarded headers only from loopback and private-network peers. Add the proxy ranges and choose Reverse proxy again.';
 
 export class NetworkSettingsService {
   private cached: NetworkSecuritySettings | null = null;
