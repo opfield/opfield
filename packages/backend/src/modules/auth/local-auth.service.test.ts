@@ -189,9 +189,11 @@ function memoryRedis(other: (script: string, args: unknown[]) => unknown = () =>
   const locks = new Set<string>();
   const evalScript = vi.fn(async (script: string, keyCount: number, ...args: unknown[]) => {
     if (script.includes("redis.call('PTTL', lockKey)")) {
-      const [accountAttempts, accountLock, clientAttempts, clientLock] = args.slice(0, keyCount) as string[];
-      const [clientLimit, accountLimit] = args.slice(keyCount) as number[];
-      if (locks.has(accountLock!) || (clientLock && locks.has(clientLock))) return [1, 600_000];
+      const keys = args.slice(0, keyCount) as string[];
+      const [clientLimit, accountLimit, , , withClient, withAccount] = args.slice(keyCount) as string[];
+      const [clientAttempts, clientLock] = withClient === '1' ? keys.splice(0, 2) : [];
+      const [accountAttempts, accountLock] = withAccount === '1' ? keys.splice(0, 2) : [];
+      if ((clientLock && locks.has(clientLock)) || (accountLock && locks.has(accountLock))) return [1, 600_000];
       let client = 0;
       if (clientAttempts) {
         client = (counters.get(clientAttempts) ?? 0) + 1;
@@ -202,13 +204,15 @@ function memoryRedis(other: (script: string, args: unknown[]) => unknown = () =>
           return [2, 900_000];
         }
       }
-      const account = (counters.get(accountAttempts!) ?? 0) + 1;
-      counters.set(accountAttempts!, account);
-      if (account > Number(accountLimit)) {
-        counters.delete(accountAttempts!);
-        if (clientAttempts) counters.set(clientAttempts, client - 1);
-        locks.add(accountLock!);
-        return [3, 900_000];
+      if (accountAttempts) {
+        const account = (counters.get(accountAttempts) ?? 0) + 1;
+        counters.set(accountAttempts, account);
+        if (account > Number(accountLimit)) {
+          counters.delete(accountAttempts);
+          if (clientAttempts) counters.set(clientAttempts, client - 1);
+          locks.add(accountLock!);
+          return [3, 900_000];
+        }
       }
       return [0, 0];
     }
@@ -283,9 +287,13 @@ describe('LocalAuthService password sign-in (R1-04, R1-08)', () => {
     const { service, redis } = setup();
 
     for (let attempt = 0; attempt < 10; attempt += 1) {
-      await expect(service.authenticatePassword('user@example.com', 'wrong', '198.51.100.7')).resolves.toBeNull();
+      await expect(
+        service.authenticatePassword('user@example.com', 'wrong', { ip: '198.51.100.7' })
+      ).resolves.toBeNull();
     }
-    await expect(service.authenticatePassword('User@Example.com ', 'right', '198.51.100.7')).rejects.toMatchObject({
+    await expect(
+      service.authenticatePassword('User@Example.com ', 'right', { ip: '198.51.100.7' })
+    ).rejects.toMatchObject({
       statusCode: 429,
       code: 'SIGN_IN_LOCKED',
     });
@@ -297,10 +305,12 @@ describe('LocalAuthService password sign-in (R1-04, R1-08)', () => {
     const { service } = setup();
 
     for (let attempt = 0; attempt < 11; attempt += 1) {
-      await service.authenticatePassword('user@example.com', 'wrong', '198.51.100.7').catch(() => null);
+      await service.authenticatePassword('user@example.com', 'wrong', { ip: '198.51.100.7' }).catch(() => null);
     }
 
-    await expect(service.authenticatePassword('user@example.com', 'right', '203.0.113.20')).resolves.toMatchObject({
+    await expect(
+      service.authenticatePassword('user@example.com', 'right', { ip: '203.0.113.20' })
+    ).resolves.toMatchObject({
       id: 'user-1',
     });
   });
@@ -311,9 +321,9 @@ describe('LocalAuthService password sign-in (R1-04, R1-08)', () => {
 
     // Behind an untrusted proxy every client has the proxy's address, so the route passes no address.
     for (let attempt = 0; attempt < 20; attempt += 1) {
-      await expect(service.authenticatePassword('user@example.com', 'wrong', undefined)).resolves.toBeNull();
+      await expect(service.authenticatePassword('user@example.com', 'wrong', {})).resolves.toBeNull();
     }
-    await expect(service.authenticatePassword('user@example.com', 'right', undefined)).resolves.toMatchObject({
+    await expect(service.authenticatePassword('user@example.com', 'right', {})).resolves.toMatchObject({
       id: 'user-1',
     });
     expect(redis.locks.size).toBe(0);
@@ -326,13 +336,53 @@ describe('LocalAuthService password sign-in (R1-04, R1-08)', () => {
 
     for (let attempt = 0; attempt < 100; attempt += 1) {
       await expect(
-        service.authenticatePassword('user@example.com', 'wrong', `198.51.100.${attempt % 50}`)
+        service.authenticatePassword('user@example.com', 'wrong', { ip: `198.51.100.${attempt % 50}` })
       ).resolves.toBeNull();
     }
-    await expect(service.authenticatePassword('user@example.com', 'right', '203.0.113.20')).rejects.toMatchObject({
+    await expect(
+      service.authenticatePassword('user@example.com', 'right', { ip: '203.0.113.20' })
+    ).rejects.toMatchObject({
       statusCode: 429,
     });
     expect([...redis.locks]).toEqual(['auth:sign-in:locked:user:user-1']);
+  });
+
+  it('counts an IPv6 client by its /64 network', async () => {
+    vi.spyOn(bcrypt, 'compare').mockResolvedValue(false as never);
+    const { service, redis } = setup();
+
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      await service.authenticatePassword('user@example.com', 'wrong', { ip: `2001:db8:1:2::${attempt + 1}` });
+    }
+    await expect(
+      service.authenticatePassword('user@example.com', 'wrong', { ip: '2001:db8:1:2:ffff::1' })
+    ).rejects.toMatchObject({ statusCode: 429 });
+    expect([...redis.locks]).toEqual(['auth:sign-in:locked:user:user-1:ip:20010db800010002::/64']);
+    // Another /64 is another client.
+    await expect(
+      service.authenticatePassword('user@example.com', 'wrong', { ip: '2001:db8:1:3::1' })
+    ).resolves.toBeNull();
+  });
+
+  it('lets a known device of the account through the account-wide lock, not through its own address lock', async () => {
+    vi.spyOn(bcrypt, 'compare').mockImplementation((async (password: string) => password === 'right') as never);
+    const { service, redis } = setup();
+    redis.locks.add('auth:sign-in:locked:user:user-1');
+
+    await expect(
+      service.authenticatePassword('user@example.com', 'right', { ip: '203.0.113.20' })
+    ).rejects.toMatchObject({ statusCode: 429 });
+    await expect(
+      service.authenticatePassword('user@example.com', 'right', { ip: '203.0.113.20', knownDeviceUserId: 'user-2' })
+    ).rejects.toMatchObject({ statusCode: 429 });
+    await expect(
+      service.authenticatePassword('user@example.com', 'right', { ip: '203.0.113.20', knownDeviceUserId: 'user-1' })
+    ).resolves.toMatchObject({ id: 'user-1' });
+
+    redis.locks.add('auth:sign-in:locked:user:user-1:ip:203.0.113.20');
+    await expect(
+      service.authenticatePassword('user@example.com', 'right', { ip: '203.0.113.20', knownDeviceUserId: 'user-1' })
+    ).rejects.toMatchObject({ statusCode: 429 });
   });
 
   it('does not count a correct password as a failure', async () => {
@@ -340,10 +390,12 @@ describe('LocalAuthService password sign-in (R1-04, R1-08)', () => {
     const { service, redis } = setup();
 
     for (let attempt = 0; attempt < 9; attempt += 1) {
-      await service.authenticatePassword('user@example.com', 'wrong', '198.51.100.7');
+      await service.authenticatePassword('user@example.com', 'wrong', { ip: '198.51.100.7' });
     }
     for (let attempt = 0; attempt < 5; attempt += 1) {
-      await expect(service.authenticatePassword('user@example.com', 'right', '198.51.100.7')).resolves.toMatchObject({
+      await expect(
+        service.authenticatePassword('user@example.com', 'right', { ip: '198.51.100.7' })
+      ).resolves.toMatchObject({
         id: 'user-1',
       });
     }
@@ -356,9 +408,11 @@ describe('LocalAuthService password sign-in (R1-04, R1-08)', () => {
     const { service, redis } = setup({ user: null });
 
     for (let attempt = 0; attempt < 10; attempt += 1) {
-      await service.authenticatePassword('nobody@example.com', 'guess', '198.51.100.7');
+      await service.authenticatePassword('nobody@example.com', 'guess', { ip: '198.51.100.7' });
     }
-    await expect(service.authenticatePassword('NOBODY@example.com', 'guess', '198.51.100.7')).rejects.toMatchObject({
+    await expect(
+      service.authenticatePassword('NOBODY@example.com', 'guess', { ip: '198.51.100.7' })
+    ).rejects.toMatchObject({
       statusCode: 429,
     });
     expect([...redis.locks][0]).toMatch(/^auth:sign-in:locked:email:[a-f0-9]{64}:ip:198\.51\.100\.7$/);
@@ -412,7 +466,9 @@ describe('LocalAuthService email codes (R1-04)', () => {
     store.set('local_auth:challenge:c1', { userId: OTP_USER.id, purpose: 'email_otp', secretHash: 'x', attempts: 0 });
     redis.locks.add('auth:sign-in:locked:user:user-2:ip:198.51.100.7');
 
-    await expect(service.verifyEmailOtp('c1', '123456', '198.51.100.7')).rejects.toMatchObject({ statusCode: 429 });
+    await expect(service.verifyEmailOtp('c1', '123456', { ip: '198.51.100.7' })).rejects.toMatchObject({
+      statusCode: 429,
+    });
     // The challenge itself was not touched: the code was never compared.
     expect(redis.evalScript.mock.calls.some(([script]) => String(script).includes('cjson'))).toBe(false);
   });

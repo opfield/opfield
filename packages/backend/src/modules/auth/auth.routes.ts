@@ -22,6 +22,7 @@ import { getEnvironmentSettingsSnapshot } from '@/modules/settings/environment-s
 import { GeneralSettingsService } from '@/modules/settings/general-settings.service.js';
 import { SessionService } from '@/services/session.service.js';
 import type { AppEnv, AuthMethod } from '@/types.js';
+import type { SignInClient } from './account-sign-in-throttle.js';
 import {
   beginCurrentUserTotpSetupRoute,
   confirmCurrentUserTotpSetupRoute,
@@ -66,6 +67,7 @@ import {
   PasswordResetTokenSchema,
 } from './auth-route-schemas.js';
 import { AvatarStorageService } from './avatar-storage.service.js';
+import { issueKnownDeviceCookie, readKnownDeviceUserId } from './known-device-cookie.js';
 import { sessionAllowedForCookie } from './legacy-session-cookie.js';
 import { requiresSessionMfaReauthentication } from './live-session-user.js';
 import { LocalAuthService } from './local-auth.service.js';
@@ -121,10 +123,16 @@ async function setLocalSession(c: any, user: import('@/types.js').User, authMeth
     path: '/',
   };
   setCookie(c, getSessionCookieNameForUrl(publicUrl), sessionId, cookieOptions);
+  issueKnownDeviceCookie(c, user.id, cookieOptions.secure);
 
   if (isLoopbackUrl(publicUrl)) {
     setCookie(c, LEGACY_SESSION_COOKIE_NAME, sessionId, cookieOptions);
   }
+}
+
+/** Who a sign-in check comes from, for the per-account throttle (see AccountSignInThrottle). */
+async function signInClient(c: any): Promise<SignInClient> {
+  return { ip: await getDistinctClientIpForContext(c), knownDeviceUserId: readKnownDeviceUserId(c) };
 }
 
 async function getPublicUrl(): Promise<string> {
@@ -446,11 +454,7 @@ authRoutes.post('/demo/verify', async (c) => {
 authRoutes.post('/password/login', async (c) => {
   const input = LocalPasswordLoginSchema.parse(await c.req.json());
   const localAuth = container.resolve(LocalAuthService);
-  const user = await localAuth.authenticatePassword(
-    input.email,
-    input.password,
-    await getDistinctClientIpForContext(c)
-  );
+  const user = await localAuth.authenticatePassword(input.email, input.password, await signInClient(c));
   if (!user) {
     await auditFailedLocalSignIn('password', input.email);
     return c.json({ code: 'INVALID_CREDENTIALS', message: 'Invalid email or password' }, 401);
@@ -473,7 +477,7 @@ authRoutes.post('/email-otp/request', async (c) => {
 authRoutes.post('/email-otp/verify', async (c) => {
   const input = EmailCodeSchema.parse(await c.req.json());
   const localAuth = container.resolve(LocalAuthService);
-  const user = await localAuth.verifyEmailOtp(input.challengeId, input.code, await getDistinctClientIpForContext(c));
+  const user = await localAuth.verifyEmailOtp(input.challengeId, input.code, await signInClient(c));
   if (!user) return c.json({ code: 'INVALID_CODE', message: 'Invalid or expired sign-in code' }, 401);
   return finishLocalPrimaryAuth(c, user, 'email_otp');
 });
@@ -481,7 +485,7 @@ authRoutes.post('/email-otp/verify', async (c) => {
 authRoutes.post('/mfa/verify', async (c) => {
   const input = MfaVerifySchema.parse(await c.req.json());
   const mfa = container.resolve(MfaService);
-  const completed = await mfa.verifyLoginChallenge(input.challengeId, input, await getDistinctClientIpForContext(c));
+  const completed = await mfa.verifyLoginChallenge(input.challengeId, input, await signInClient(c));
   if (!completed) return c.json({ code: 'INVALID_MFA_CODE', message: 'Invalid or expired authentication code' }, 401);
   const user = await container.resolve(AuthService).getUserById(completed.userId);
   if (!user || user.isBlocked || !isAllowedDemoMfaUser(user))

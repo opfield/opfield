@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { container } from '@/container.js';
+import { clientLimitKey } from '@/lib/ip-cidr.js';
 import { createChildLogger } from '@/lib/logger.js';
 import { AppError } from '@/middleware/error-handler.js';
 import { AuditService } from '@/modules/audit/audit.service.js';
@@ -15,33 +16,42 @@ const FAILURE_WINDOW_SECONDS = 15 * 60;
 const LOCK_SECONDS = 15 * 60;
 
 // Takes one attempt before the credential is checked, so parallel guesses cannot all pass the limits at once.
-// KEYS: account attempts, account lock, then (when the client address tells clients apart) client attempts and
-// client lock. Returns {state, ms}: 0 = go ahead, 1 = already locked (ms left), 2 = the client lock starts now,
-// 3 = the account lock starts now.
+// KEYS: the client's attempts and lock when ARGV[5] is '1' (an address that tells clients apart), then the account's
+// attempts and lock when ARGV[6] is '1' (not a known device of the account). Returns {state, ms}: 0 = go ahead,
+// 1 = already locked (ms left), 2 = the client lock starts now, 3 = the account lock starts now.
 const BEGIN_ATTEMPT_SCRIPT = `
-local withClient = #KEYS == 4
-local locks = withClient and {KEYS[2], KEYS[4]} or {KEYS[2]}
-for _, lockKey in ipairs(locks) do
-  local lockTtl = redis.call('PTTL', lockKey)
-  if lockTtl > 0 then return {1, lockTtl} end
-  if lockTtl == -1 then return {1, tonumber(ARGV[4]) * 1000} end
+local nextKey = 1
+local clientAttempts, clientLock, accountAttempts, accountLock
+if ARGV[5] == '1' then
+  clientAttempts, clientLock = KEYS[nextKey], KEYS[nextKey + 1]
+  nextKey = nextKey + 2
 end
-if withClient then
-  local clientAttempts = redis.call('INCR', KEYS[3])
-  if clientAttempts == 1 then redis.call('EXPIRE', KEYS[3], ARGV[3]) end
-  if clientAttempts > tonumber(ARGV[1]) then
-    redis.call('DEL', KEYS[3])
-    redis.call('SET', KEYS[4], '1', 'EX', ARGV[4])
+if ARGV[6] == '1' then accountAttempts, accountLock = KEYS[nextKey], KEYS[nextKey + 1] end
+for _, lockKey in ipairs({clientLock or false, accountLock or false}) do
+  if lockKey then
+    local lockTtl = redis.call('PTTL', lockKey)
+    if lockTtl > 0 then return {1, lockTtl} end
+    if lockTtl == -1 then return {1, tonumber(ARGV[4]) * 1000} end
+  end
+end
+if clientAttempts then
+  local attempts = redis.call('INCR', clientAttempts)
+  if attempts == 1 then redis.call('EXPIRE', clientAttempts, ARGV[3]) end
+  if attempts > tonumber(ARGV[1]) then
+    redis.call('DEL', clientAttempts)
+    redis.call('SET', clientLock, '1', 'EX', ARGV[4])
     return {2, tonumber(ARGV[4]) * 1000}
   end
 end
-local accountAttempts = redis.call('INCR', KEYS[1])
-if accountAttempts == 1 then redis.call('EXPIRE', KEYS[1], ARGV[3]) end
-if accountAttempts > tonumber(ARGV[2]) then
-  redis.call('DEL', KEYS[1])
-  if withClient then redis.call('DECR', KEYS[3]) end
-  redis.call('SET', KEYS[2], '1', 'EX', ARGV[4])
-  return {3, tonumber(ARGV[4]) * 1000}
+if accountAttempts then
+  local attempts = redis.call('INCR', accountAttempts)
+  if attempts == 1 then redis.call('EXPIRE', accountAttempts, ARGV[3]) end
+  if attempts > tonumber(ARGV[2]) then
+    redis.call('DEL', accountAttempts)
+    if clientAttempts then redis.call('DECR', clientAttempts) end
+    redis.call('SET', accountLock, '1', 'EX', ARGV[4])
+    return {3, tonumber(ARGV[4]) * 1000}
+  end
 end
 return {0, 0}
 `;
@@ -65,13 +75,38 @@ function subjectKey(subject: SignInSubject): string {
   return `email:${createHash('sha256').update(subject.email.trim().toLowerCase()).digest('hex')}`;
 }
 
-/** Account keys, then client keys when the address tells clients apart (undefined: account-wide limit only). */
-function attemptKeys(subject: SignInSubject, clientIp: string | undefined): string[] {
+/**
+ * The client a sign-in check comes from. `ip`: its address, only when it tells clients apart
+ * (getDistinctClientIpForContext). `knownDeviceUserId`: the account a valid known-device cookie of this browser
+ * names (readKnownDeviceUserId).
+ */
+export interface SignInClient {
+  ip?: string;
+  knownDeviceUserId?: string;
+}
+
+interface AttemptKeys {
+  client?: { attempts: string; lock: string };
+  account?: { attempts: string; lock: string };
+}
+
+function attemptKeys(subject: SignInSubject, client: SignInClient): AttemptKeys {
   const account = subjectKey(subject);
-  const keys = [`auth:sign-in:attempts:${account}`, `auth:sign-in:locked:${account}`];
-  if (!clientIp) return keys;
-  const client = `${account}:ip:${clientIp}`;
-  return [...keys, `auth:sign-in:attempts:${client}`, `auth:sign-in:locked:${client}`];
+  const knownDevice = 'userId' in subject && client.knownDeviceUserId === subject.userId;
+  const network = client.ip ? clientLimitKey(client.ip) : undefined;
+  return {
+    ...(network
+      ? {
+          client: {
+            attempts: `auth:sign-in:attempts:${account}:ip:${network}`,
+            lock: `auth:sign-in:locked:${account}:ip:${network}`,
+          },
+        }
+      : {}),
+    ...(knownDevice
+      ? {}
+      : { account: { attempts: `auth:sign-in:attempts:${account}`, lock: `auth:sign-in:locked:${account}` } }),
+  };
 }
 
 function signInLocked(retryAfterMs: number): AppError {
@@ -87,31 +122,36 @@ function signInLocked(retryAfterMs: number): AppError {
 
 /**
  * Per-account limit on password, email code and second-factor checks, on top of the per-address request limit.
- * 10 failures of one account from one client address within 15 minutes lock that account for that address for 15
- * minutes (429), so a guesser cannot lock its owner out from elsewhere; 100 failures from all addresses together lock
- * the account everywhere for 15 minutes, which still bounds guessing spread over many addresses. Without a client
- * address that tells clients apart (behind an untrusted proxy every client has the proxy's), only the account-wide
- * limit applies, so one client cannot lock everybody else out at 10.
+ * 10 failures of one account from one client address (an IPv6 client by its /64) within 15 minutes lock that account
+ * for that address for 15 minutes (429), so a guesser cannot lock its owner out from elsewhere. 100 failures from all
+ * addresses together lock the account everywhere for 15 minutes, which still bounds guessing spread over many
+ * addresses. Without a client address that tells clients apart (behind an untrusted proxy every client has the
+ * proxy's), only the account-wide limit applies, so one client cannot lock everybody else out at 10.
+ *
+ * A browser that signed in to the account before carries a known-device cookie for it and is not held by the
+ * account-wide lock (its own per-address lock still applies). Residual: while an attacker keeps the account-wide lock
+ * up, a targeted account cannot sign in from a new device or a browser without that cookie.
  */
 export class AccountSignInThrottle {
   constructor(private readonly cache: Pick<CacheService, 'getClient'>) {}
 
-  /**
-   * Takes an attempt before the credential is checked; throws 429 while the account is locked for this client.
-   * `clientIp` is the client address only when it tells clients apart (getDistinctClientIpForContext).
-   */
-  async beginAttempt(subject: SignInSubject, factor: SignInFactor, clientIp: string | undefined): Promise<void> {
-    const keys = attemptKeys(subject, clientIp);
+  /** Takes an attempt before the credential is checked; throws 429 while the account is locked for this client. */
+  async beginAttempt(subject: SignInSubject, factor: SignInFactor, client: SignInClient = {}): Promise<void> {
+    const keys = attemptKeys(subject, client);
+    const keyList = [keys.client, keys.account].flatMap((pair) => (pair ? [pair.attempts, pair.lock] : []));
+    if (keyList.length === 0) return;
     const result = await this.cache
       .getClient()
       .eval(
         BEGIN_ATTEMPT_SCRIPT,
-        keys.length,
-        ...keys,
+        keyList.length,
+        ...keyList,
         CLIENT_SIGN_IN_FAILURE_LIMIT,
         ACCOUNT_SIGN_IN_FAILURE_LIMIT,
         FAILURE_WINDOW_SECONDS,
-        LOCK_SECONDS
+        LOCK_SECONDS,
+        keys.client ? '1' : '0',
+        keys.account ? '1' : '0'
       );
     const [state, retryAfterMs] = Array.isArray(result) ? result.map(Number) : [0, 0];
     if (!state) return;
@@ -120,8 +160,10 @@ export class AccountSignInThrottle {
   }
 
   /** The credential was correct: its attempt does not count as a failure. */
-  async attemptSucceeded(subject: SignInSubject, clientIp: string | undefined): Promise<void> {
-    const attemptCounters = attemptKeys(subject, clientIp).filter((key) => key.startsWith('auth:sign-in:attempts:'));
+  async attemptSucceeded(subject: SignInSubject, client: SignInClient = {}): Promise<void> {
+    const keys = attemptKeys(subject, client);
+    const attemptCounters = [keys.client?.attempts, keys.account?.attempts].filter((key): key is string => !!key);
+    if (attemptCounters.length === 0) return;
     await this.cache.getClient().eval(RELEASE_ATTEMPT_SCRIPT, attemptCounters.length, ...attemptCounters);
   }
 

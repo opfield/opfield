@@ -14,7 +14,7 @@ import type { GeneralSettingsService } from '@/modules/settings/general-settings
 import type { CacheService } from '@/services/cache.service.js';
 import type { SessionService } from '@/services/session.service.js';
 import type { User } from '@/types.js';
-import { AccountSignInThrottle } from './account-sign-in-throttle.js';
+import { AccountSignInThrottle, type SignInClient } from './account-sign-in-throttle.js';
 import type { AuthSettingsService } from './auth.settings.service.js';
 import type { AuthEmailRateSlot } from './auth-email-queue.service.js';
 import type { AuthMailService } from './auth-mail.service.js';
@@ -176,20 +176,20 @@ export class LocalAuthService {
     this.signInThrottle = new AccountSignInThrottle(cacheService);
   }
 
-  async authenticatePassword(email: string, password: string, clientIp?: string): Promise<User | null> {
+  async authenticatePassword(email: string, password: string, client: SignInClient = {}): Promise<User | null> {
     const methods = (await this.authSettingsService.getConfig()).methods;
     if (!methods.password) return this.refusePassword(password);
     const user = await this.db.query.users.findFirst({ where: eq(users.email, normalizeEmail(email)) });
     // Counted per account (an unknown email by itself) and client address, see AccountSignInThrottle.
     const subject = user ? { userId: user.id } : { email };
-    await this.signInThrottle.beginAttempt(subject, 'password', clientIp);
+    await this.signInThrottle.beginAttempt(subject, 'password', client);
     if (!user || user.isBlocked || user.authMethod !== 'password') return this.refusePassword(password);
     const credential = await this.db.query.userPasswordCredentials.findFirst({
       where: eq(userPasswordCredentials.userId, user.id),
     });
     if (!credential) return this.refusePassword(password);
     if (!(await bcrypt.compare(password, credential.passwordHash))) return null;
-    await this.signInThrottle.attemptSucceeded(subject, clientIp);
+    await this.signInThrottle.attemptSucceeded(subject, client);
     return resolveLiveUser(this.db, user.id);
   }
 
@@ -243,14 +243,14 @@ export class LocalAuthService {
     return challengeId;
   }
 
-  async verifyEmailOtp(challengeId: string, code: string, clientIp?: string): Promise<User | null> {
+  async verifyEmailOtp(challengeId: string, code: string, client: SignInClient = {}): Promise<User | null> {
     const challenge = await this.cacheService.get<AuthChallenge>(`local_auth:challenge:${challengeId}`);
     if (challenge?.purpose !== 'email_otp') return null;
     const subject = { userId: challenge.userId };
-    await this.signInThrottle.beginAttempt(subject, 'email_otp', clientIp);
+    await this.signInThrottle.beginAttempt(subject, 'email_otp', client);
     const userId = await this.consumeChallenge(challengeId, 'email_otp', code);
     if (!userId) return null;
-    await this.signInThrottle.attemptSucceeded(subject, clientIp);
+    await this.signInThrottle.attemptSucceeded(subject, client);
     return resolveLiveUser(this.db, userId);
   }
 
