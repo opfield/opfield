@@ -40,6 +40,8 @@ export interface DockerLifecycleWatchContext {
     extra?: Record<string, unknown>
   ) => void;
   preserveContainerIdentity?: (nodeId: string, name: string, runtimeId: string) => Promise<unknown>;
+  /** Reads the replacement back into the snapshots, so a read after the recreate answers sees it. */
+  readBackRecreatedContainer?: (nodeId: string, name: string, newId: string, oldId: string) => Promise<void>;
   failTask: (taskId: string | undefined, error: string, nodeId?: string, containerName?: string) => Promise<void>;
 }
 
@@ -263,6 +265,11 @@ export function watchDockerRecreateByName(
             );
             return;
           }
+          // Callers waiting on the transition answer once it clears: a read right after that answer must find the
+          // replacement, not the cached inspect of the removed container.
+          await context
+            .readBackRecreatedContainer?.(nodeId, containerName, newId, oldContainerId)
+            .catch(() => undefined);
           context.clearTransition(nodeId, containerName);
           if (taskId && context.taskService) {
             await context.taskService

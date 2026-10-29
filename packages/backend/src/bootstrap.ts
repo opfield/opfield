@@ -1026,6 +1026,9 @@ export async function initializeContainer(): Promise<void> {
   dockerManagementService.setSnapshotReadBack((nodeId, kind, change) =>
     dockerSnapshotReconciler.readBackNow(nodeId, kind, change)
   );
+  dockerManagementService.setRecreateReadBack((nodeId, name, newId, oldId) =>
+    dockerSnapshotReconciler.readBackRecreatedContainer(nodeId, name, newId, oldId)
+  );
   dockerSnapshotReconciler.start();
   // Managed containers removed, created or renamed outside Opfield: audit entry and container alert event.
   new DockerExternalChangeWatcher(db, nodeDispatch, nodeRegistry, eventBus, auditService).start();
