@@ -599,7 +599,9 @@ ${ACCESS_LIST_TEMPLATE_BLOCK}
 {{/if}}
         proxy_pass {{upstream}};
 
+{{#unless customHostHeader}}
         proxy_set_header Host $host;
+{{/unless}}
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
@@ -1719,6 +1721,9 @@ ${rendered}`;
         ...header,
         name: header.name.replace(/[^!#$%&'*+.^_`|~0-9A-Za-z-]/g, ''),
       })),
+      // A custom Host header is the upstream's Host: sent next to `Host $host` the upstream got two and read the first.
+      customHostHeader:
+        !host.pagesRouteIncludePath && host.customHeaders.some((header) => header.name.trim().toLowerCase() === 'host'),
       customRewrites: host.customRewrites,
       // accessList.ipRules and accessList.basicAuthEnabled keep templates written before sign-in based lists working.
       ...accessListTemplateContext(host.accessList),
