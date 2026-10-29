@@ -190,7 +190,7 @@ export function useAccessListForm({
     }
 
     const sharedOn = methods.includes("shared");
-    if (sharedOn && !sharedPassword && !accessList?.hasSharedPassword) {
+    if (sharedOn && !sharedPassword && !accessList?.sharedPasswordSet) {
       toast.error("Enter the shared password");
       return;
     }
@@ -206,7 +206,7 @@ export function useAccessListForm({
         sharedPassword: sharedPasswordChange(
           sharedOn,
           sharedPassword,
-          accessList?.hasSharedPassword ?? false
+          accessList?.sharedPasswordSet ?? false
         ),
         skipIpRanges: skip.map((row) => row.value.trim()).filter(Boolean),
         includeRules: rulesFromInputs(rules.include),

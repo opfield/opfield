@@ -138,7 +138,7 @@ const cert = (name: string) => certificates.find((item) => item.name === name)!;
 const OPEN_LIST = {
   signInMethods: [],
   users: [],
-  hasSharedPassword: false,
+  sharedPasswordSet: false,
   skipIpRanges: [],
   includeRules: [],
   requireRules: [],

@@ -207,7 +207,7 @@ function AccessListFields({
                         aria-label="Shared password"
                         // A stored shared password stays while this is blank.
                         placeholder={
-                          accessList?.hasSharedPassword ? "Keep current password" : "Password"
+                          accessList?.sharedPasswordSet ? "Keep current password" : "Password"
                         }
                         value={form.sharedPassword}
                         onChange={(event) => form.setSharedPassword(event.target.value)}

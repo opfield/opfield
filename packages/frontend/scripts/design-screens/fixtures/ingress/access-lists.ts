@@ -62,7 +62,7 @@ export const accessLists: AccessList[] = [
     description: "Support desk network plus per-agent logins",
     signInMethods: ["opfield", google, "password", "basic"],
     users: [{ username: "lena.novak" }, { username: "sam.patel" }, { username: "omar.haddad" }],
-    hasSharedPassword: false,
+    sharedPasswordSet: false,
     skipIpRanges: ["10.0.40.0/24"],
     includeRules: [
       { selector: "email_domain", values: ["acme.dev"] },
@@ -85,7 +85,7 @@ export const accessLists: AccessList[] = [
     description: "Known abusive ranges seen in the access logs",
     signInMethods: [],
     users: [],
-    hasSharedPassword: false,
+    sharedPasswordSet: false,
     skipIpRanges: ["0.0.0.0/0", "::/0"],
     includeRules: [],
     requireRules: [],

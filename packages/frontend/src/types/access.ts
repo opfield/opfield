@@ -37,7 +37,7 @@ export interface AccessList {
   signInMethods: AccessSignInMethod[];
   /** Users of the sign-in form and basic authentication. */
   users: AccessListUser[];
-  hasSharedPassword: boolean;
+  sharedPasswordSet: boolean;
   /** Addresses (IP or CIDR) that get in without signing in. */
   skipIpRanges: string[];
   includeRules: AccessRule[];
