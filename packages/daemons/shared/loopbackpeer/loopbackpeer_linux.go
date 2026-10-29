@@ -12,10 +12,13 @@ import (
 )
 
 const (
-	sockDiagByFamily  = 20
-	inetDiagNoCookie  = ^uint32(0)
-	inetDiagReqV2Size = 56
-	inetDiagMsgUIDOff = 4 + 48 + 12
+	sockDiagByFamily    = 20
+	inetDiagNoCookie    = ^uint32(0)
+	inetDiagReqV2Size   = 56
+	inetDiagMsgStateOff = 1
+	inetDiagMsgUIDOff   = 4 + 48 + 12
+	inetDiagMsgInodeOff = inetDiagMsgUIDOff + 4
+	tcpEstablished      = 1
 )
 
 // UID returns the owner uid of the peer socket of a loopback TCP connection: one exact sock_diag lookup of the
@@ -71,11 +74,26 @@ func UID(connection net.Conn) (int, error) {
 			}
 			return 0, errors.New("loopback peer socket lookup failed")
 		case sockDiagByFamily:
-			if len(message.Data) < inetDiagMsgUIDOff+4 {
-				return 0, errors.New("short loopback peer socket answer")
-			}
-			return int(native.Uint32(message.Data[inetDiagMsgUIDOff:])), nil
+			return peerOwner(message.Data)
 		}
 	}
 	return 0, errors.New("loopback peer socket not found")
+}
+
+// peerOwner reads the owner uid from an inet_diag_msg (linux/inet_diag.h: family, state, timer, retrans, a 48-byte
+// sockid, expires, rqueue, wqueue, uid, inode). Only a live, established socket has an owner: a peer that wrote and
+// closed before the lookup leaves a timewait mini-socket the kernel reports with uid 0 and inode 0, which would pass
+// for root.
+func peerOwner(data []byte) (int, error) {
+	if len(data) < inetDiagMsgInodeOff+4 {
+		return 0, errors.New("short loopback peer socket answer")
+	}
+	native := binary.NativeEndian
+	if data[inetDiagMsgStateOff] != tcpEstablished {
+		return 0, errors.New("loopback peer socket is not established")
+	}
+	if native.Uint32(data[inetDiagMsgInodeOff:]) == 0 {
+		return 0, errors.New("loopback peer socket has no owner (closed)")
+	}
+	return int(native.Uint32(data[inetDiagMsgUIDOff:])), nil
 }
