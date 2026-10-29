@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { resolveClientIp, resolveRequestOrigin } from './request-ip.js';
+import { resolveClientIp } from './request-ip.js';
 
 function headers(values: Record<string, string>) {
   return new Headers(values);
@@ -145,20 +145,5 @@ describe('resolveClientIp: addresses that do not tell clients apart (M-03)', () 
     });
     expect(trusted).toMatchObject({ ipAddress: '198.51.100.10' });
     expect(trusted.sharedAddress).toBeUndefined();
-  });
-});
-
-describe('resolveRequestOrigin (the protocol the browser came over)', () => {
-  it('uses the request scheme, and https from X-Forwarded-Proto only behind a trusted proxy', () => {
-    const forwarded = headers({ 'x-forwarded-proto': 'https' });
-    expect(resolveRequestOrigin('https://opfield.example.com/api/x', headers({}), { source: 'remote' })).toBe(
-      'https://opfield.example.com'
-    );
-    expect(resolveRequestOrigin('http://203.0.113.5:3000/api/x', forwarded, { source: 'remote' })).toBe(
-      'http://203.0.113.5:3000'
-    );
-    expect(resolveRequestOrigin('http://opfield.example.com/api/x', forwarded, { source: 'forwarded' })).toBe(
-      'https://opfield.example.com'
-    );
   });
 });

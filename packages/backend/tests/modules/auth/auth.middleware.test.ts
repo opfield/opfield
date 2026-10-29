@@ -595,4 +595,25 @@ describe('authMiddleware session cookies of HTTPS requests (R1-10)', () => {
     const overHttps = await createApp().request(`${HTTPS}/read`, { headers: cookie });
     expect(overHttps.status).toBe(401);
   });
+
+  it('applies the HTTPS rules behind a TLS proxy that is not a trusted proxy (X-Forwarded-Proto: https)', async () => {
+    const sessionService = registerSession({ session: { ...SESSION, createdAt: Date.now() } });
+    await useHostCookieSince(Date.now() - 60_000);
+    const viaProxy = 'http://opfield.example.com/read';
+
+    const ownCookie = await createApp().request(viaProxy, {
+      headers: {
+        'X-Forwarded-Proto': 'https',
+        Cookie: `${unprefixedHttpsCookie()}=planted-session; ${getSessionCookieName('https')}=own-session`,
+      },
+    });
+    expect(ownCookie.status).toBe(200);
+    expect(sessionService.getSession).toHaveBeenCalledWith('own-session');
+    expect(sessionService.getSession).not.toHaveBeenCalledWith('planted-session');
+
+    const plantedOnly = await createApp().request(viaProxy, {
+      headers: { 'X-Forwarded-Proto': 'https', Cookie: `${unprefixedHttpsCookie()}=planted-session` },
+    });
+    expect(plantedOnly.status).toBe(401);
+  });
 });

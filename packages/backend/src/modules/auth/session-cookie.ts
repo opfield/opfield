@@ -51,6 +51,25 @@ export function getSessionCookieNameForUrl(publicUrl: string): string {
   return getSessionCookieName(transportForUrl(publicUrl));
 }
 
+/**
+ * The origin a request's browser used, for session cookie names and flags only: X-Forwarded-Proto (its first value)
+ * whenever present, trusted proxy or not, else the request's own scheme. The common install is a TLS-terminating proxy
+ * in front with no trusted proxy configured, and its requests must still get the HTTPS cookie rules. Honouring an
+ * untrusted header is safe here: only the request's own sender can set it, and a wrong value only makes that sender's
+ * own cookie unusable (a sibling-subdomain site cannot add headers to a victim's requests). Never use it for anything
+ * that trusts the client, such as its address.
+ */
+export function sessionCookieRequestOrigin(requestUrl: string, forwardedProto: string | undefined): string {
+  const url = new URL(requestUrl);
+  const proto = forwardedProto?.split(',')[0]?.trim().toLowerCase();
+  if (proto === 'https' || proto === 'http') url.protocol = `${proto}:`;
+  return url.origin;
+}
+
+export function sessionCookieRequestOriginForContext(c: Context): string {
+  return sessionCookieRequestOrigin(c.req.url, c.req.header('x-forwarded-proto'));
+}
+
 export function isLoopbackUrl(url: string): boolean {
   return LOOPBACK_HOSTNAMES.has(new URL(url).hostname);
 }
@@ -81,9 +100,9 @@ export interface SelectedSessionCookie {
 }
 
 /**
- * The session cookie of a request that arrived from `consoleUrl`: the origin the browser actually used (the request's
- * scheme or a trusted proxy's, see resolveRequestOrigin; for a WebSocket its Origin). Never the saved public URL: a
- * setup wizard over http://<ip>:3000 or a console just switched to HTTPS still arrives over plain HTTP.
+ * The session cookie of a request that arrived from `consoleUrl`: the origin the browser actually used
+ * (sessionCookieRequestOrigin; for a WebSocket its Origin). Never the saved public URL: a setup wizard over
+ * http://<ip>:3000 or a console just switched to HTTPS still arrives over plain HTTP.
  *
  * Over HTTPS only the `__Host-` cookie counts while the browser has one. Any other name is a cookie from an earlier
  * release (or one a sibling subdomain planted) and is read only when the `__Host-` cookie is absent; the caller then

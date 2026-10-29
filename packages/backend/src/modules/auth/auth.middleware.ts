@@ -3,7 +3,7 @@ import { getCookie } from 'hono/cookie';
 import { HTTPException } from 'hono/http-exception';
 import { container } from '@/container.js';
 import { hasScopeBase } from '@/lib/permissions.js';
-import { getClientIpForContext, resolveRequestOriginForContext } from '@/lib/request-ip.js';
+import { getClientIpForContext } from '@/lib/request-ip.js';
 import type { TokenRequestContext } from '@/lib/token-limits.js';
 import { hasTokenPrefix } from '@/lib/token-prefixes.js';
 import { AppError } from '@/middleware/error-handler.js';
@@ -22,6 +22,7 @@ import {
   reissueLegacySessionCookie,
   type SelectedSessionCookie,
   selectSessionCookie,
+  sessionCookieRequestOriginForContext,
 } from './session-cookie.js';
 
 const SESSION_COOKIE_NAME = LEGACY_SESSION_COOKIE_NAME;
@@ -59,7 +60,7 @@ async function extractCredential(c: Context<AppEnv>): Promise<RequestCredential 
   if (!cookieHeader) return null;
   const cookie = selectSessionCookie(
     (name) => getCookie(c, name),
-    await resolveRequestOriginForContext(c),
+    sessionCookieRequestOriginForContext(c),
     cookieHeader
   );
   return cookie ? { type: 'session', value: cookie.value, cookie } : null;

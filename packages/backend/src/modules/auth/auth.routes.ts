@@ -8,11 +8,7 @@ import { container, TOKENS } from '@/container.js';
 import type { DrizzleClient } from '@/db/client.js';
 import { users } from '@/db/schema/index.js';
 import { openApiValidationHook } from '@/lib/openapi.js';
-import {
-  getClientIpForContext,
-  getDistinctClientIpForContext,
-  resolveRequestOriginForContext,
-} from '@/lib/request-ip.js';
+import { getClientIpForContext, getDistinctClientIpForContext } from '@/lib/request-ip.js';
 import { AppError } from '@/middleware/error-handler.js';
 import { AuditService } from '@/modules/audit/audit.service.js';
 import { setAuditSubjectUser } from '@/modules/audit/audit-request-context.js';
@@ -81,6 +77,7 @@ import {
   isLoopbackUrl,
   LEGACY_SESSION_COOKIE_NAME,
   selectSessionCookie,
+  sessionCookieRequestOriginForContext,
 } from './session-cookie.js';
 
 export const authRoutes = new OpenAPIHono<AppEnv>({ defaultHook: openApiValidationHook });
@@ -145,7 +142,7 @@ async function getPublicUrl(): Promise<string> {
 }
 
 async function getRequestSessionId(c: any): Promise<string | null> {
-  const requestOrigin = await resolveRequestOriginForContext(c);
+  const requestOrigin = sessionCookieRequestOriginForContext(c);
   const cookie = selectSessionCookie((name) => getCookie(c, name), requestOrigin, c.req.header('Cookie') ?? '');
   if (!cookie?.legacy) return cookie?.value ?? null;
   const session = await container.resolve(SessionService).getSession(cookie.value);

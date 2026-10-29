@@ -6,6 +6,7 @@ import {
   hasInstallationSessionCookie,
   LEGACY_SESSION_COOKIE_NAME,
   selectSessionCookie,
+  sessionCookieRequestOrigin,
 } from '@/modules/auth/session-cookie.js';
 import { LEGACY_SESSION_COOKIE_PREFIX } from '@/lib/legacy-compat.js';
 
@@ -87,5 +88,17 @@ describe('session cookie selection (R1-10)', () => {
       'http://opfield.lan'
     );
     expect(selected).toEqual({ value: 'current', name: getSessionCookieName('http'), legacy: false });
+  });
+});
+
+describe('sessionCookieRequestOrigin', () => {
+  it('takes the first X-Forwarded-Proto whenever present, else the request scheme', () => {
+    expect(sessionCookieRequestOrigin('http://opfield.example.com/read', 'https')).toBe('https://opfield.example.com');
+    expect(sessionCookieRequestOrigin('http://opfield.example.com/read', 'https, http')).toBe(
+      'https://opfield.example.com'
+    );
+    expect(sessionCookieRequestOrigin('http://203.0.113.5:3000/read', undefined)).toBe('http://203.0.113.5:3000');
+    expect(sessionCookieRequestOrigin('https://opfield.example.com/read', undefined)).toBe('https://opfield.example.com');
+    expect(sessionCookieRequestOrigin('http://opfield.example.com/read', 'gopher')).toBe('http://opfield.example.com');
   });
 });

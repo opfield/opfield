@@ -103,33 +103,6 @@ export async function resolveClientIpForContext(c: Context<AppEnv>): Promise<Cli
   return resolveClientIp(c.req.raw.headers, getRemoteAddress(c), settings);
 }
 
-/**
- * The origin the browser used: the request's own scheme, upgraded to https only when a proxy whose forwarded headers
- * are trusted for the client address (the same trust) says the browser came over HTTPS (X-Forwarded-Proto).
- */
-export function resolveRequestOrigin(
-  requestUrl: string,
-  headers: Pick<Headers, 'get'>,
-  resolution: Pick<ClientIpResolution, 'source'>
-): string {
-  const url = new URL(requestUrl);
-  if (url.protocol === 'https:') return url.origin;
-  const proxied =
-    resolution.source === 'forwarded' || resolution.source === 'real-ip' || resolution.source === 'cloudflare';
-  const forwardedProto = headers.get('x-forwarded-proto')?.split(',')[0]?.trim().toLowerCase();
-  if (proxied && forwardedProto === 'https') url.protocol = 'https:';
-  return url.origin;
-}
-
-export async function resolveRequestOriginForContext(c: Context<AppEnv>): Promise<string> {
-  try {
-    return resolveRequestOrigin(c.req.url, c.req.raw.headers, await resolveClientIpForContext(c));
-  } catch {
-    // Unreadable proxy settings: the request's own scheme, trusting no proxy.
-    return new URL(c.req.url).origin;
-  }
-}
-
 export async function getClientIpForContext(c: Context<AppEnv>): Promise<string | undefined> {
   return (await resolveClientIpForContext(c)).ipAddress;
 }
