@@ -166,6 +166,10 @@ func TestSetMeshLogsAFailedRouteOpenOnceAsWarning(t *testing.T) {
 // A set's alias listeners never outlive it: when its network is gone (or the
 // set is released) the address is free again, so the next set that gets the
 // same subnet binds its listeners; a listener that cannot bind is reported.
+// meshFreedAddress is a loopback address of the bound subnet nothing else in the package uses: the port this test frees
+// and binds again is not taken meanwhile by an outgoing connection of a parallel test (those leave from 127.0.0.1).
+const meshFreedAddress = "127.0.0.37"
+
 func TestSetMeshFreesTheAddressesOfASetThatLeft(t *testing.T) {
 	const nextSet = "22222222-2222-4222-8222-222222222222"
 	mesh, _ := newTestMesh(t)
@@ -175,9 +179,9 @@ func TestSetMeshFreesTheAddressesOfASetThatLeft(t *testing.T) {
 	mesh.inspect = func(_ context.Context, name string) (netip.Addr, bool, error) {
 		mu.Lock()
 		defer mu.Unlock()
-		return netip.MustParseAddr("127.0.0.1"), networks[name], nil
+		return netip.MustParseAddr(meshFreedAddress), networks[name], nil
 	}
-	probe, err := net.Listen("tcp", "127.0.0.1:0")
+	probe, err := net.Listen("tcp", meshFreedAddress+":0")
 	if err != nil {
 		t.Fatal(err)
 	}
