@@ -1,6 +1,9 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { container } from '@/container.js';
+import { initializeHostCookieSince } from '@/modules/auth/legacy-session-cookie.js';
 import { getSessionCookieName } from '@/modules/auth/session-cookie.js';
-import { getSessionWebSocketCredential } from '@/modules/auth/websocket-auth.js';
+import { admitWebSocketSessionCookie, getSessionWebSocketCredential } from '@/modules/auth/websocket-auth.js';
+import { SessionService } from '@/services/session.service.js';
 
 process.env.NODE_ENV = 'test';
 process.env.DATABASE_URL = 'http://localhost/db';
@@ -48,5 +51,36 @@ describe('browser WebSocket credentials', () => {
       type: 'session',
       value: 'current-session',
     });
+  });
+});
+
+describe('session cookies of the AI and events WebSockets (L-08)', () => {
+  async function useHostCookieSince(since: number) {
+    const row = { value: { since: new Date(since).toISOString() } };
+    await initializeHostCookieSince({
+      insert: () => ({ values: () => ({ onConflictDoNothing: async () => undefined }) }),
+      select: () => ({ from: () => ({ where: () => ({ limit: async () => [row] }) }) }),
+    } as never);
+  }
+
+  function useSession(createdAt: number) {
+    container.registerInstance(SessionService, {
+      getSession: vi.fn().mockResolvedValue({ userId: 'u1', createdAt, expiresAt: Date.now() + 60_000 }),
+    } as unknown as SessionService);
+  }
+
+  afterEach(() => container.reset());
+
+  it('passes a legacy-named cookie only for a session from before the __Host- cookie', async () => {
+    await useHostCookieSince(Date.now() - 60_000);
+    const legacy = { type: 'session' as const, value: 'session-1', legacy: true as const };
+
+    useSession(Date.now() - 120_000);
+    await expect(admitWebSocketSessionCookie(legacy)).resolves.toBe('session-1');
+
+    useSession(Date.now());
+    await expect(admitWebSocketSessionCookie(legacy)).resolves.toBe('');
+    await expect(admitWebSocketSessionCookie({ type: 'session', value: 'session-2' })).resolves.toBe('session-2');
+    await expect(admitWebSocketSessionCookie(null)).resolves.toBe('');
   });
 });

@@ -1,8 +1,10 @@
+import { container } from '@/container.js';
 import { hasScope, hasScopeBase } from '@/lib/permissions.js';
 import { hasTokenPrefix } from '@/lib/token-prefixes.js';
 import { authenticateBearerToken } from '@/modules/auth/auth.middleware.js';
 import { requiresSessionMfaReauthentication, resolveLiveSessionUser } from '@/modules/auth/live-session-user.js';
 import { isDemoRealtimeCapabilityAllowed } from '@/modules/demo/demo-mode.js';
+import { SessionService } from '@/services/session.service.js';
 import type { User } from '@/types.js';
 import { sessionAllowedForCookie } from './legacy-session-cookie.js';
 import { selectSessionCookie } from './session-cookie.js';
@@ -71,6 +73,18 @@ export function getSessionWebSocketCredential(
   return cookie.legacy
     ? { type: 'session', value: cookie.value, legacy: true }
     : { type: 'session', value: cookie.value };
+}
+
+/**
+ * The session id of a WebSocket's session cookie for endpoints that authenticate by id (AI Workspace, events): ''
+ * when there is none, or when it came under a legacy cookie name and its session is not from before the `__Host-`
+ * cookie (sessionAllowedForCookie).
+ */
+export async function admitWebSocketSessionCookie(credential: WebSocketCredential | null): Promise<string> {
+  if (credential?.type !== 'session') return '';
+  if (!credential.legacy) return credential.value;
+  const session = await container.resolve(SessionService).getSession(credential.value);
+  return session && sessionAllowedForCookie({ legacy: true }, session) ? credential.value : '';
 }
 
 export function getProgrammaticWebSocketCredential(
