@@ -104,10 +104,11 @@ func (h *Handler) handlePagesMaterializePreview(cmd *pb.PagesMaterializePreviewC
 	}
 }
 
-// pagesPreviewAccess maps the optional wire access list. An absent or empty
-// list keeps the preview public, exactly like a proxy host without one.
+// pagesPreviewAccess maps the optional wire access list. An absent list keeps
+// the preview public, exactly like a proxy host without one; a named list
+// protects it even without fallback rules (pages.PreviewAccess).
 func pagesPreviewAccess(access *pb.PagesPreviewAccess) *pages.PreviewAccess {
-	if access == nil || (len(access.IpRules) == 0 && !access.BasicAuthEnabled) {
+	if access == nil || (access.AccessListId == "" && len(access.IpRules) == 0 && !access.BasicAuthEnabled) {
 		return nil
 	}
 	rules := make([]pages.PreviewIPRule, 0, len(access.IpRules))

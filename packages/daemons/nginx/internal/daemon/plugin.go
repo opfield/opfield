@@ -28,6 +28,7 @@ import (
 	sharedstate "github.com/opfield/opfield/daemon-shared/state"
 	"github.com/opfield/opfield/daemon-shared/stream"
 	"github.com/opfield/opfield/daemon-shared/sysmetrics"
+	"github.com/opfield/opfield/nginx-daemon/internal/access"
 	"github.com/opfield/opfield/nginx-daemon/internal/config"
 	"github.com/opfield/opfield/nginx-daemon/internal/naming"
 	"github.com/opfield/opfield/nginx-daemon/internal/nginx"
@@ -94,6 +95,10 @@ type NginxPlugin struct {
 	relayStreamTargetCuts logepisode.Tracker
 	// Ingress groups: the reserved health endpoint's responder (nil when it could not start).
 	ingressHealth *ingressHealthResponder
+	// accessStore keeps the synced access policy; accessServer answers nginx's access checks from it (nil when
+	// nginx cannot ask: access_socket.go).
+	accessStore  *access.Store
+	accessServer *accessServer
 	// handover carries the Secure Link connections an update hands to the next process (live_handover.go);
 	// handoverTracker settles what the last update did to them; liveCuts counts those an update cuts in any case.
 	handover        *handover.Registry
@@ -300,6 +305,8 @@ func (p *NginxPlugin) Init(baseCfg *lifecycle.BaseConfig, logger *slog.Logger) e
 	// (live_handover.go).
 	p.restoreHandover()
 	p.registryListenersRelease = time.AfterFunc(registryListenerAdoptionWindow, p.releaseUnclaimedRegistryListeners)
+	// The access policy and socket, before the Pages runtime that renders previews against them.
+	p.startAccess(baseCfg.StateDir)
 	p.pagesRuntime, err = pages.New(p.cfg.Nginx.PagesRoot, p.cfg.Nginx.ConfigDir, p.cfg.Nginx.CertsDir, p.mgr)
 	if err != nil {
 		logger.Warn("Opfield Pages runtime is unavailable; Pages capability is disabled", "error", err)
@@ -314,6 +321,7 @@ func (p *NginxPlugin) Init(baseCfg *lifecycle.BaseConfig, logger *slog.Logger) e
 		// directory, which state writes create owner-only (N-22).
 		p.pagesRuntime.SetReaderAccess(baseCfg.StateDir, p.secureLinks.socketOwnerUID)
 		p.pagesRuntime.SetUnknownHostsAnswered(p.unknownHostsAnswered)
+		p.pagesRuntime.SetAccessChecks(p.accessChecksAvailable)
 		if err := p.pagesRuntime.RepairTraversal(); err != nil {
 			logger.Warn("nginx workers may not reach Opfield Pages releases; Pages deliveries stay not ready until they can", "error", err)
 		}
@@ -506,6 +514,7 @@ func (p *NginxPlugin) SetState(st *sharedstate.State) {
 		p.handler.secureLinkListeners = p.secureLinks
 	}
 	p.handler.reporter = p.reporter
+	p.handler.accessPolicy = p.accessStore
 	p.startLogBudget()
 }
 
@@ -614,6 +623,7 @@ func (p *NginxPlugin) Shutdown() {
 			p.availabilityLease.close()
 		}
 		p.ingressHealth.close()
+		p.accessServer.close(p.socketsHandedOver())
 		if p.nginxUpgradeCancel != nil {
 			p.nginxUpgradeCancel()
 		}
@@ -659,6 +669,9 @@ func (p *NginxPlugin) capabilities() []string {
 	}
 	if p.accessLogFormatReady {
 		capabilities = append(capabilities, AccessLogFormatCapability)
+	}
+	if p.accessServer != nil {
+		capabilities = append(capabilities, accessAuthCapability)
 	}
 	return capabilities
 }

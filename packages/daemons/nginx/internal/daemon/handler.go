@@ -13,6 +13,7 @@ import (
 	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
 	"github.com/opfield/opfield/daemon-shared/securelink"
 	sharedstate "github.com/opfield/opfield/daemon-shared/state"
+	"github.com/opfield/opfield/nginx-daemon/internal/access"
 	"github.com/opfield/opfield/nginx-daemon/internal/config"
 	"github.com/opfield/opfield/nginx-daemon/internal/naming"
 	"github.com/opfield/opfield/nginx-daemon/internal/nginx"
@@ -55,6 +56,8 @@ type Handler struct {
 	secureLinkListeners interface {
 		ensureReferencedListeners(config string) []string
 	}
+	// accessPolicy keeps the access policy the access socket answers from (access_socket.go).
+	accessPolicy *access.Store
 	// mutationMu serializes the changes to the nginx configuration: commands, the deferred reload and the
 	// daemon's own background changes (see reload_coalescing.go).
 	mutationMu       sync.Mutex
@@ -126,6 +129,8 @@ func (h *Handler) HandleCommand(cmd *pb.OpfieldCommand) *pb.CommandResult {
 	switch payload := cmd.Payload.(type) {
 	case *pb.OpfieldCommand_ApplyConfig:
 		h.handleApplyConfig(payload.ApplyConfig, result)
+	case *pb.OpfieldCommand_SyncAccessPolicy:
+		h.handleSyncAccessPolicy(payload.SyncAccessPolicy, result)
 	case *pb.OpfieldCommand_RemoveConfig:
 		h.handleRemoveConfig(payload.RemoveConfig, result)
 	case *pb.OpfieldCommand_DeployCert:

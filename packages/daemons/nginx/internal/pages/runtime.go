@@ -58,6 +58,8 @@ type Runtime struct {
 	errorPages bool
 	// unknownHostsAnswered: see SetUnknownHostsAnswered.
 	unknownHostsAnswered func() bool
+	// accessChecks: see SetAccessChecks.
+	accessChecks func(accessListID string) bool
 }
 
 // SetUnknownHostsAnswered tells the runtime how to learn whether the node's managed default servers answer every
