@@ -70,8 +70,9 @@ export class LoggingFeatureService {
   }
 
   requireAvailableForIngest(): void {
-    // Not 503: producers retry that at once, and logging stays off until an administrator turns it on, so a producer
-    // kept sending several requests a second. A 409 is final for the logging SDK: it drops the batch and goes on.
+    // Only ingest answers 409: the API reads keep 503 for logging being off, as the UI and the e2e checks expect.
+    // Producers retry any 5xx, and logging stays off until an administrator turns it on, so a producer kept sending
+    // several requests a second. A 409 is final for the logging SDK: it drops the batch and pauses sending a minute.
     if (!this.isEnabled()) {
       throw new AppError(409, 'LOGGING_DISABLED', 'External logging is disabled');
     }

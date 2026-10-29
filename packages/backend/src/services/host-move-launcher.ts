@@ -55,6 +55,14 @@ export type HostMoveLaunchDecision =
   | { launch: true; retry: boolean; removeContainer: boolean };
 
 /** Whether the installation still uses (part of) the layout of the releases before 2.12.1. */
+/** The installation's Compose directory: the configured one, else the one Compose started this container from. */
+export function composeDirectoryOf(
+  env: { COMPOSE_PROJECT_DIR?: string },
+  labels: Record<string, string> | undefined
+): string | null {
+  return env.COMPOSE_PROJECT_DIR || labels?.['com.docker.compose.project.working_dir'] || null;
+}
+
 export function hasLegacyLayout(input: { composeDir: string; composeProject: string; databaseUrl: string }): boolean {
   return (
     path.basename(input.composeDir) === LEGACY_INSTALL_DIR_NAME ||
@@ -204,7 +212,7 @@ export class HostMoveLauncher {
     if (env.NODE_ENV !== 'production') return;
     const self = await docker.inspectSelf();
     const labels = self.Config.Labels ?? {};
-    const composeDir = env.COMPOSE_PROJECT_DIR || labels['com.docker.compose.project.working_dir'] || null;
+    const composeDir = composeDirectoryOf(env, labels);
     const composeProject = labels['com.docker.compose.project'] ?? null;
     const moveContainer = await docker.inspectContainerDetails(HOST_MOVE_CONTAINER_NAME);
     const decision = hostMoveLaunchDecision({

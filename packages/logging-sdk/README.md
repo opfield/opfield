@@ -290,6 +290,8 @@ For `429` responses, the SDK prefers the HTTP `Retry-After` header. If the heade
 
 Permanent validation or authorization failures are not retried. Those batches are dropped with reason `"permanent_failure"`. Retryable batches that still fail after `maxAttempts` are dropped with reason `"retry_exhausted"`.
 
+When Opfield answers `409 LOGGING_DISABLED` (logging is turned off on that Opfield), the batch is dropped with reason `"permanent_failure"` and the logger sends nothing for 60 seconds. New logs wait in the queue meanwhile, within `maxQueueSize`; `close()` does not wait for the pause and drops them with reason `"closed"`.
+
 When a batch cannot be delivered, the SDK calls callbacks in this order:
 
 1. `onDrop(log, reason)` once for each failed log.

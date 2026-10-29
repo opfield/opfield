@@ -22,12 +22,16 @@ export interface OpfieldLogQueueOptions {
   onFallback?: (logs: readonly OpfieldLog[], failure: OpfieldLogFailureInfo) => void | Promise<void>;
 }
 
+/** How long the queue sends nothing after Opfield answered that logging is disabled. */
+export const LOGGING_DISABLED_PAUSE_MS = 60_000;
+
 export class OpfieldLogQueue {
   private readonly events: NormalizedOpfieldLogEvent[] = [];
   private debounceTimer: NodeJS.Timeout | undefined;
   private intervalTimer: NodeJS.Timeout | undefined;
   private flushInFlight: Promise<void> | undefined;
   private closed = false;
+  private pausedUntil = 0;
 
   constructor(private readonly options: OpfieldLogQueueOptions) {
     this.intervalTimer = setInterval(() => {
@@ -94,6 +98,11 @@ export class OpfieldLogQueue {
 
   private async flushLoop(): Promise<void> {
     while (this.events.length > 0) {
+      // Logging is off on the Opfield: queued logs wait (bounded by maxQueueSize) instead of being sent to be refused.
+      if (Date.now() < this.pausedUntil) {
+        if (this.closed) this.dropBatch(this.events.splice(0), 'closed');
+        return;
+      }
       const batch = this.events.splice(0, this.options.maxBatchSize);
       await this.sendWithRetry(batch);
     }
@@ -105,6 +114,7 @@ export class OpfieldLogQueue {
       if (result.ok) return;
 
       if (!result.retryable) {
+        if (isLoggingDisabled(result.status, result.error)) this.pausedUntil = Date.now() + LOGGING_DISABLED_PAUSE_MS;
         await this.handleDeliveryFailure(batch, 'permanent_failure', result.error, result.status);
         return;
       }
@@ -152,4 +162,13 @@ export class OpfieldLogQueue {
       this.options.onError?.(fallbackError, logs, failure);
     }
   }
+}
+
+function isLoggingDisabled(status: number | undefined, payload: unknown): boolean {
+  return (
+    status === 409 &&
+    typeof payload === 'object' &&
+    payload !== null &&
+    (payload as { code?: unknown }).code === 'LOGGING_DISABLED'
+  );
 }

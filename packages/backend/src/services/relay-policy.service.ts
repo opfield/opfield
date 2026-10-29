@@ -308,22 +308,29 @@ function relayRoutePolicy(
 }
 
 const GRANT_REFRESH_FAILURE_NODES_NAMED = 3;
+const GRANT_REFRESH_FAILURE_REASONS_NAMED = 3;
 
-/** Daemons named per distinct refusal: the same reason from many daemons (a key rotation) is listed once. */
+/**
+ * Daemons named per distinct refusal: the same reason from many daemons (a key rotation) is listed once, a reason
+ * naming its daemon counts as that reason, and the summary stays short however large the fleet.
+ */
 export function describeGrantRefreshFailures(failures: Array<{ nodeId: string; reason: string }>): string {
   const byReason = new Map<string, string[]>();
-  for (const failure of failures)
-    byReason.set(failure.reason, [...(byReason.get(failure.reason) ?? []), failure.nodeId]);
-  return [...byReason]
-    .map(([reason, nodeIds]) => {
-      const named = nodeIds.slice(0, GRANT_REFRESH_FAILURE_NODES_NAMED).join(', ');
-      const more =
-        nodeIds.length > GRANT_REFRESH_FAILURE_NODES_NAMED
-          ? ` and ${nodeIds.length - GRANT_REFRESH_FAILURE_NODES_NAMED} more`
-          : '';
-      return `${reason} (${named}${more})`;
-    })
-    .join('; ');
+  for (const failure of failures) {
+    const reason = failure.reason.split(failure.nodeId).join('<node>');
+    let nodeIds = byReason.get(reason);
+    if (!nodeIds) byReason.set(reason, (nodeIds = []));
+    nodeIds.push(failure.nodeId);
+  }
+  const reasons = [...byReason].sort((a, b) => b[1].length - a[1].length);
+  const described = reasons.slice(0, GRANT_REFRESH_FAILURE_REASONS_NAMED).map(([reason, nodeIds]) => {
+    const named = nodeIds.slice(0, GRANT_REFRESH_FAILURE_NODES_NAMED).join(', ');
+    const more = nodeIds.length - GRANT_REFRESH_FAILURE_NODES_NAMED;
+    return `${reason} (${named}${more > 0 ? ` and ${more} more` : ''})`;
+  });
+  const otherReasons = reasons.length - GRANT_REFRESH_FAILURE_REASONS_NAMED;
+  if (otherReasons > 0) described.push(`${otherReasons} other reason(s)`);
+  return described.join('; ');
 }
 
 function errorMessage(error: unknown): string {

@@ -29,10 +29,7 @@ describe('one-off helper containers (F-3)', () => {
   it('leave unlabelled sidecars of older releases recognizable, whichever path they mounted the Compose directory at', () => {
     const socket = { Source: '/var/run/docker.sock', Destination: '/var/run/docker.sock' };
     const pinned = `docker.io/library/docker:27-cli@sha256:${'a'.repeat(64)}`;
-    const sidecar = (Image: string, ...Mounts: Array<{ Source: string; Destination: string }>) => ({
-      Config: { Image },
-      Mounts,
-    });
+    const sidecar = (image: string, ...mounts: Array<{ Source: string; Destination: string }>) => ({ image, mounts });
     expect(isUnlabelledUpdateSidecar(sidecar(pinned, socket, { Source: '/root', Destination: '/root' }), '/root')).toBe(
       true
     );
@@ -40,6 +37,19 @@ describe('one-off helper containers (F-3)', () => {
     expect(
       isUnlabelledUpdateSidecar(sidecar('docker:27-cli', socket, { Source: '/root', Destination: '/project' }), '/root')
     ).toBe(true);
+    // A host move renamed the legacy install directory: sidecars from before it mounted the old path.
+    expect(
+      isUnlabelledUpdateSidecar(
+        sidecar(pinned, socket, { Source: '/opt/gateway', Destination: '/project' }),
+        '/opt/opfield'
+      )
+    ).toBe(true);
+    expect(
+      isUnlabelledUpdateSidecar(
+        sidecar(pinned, socket, { Source: '/opt/gateway', Destination: '/project' }),
+        '/opt/apps'
+      )
+    ).toBe(false);
     // A user's own Docker CLI container is not one.
     expect(isUnlabelledUpdateSidecar(sidecar('docker:27-cli', socket), '/root')).toBe(false);
     expect(

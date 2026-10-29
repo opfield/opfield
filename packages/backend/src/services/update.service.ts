@@ -1,3 +1,4 @@
+import path from 'node:path';
 import { and, desc, eq, inArray, max, sql } from 'drizzle-orm';
 import { DOCKER_COMPOSE_CLI_IMAGE_REF } from '@/config/docker-compose-cli-image.js';
 import type { Env } from '@/config/env.js';
@@ -19,9 +20,11 @@ import {
   LEGACY_DATABASE_ROLE,
   LEGACY_DATABASE_SNAPSHOT_FILE,
   LEGACY_FOUNDATION_BACKUPS_DIR,
+  OPFIELD_INSTALL_DIR_NAME,
 } from '@/foundation/opfield-names.js';
 import {
   LEGACY_APP_IMAGE_MANIFEST_ASSET,
+  LEGACY_INSTALL_DIR_NAME,
   LEGACY_LOCK_RELAY_POOL_REBALANCE,
   LEGACY_RELAY_MIN_VERSION_KEY,
   LEGACY_UPDATE_ATTEMPT_KEY,
@@ -47,7 +50,7 @@ import {
 import { AppError } from '@/middleware/error-handler.js';
 import type { GeneralSettingsService, UpdateChannel } from '@/modules/settings/general-settings.service.js';
 import { type DockerContainerListItem, type DockerService, ONE_SHOT_LABEL } from './docker.service.js';
-import { HOST_MOVE_ROLE, HostMoveLauncher, hasLegacyLayout } from './host-move-launcher.js';
+import { composeDirectoryOf, HOST_MOVE_ROLE, HostMoveLauncher, hasLegacyLayout } from './host-move-launcher.js';
 import {
   type OrchestrationActivitySource,
   type PendingOrchestrationOperation,
@@ -149,21 +152,29 @@ const FINISHED_CONTAINER_ROLES: readonly string[] = [UPDATE_SIDECAR_ROLE, LEGACY
 const UNLABELLED_SIDECAR_IMAGE = /^(?:docker\.io\/library\/)?docker:\d+-cli(?:@sha256:[0-9a-f]{64})?$/;
 
 /**
- * Whether an exited unlabelled container is an update sidecar of an older release: the Docker CLI image with exactly
- * the Docker socket and the Compose directory mounted. Sidecars mounted the Compose directory at its own path or at
- * /project; a user's own docker:cli containers do not mount both.
+ * Whether an unlabelled container is an update sidecar of an older release: the Docker CLI image with exactly the
+ * Docker socket and the Compose directory mounted. Sidecars mounted the Compose directory at its own path or at
+ * /project; those started before a host move mounted the legacy directory it renamed. A user's own docker:cli
+ * containers do not mount both.
  */
 export function isUnlabelledUpdateSidecar(
-  details: { Config: { Image: string }; Mounts?: Array<{ Source?: string; Destination?: string }> },
+  container: { image: string; mounts?: Array<{ Source?: string; Destination?: string }> },
   composeDir: string
 ): boolean {
-  if (!UNLABELLED_SIDECAR_IMAGE.test(details.Config.Image)) return false;
-  const mounts = details.Mounts ?? [];
+  if (!UNLABELLED_SIDECAR_IMAGE.test(container.image)) return false;
+  const composeDirs = new Set([composeDir]);
+  if (path.basename(composeDir) === OPFIELD_INSTALL_DIR_NAME) {
+    composeDirs.add(path.join(path.dirname(composeDir), LEGACY_INSTALL_DIR_NAME));
+  }
+  const mounts = container.mounts ?? [];
   const socket = mounts.some(
     (mount) => mount.Source === '/var/run/docker.sock' && mount.Destination === '/var/run/docker.sock'
   );
   const compose = mounts.some(
-    (mount) => mount.Source === composeDir && (mount.Destination === composeDir || mount.Destination === '/project')
+    (mount) =>
+      mount.Source !== undefined &&
+      composeDirs.has(mount.Source) &&
+      (mount.Destination === mount.Source || mount.Destination === '/project')
   );
   return socket && compose && mounts.length === 2;
 }
@@ -930,7 +941,7 @@ export class UpdateService {
   private async hostMoveNeeded(): Promise<boolean> {
     const self = await this.dockerService.inspectSelf();
     const labels = self.Config.Labels ?? {};
-    const composeDir = this.env.COMPOSE_PROJECT_DIR || labels['com.docker.compose.project.working_dir'];
+    const composeDir = composeDirectoryOf(this.env, labels);
     const composeProject = labels['com.docker.compose.project'];
     if (!composeDir || !composeProject) return false;
     return hasLegacyLayout({ composeDir, composeProject, databaseUrl: this.env.DATABASE_URL });
@@ -944,13 +955,14 @@ export class UpdateService {
       if (item.State !== 'running') continue;
       const role = item.Labels?.[UPDATE_SIDECAR_LABEL];
       if (role !== undefined && FINISHED_CONTAINER_ROLES.includes(role)) return true;
-      if (role !== undefined || !UNLABELLED_SIDECAR_IMAGE.test(item.Image)) continue;
+      // One-off helpers carry their own label and are no update sidecar.
+      if (role !== undefined || item.Labels?.[ONE_SHOT_LABEL] !== undefined) continue;
+      if (!UNLABELLED_SIDECAR_IMAGE.test(item.Image)) continue;
       // An unlabelled Docker CLI container is a sidecar only with the mounts one has (the cleanup's test); without a
       // known Compose directory it counts as one, so an update never starts beside a running sidecar.
       composeDir ??= await this.composeDirectory();
       if (!composeDir) return true;
-      const details = await this.dockerService.inspectContainerDetails(item.Id);
-      if (details && isUnlabelledUpdateSidecar(details, composeDir)) return true;
+      if (isUnlabelledUpdateSidecar({ image: item.Image, mounts: item.Mounts }, composeDir)) return true;
     }
     return false;
   }
@@ -959,7 +971,7 @@ export class UpdateService {
   private async composeDirectory(): Promise<string | null> {
     if (this.env.COMPOSE_PROJECT_DIR) return this.env.COMPOSE_PROJECT_DIR;
     const self = await this.dockerService.inspectSelf().catch(() => null);
-    return self?.Config.Labels?.['com.docker.compose.project.working_dir'] || null;
+    return composeDirectoryOf(this.env, self?.Config.Labels);
   }
 
   private async readOpfieldUpdateAttempt(): Promise<OpfieldUpdateAttempt | null> {
@@ -1144,8 +1156,7 @@ export class UpdateService {
         const labelled = kind === 'sidecar';
         if (!labelled) {
           if (!composeDir) continue;
-          const details = await this.dockerService.inspectContainerDetails(item.Id);
-          if (!details || !isUnlabelledUpdateSidecar(details, composeDir)) continue;
+          if (!isUnlabelledUpdateSidecar({ image: item.Image, mounts: item.Mounts }, composeDir)) continue;
         }
         await this.dockerService
           // Never forced: a container that started meanwhile stays.
@@ -1239,7 +1250,7 @@ export class UpdateService {
     const selfInfo = await this.dockerService.inspectSelf();
     const labels = selfInfo.Config.Labels;
 
-    const composeDir = this.env.COMPOSE_PROJECT_DIR || labels['com.docker.compose.project.working_dir'];
+    const composeDir = composeDirectoryOf(this.env, labels);
     const composeProject = labels['com.docker.compose.project'];
 
     if (!composeDir) throw new Error('Cannot determine compose project directory');
@@ -1417,8 +1428,10 @@ service_exists() { compose config --services | grep -qx "$1"; }
 ensure_foundation_services() {
   for service in $(compose config --services); do
     [ "$service" = app ] && continue
-    # The registry holds no state outside its volumes: recreate it when its definition changed, or it keeps the
-    # first one forever (log rotation and level included). Compose restarts it only when the definition differs, so
+    # The other services stay as they run: postgres and redis hold Opfield's state, and recreating them here would
+    # stop it before the snapshot; the relay is recreated by its own drain path. The registry holds no state outside
+    # its volumes: recreate it when its definition changed, or it keeps the first one forever (log rotation and level
+    # included). Compose restarts it only when the definition differs, so
     # in-flight pushes and pulls are cut only by the rare update that changes it (and by a rollback restoring the old
     # one), as a registry maintenance run cuts them. A failed recreate never aborts the script by itself, least of
     # all a rollback: the registry health checks that follow decide whether the update holds.
@@ -1983,7 +1996,7 @@ true`,
     const version = normalizeVersionTag(targetVersion);
     const selfInfo = await this.dockerService.inspectSelf();
     const labels = selfInfo.Config.Labels;
-    const composeDir = this.env.COMPOSE_PROJECT_DIR || labels['com.docker.compose.project.working_dir'];
+    const composeDir = composeDirectoryOf(this.env, labels);
     const composeProject = labels['com.docker.compose.project'];
     if (!composeDir || !/^\/[a-zA-Z0-9/_.-]+$/.test(composeDir)) throw new Error('Invalid Compose directory');
     if (!composeProject || !/^[a-zA-Z0-9_-]+$/.test(composeProject)) throw new Error('Invalid Compose project');
