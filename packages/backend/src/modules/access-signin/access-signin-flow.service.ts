@@ -1,5 +1,6 @@
 import bcrypt from 'bcryptjs';
 import { AppError } from '@/middleware/error-handler.js';
+import { accessIdentityUsable } from '@/modules/access-lists/access-policy-evaluator.js';
 import type { AccessDecide } from './access-decision.js';
 import { scheduleAccessPolicySync } from './access-policy-sync.js';
 import type { AccessSessionRow, AccessSessionStore } from './access-sessions.service.js';
@@ -12,8 +13,8 @@ import { type AccessTokenIdentity, isAccessHostName, normalizeAccessHost } from 
 
 /** The central session cookie on the sign-in domain (aud = sign-in host). */
 export const ACCESS_SESSION_COOKIE = 'opfield_access_session';
-/** Methods that identify a visitor of one list only. */
-const LIST_BOUND_METHODS = new Set(['password', 'basic', 'shared']);
+/** Sign-in page methods whose session is valid for the list it signed in to only (basic never signs in here). */
+const LIST_SESSION_METHODS = new Set(['password', 'shared']);
 // Compared against when the username is unknown, so a miss takes as long as a wrong password.
 const DUMMY_HASH = '$2b$10$xTpgSgCm5puWA8nTrfyvne5Lxm8qrJkHX8IUrzblxyxNM6fYfdkhq';
 
@@ -104,6 +105,27 @@ export class AccessSignInFlowService {
     return isLiveSession(session, this.now()) ? session : null;
   }
 
+  /**
+   * Where GET /access/sign-in sends a visitor whose central session already gets in, else null (the page loads and asks
+   * /context). Without a session cookie there is nothing to look up.
+   */
+  async sessionRedirect(target: SignInTarget, cookie: string | undefined, meta: VisitorMeta): Promise<string | null> {
+    if (!cookie) return null;
+    const session = await this.centralSession(cookie);
+    if (!session) return null;
+    const resolved = await this.resolveTarget(target);
+    const identity = await this.currentIdentity(session);
+    if (
+      !identity ||
+      !accessIdentityUsable(resolved.list, identity) ||
+      this.deps.decide(resolved.list, { clientIp: meta.clientIp }, identity) !== 'allow'
+    ) {
+      return null;
+    }
+    await this.deps.sessions.touch(session.id, this.now());
+    return this.hostCallbackUrl(resolved, session, identity);
+  }
+
   /** What the sign-in page shows for a visitor, or where it sends them right away. */
   async context(target: SignInTarget, cookie: string | undefined, meta: VisitorMeta): Promise<SignInContext> {
     const resolved = await this.resolveTarget(target);
@@ -113,7 +135,7 @@ export class AccessSignInFlowService {
     const identity = await this.currentIdentity(session);
     if (!identity) return { host: resolved.host, methods, state: 'methods' };
     const shown = { ...(identity.em ? { email: identity.em } : {}), ...(identity.nm ? { name: identity.nm } : {}) };
-    if (!this.usable(resolved.list, identity))
+    if (!accessIdentityUsable(resolved.list, identity))
       return { host: resolved.host, methods, state: 'methods', identity: shown };
     if (this.deps.decide(resolved.list, { clientIp: meta.clientIp }, identity) !== 'allow') {
       return { host: resolved.host, methods, state: 'denied', identity: shown };
@@ -136,7 +158,7 @@ export class AccessSignInFlowService {
       email: identity.em ?? null,
       name: identity.nm ?? null,
       groups: identity.grp ?? [],
-      accessListId: LIST_BOUND_METHODS.has(identity.m) ? resolved.list.id : null,
+      accessListId: LIST_SESSION_METHODS.has(identity.m) ? resolved.list.id : null,
       clientIp: meta.clientIp || null,
       userAgent: meta.userAgent?.slice(0, 1024) ?? null,
       expiresAt: new Date(now.getTime() + ttl * 1000),
@@ -204,7 +226,7 @@ export class AccessSignInFlowService {
     const identity = await this.currentIdentity(session);
     if (
       identity &&
-      this.usable(resolved.list, identity) &&
+      accessIdentityUsable(resolved.list, identity) &&
       this.deps.decide(resolved.list, { clientIp: meta.clientIp }, identity) === 'allow'
     ) {
       return this.hostCallbackUrl(resolved, session, identity);
@@ -261,12 +283,6 @@ export class AccessSignInFlowService {
       nm: user.name,
       ...(user.groups.length ? { grp: user.groups } : {}),
     };
-  }
-
-  /** Contract step 5: the method is one the list offers; list-bound identities only for their own list. */
-  private usable(list: AccessListRow, identity: AccessTokenIdentity): boolean {
-    if (!list.signInMethods.includes(identity.m as never)) return false;
-    return !LIST_BOUND_METHODS.has(identity.m) || identity.lst === list.id;
   }
 
   private async ttlSeconds(list: AccessListRow): Promise<number> {

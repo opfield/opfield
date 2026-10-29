@@ -74,12 +74,13 @@ export function registerAccessSignIn(deps: AccessSignInRegistration): void {
 
   configureAccessPolicySync({ db, keys, settings, registry: deps.nodeRegistry, dispatch: deps.nodeDispatch });
 
-  // A blocked or deleted Opfield account loses its visitor sessions at once, not when they expire.
+  // An Opfield account that is blocked, deleted, or changed its email or permission groups loses its visitor sessions
+  // at once: their tokens carry the old identity. The next sign-in through the console carries the current one.
   deps.eventBus.subscribe('user.changed', (payload) => {
     const userId = (payload as { id?: unknown } | null)?.id;
     if (typeof userId !== 'string') return;
     void sessions
-      .revokeForInactiveOpfieldUser(userId, directory)
+      .revokeChangedOpfieldSessions(userId, directory)
       .then((count) => {
         if (count > 0) scheduleAccessPolicySync();
       })
@@ -89,11 +90,11 @@ export function registerAccessSignIn(deps: AccessSignInRegistration): void {
 
 /**
  * The periodic access sign-in job: rotates the signing key when due, deletes long-ended sessions and pushes the
- * current policy to every capable node (a node that missed a change gets it here at the latest).
+ * policy when its content changed since every node last got it (a node that missed a change gets it here).
  */
 export async function runAccessSignInMaintenance(): Promise<void> {
   if (!container.isRegistered(AccessSigningKeyService)) return;
   await container.resolve(AccessSigningKeyService).rotateIfDue();
   await container.resolve(AccessSessionService).cleanup();
-  await syncAccessPolicyNow();
+  await syncAccessPolicyNow({ onlyIfChanged: true });
 }

@@ -14,6 +14,7 @@ import type {
 } from '@/grpc/generated/types.js';
 import { createChildLogger } from '@/lib/logger.js';
 import { AppError } from '@/middleware/error-handler.js';
+import { NGINX_ACCESS_AUTH_CAPABILITY } from '@/modules/proxy/nginx-access-list.js';
 import { availabilityMemberUnsentReason } from './availability-member-unsent.js';
 import type { DaemonUpdateService } from './daemon-update.service.js';
 import { opfieldKeptVolumeNames } from './docker-kept-volumes.js';
@@ -743,7 +744,7 @@ export class NodeDispatchService {
   }
 
   /**
-   * Pushes the full access policy to an nginx node that checks access lists itself (nginx_access_auth_v1); null when
+   * Pushes the full access policy to an nginx node that checks access lists itself (NGINX_ACCESS_AUTH_CAPABILITY); null when
    * the node does not (it renders access lists as nginx directives).
    */
   async sendAccessPolicy(
@@ -751,7 +752,7 @@ export class NodeDispatchService {
     policy: SyncAccessPolicyCommand,
     timeoutMs = 30_000
   ): Promise<CommandResult | null> {
-    if (!this.registry.hasCapability(nodeId, 'nginx_access_auth_v1')) return null;
+    if (!this.registry.hasCapability(nodeId, NGINX_ACCESS_AUTH_CAPABILITY)) return null;
     return this.registry.sendCommand(nodeId, { syncAccessPolicy: policy }, timeoutMs);
   }
 

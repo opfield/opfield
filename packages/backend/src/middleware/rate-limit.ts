@@ -145,6 +145,12 @@ export const authLoginRateLimitMiddleware = createEnvironmentRateLimiter(
   (settings) => settings.authLoginMaxRequests
 );
 
+/** Password and shared-password attempts on the access sign-in page, with the console login budget. */
+export const accessSignInRateLimitMiddleware = createEnvironmentRateLimiter(
+  'ratelimit:access-sign-in',
+  (settings) => settings.authLoginMaxRequests
+);
+
 export const authCallbackRateLimitMiddleware = createEnvironmentRateLimiter(
   'ratelimit:auth:callback',
   (settings) => settings.authCallbackMaxRequests

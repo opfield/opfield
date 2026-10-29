@@ -123,7 +123,8 @@ export const SignInTargetSchema = z.object({
 export type SignInTarget = z.infer<typeof SignInTargetSchema>;
 
 export const PasswordSignInSchema = SignInTargetSchema.extend({
-  username: z.string().min(1).max(255),
+  // Stored usernames are trimmed.
+  username: z.string().trim().min(1).max(255),
   password: z.string().min(1).max(1024),
 });
 

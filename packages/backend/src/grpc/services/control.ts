@@ -9,7 +9,7 @@ import { compactHealthHistory } from '@/lib/health-history.js';
 import { createChildLogger } from '@/lib/logger.js';
 import { isMinorCompatible } from '@/lib/semver.js';
 import { AppError } from '@/middleware/error-handler.js';
-import { NGINX_ACCESS_AUTH_CAPABILITY, syncAccessPolicyToNode } from '@/modules/access-signin/access-policy-sync.js';
+import { syncAccessPolicyToNode } from '@/modules/access-signin/access-policy-sync.js';
 import { DockerRuntimeStatusSchema } from '@/modules/docker/docker.schemas.js';
 import { DockerBuildService } from '@/modules/docker/docker-build.service.js';
 import { DomainsService } from '@/modules/domains/domain.service.js';
@@ -20,6 +20,7 @@ import { validateRegisteredDaemonProfile } from '@/modules/nodes/node-daemon-pro
 import { installerRelease, secureRuntimeLocalCommand } from '@/modules/nodes/node-installer.js';
 import { nodeReportHealthy } from '@/modules/nodes/node-service-helpers.js';
 import { NotificationEvaluatorService } from '@/modules/notifications/notification-evaluator.service.js';
+import { NGINX_ACCESS_AUTH_CAPABILITY } from '@/modules/proxy/nginx-access-list.js';
 import { ProxyService } from '@/modules/proxy/proxy.service.js';
 import { backgroundWrites } from '@/services/background-writes.js';
 import { NginxCertificateDistributionService } from '@/services/nginx-certificate-distribution.service.js';

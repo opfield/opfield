@@ -1,11 +1,11 @@
-import { and, count, desc, eq, gt, ilike, isNull, lt, or, type SQL } from 'drizzle-orm';
+import { and, count, desc, eq, gt, ilike, inArray, isNull, lt, or, type SQL } from 'drizzle-orm';
 import type { DrizzleClient } from '@/db/client.js';
 import { accessLists, accessSessions } from '@/db/schema/index.js';
 import { AppError } from '@/middleware/error-handler.js';
 import type { AuditService } from '@/modules/audit/audit.service.js';
 import { scheduleAccessPolicySync } from './access-policy-sync.js';
 import type { AccessSessionListQuery } from './access-signin.schemas.js';
-import type { AccessSignInDirectory } from './access-signin-directory.js';
+import type { AccessSignInDirectory, OpfieldAccessUser } from './access-signin-directory.js';
 import type { AccessTokenIdentity } from './access-token.js';
 
 export type AccessSessionRow = typeof accessSessions.$inferSelect;
@@ -82,6 +82,18 @@ export function sessionIdentity(session: AccessSessionRow): AccessTokenIdentity 
   if (session.groups?.length) identity.grp = [...session.groups];
   if (session.accessListId) identity.lst = session.accessListId;
   return identity;
+}
+
+/** Whether an Opfield account session still carries the account's current email and groups. */
+export function opfieldSessionMatches(
+  session: Pick<AccessSessionRow, 'email' | 'groups'>,
+  user: Pick<OpfieldAccessUser, 'email' | 'groups'> | null
+): boolean {
+  if (!user) return false;
+  if ((session.email ?? '') !== user.email) return false;
+  const current = new Set(user.groups);
+  const held = new Set(session.groups ?? []);
+  return held.size === current.size && [...held].every((group) => current.has(group));
 }
 
 export type AccessSessionStatus = 'active' | 'expired' | 'revoked';
@@ -166,22 +178,40 @@ export class AccessSessionService {
     });
   }
 
-  /** Revokes the live sessions of an Opfield account that is blocked or deleted; returns how many. */
-  async revokeForInactiveOpfieldUser(
+  /**
+   * Revokes the live sessions of an Opfield account whose tokens no longer describe it: the account is blocked or
+   * deleted, or its email or permission groups changed (rules may match them). Returns how many.
+   */
+  async revokeChangedOpfieldSessions(
     userId: string,
     directory: Pick<AccessSignInDirectory, 'getOpfieldUser'>
   ): Promise<number> {
-    if (await directory.getOpfieldUser(userId)) return 0;
     const now = new Date();
-    const revoked = await this.db
-      .update(accessSessions)
-      .set({ revokedAt: now })
+    const live = await this.db
+      .select({ id: accessSessions.id, email: accessSessions.email, groups: accessSessions.groups })
+      .from(accessSessions)
       .where(
         and(
           eq(accessSessions.method, 'opfield'),
           eq(accessSessions.subject, userId),
           isNull(accessSessions.revokedAt),
           gt(accessSessions.expiresAt, now)
+        )
+      );
+    if (live.length === 0) return 0;
+    const user = await directory.getOpfieldUser(userId);
+    const stale = live.filter((session) => !opfieldSessionMatches(session, user));
+    if (stale.length === 0) return 0;
+    const revoked = await this.db
+      .update(accessSessions)
+      .set({ revokedAt: now })
+      .where(
+        and(
+          inArray(
+            accessSessions.id,
+            stale.map((session) => session.id)
+          ),
+          isNull(accessSessions.revokedAt)
         )
       )
       .returning({ id: accessSessions.id });

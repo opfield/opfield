@@ -20,6 +20,7 @@ export const ACCESS_KEY_ROTATION_MS = 30 * 24 * 60 * 60 * 1000;
 export const ACCESS_KEY_PUBLICATION_MS = 60 * 60 * 1000;
 /** Clock skew between Opfield and the nodes that verify the tokens. */
 const VERIFY_SKEW_MS = 5 * 60 * 1000;
+const PUBLISHED_KEYS_CACHE_MS = 5 * 60 * 1000;
 
 export interface AccessVerificationKeyView {
   keyId: string;
@@ -39,6 +40,8 @@ function isPending(key: AccessSigningKeyRow): boolean {
  */
 export class AccessSigningKeyService {
   private readonly privateKeys = new Map<string, KeyObject>();
+  /** The published keys and their KeyObjects, kept until the key set changes (rotation, first key). */
+  private published: { views: AccessVerificationKeyView[]; map: Map<string, KeyObject>; at: number } | null = null;
 
   constructor(
     private readonly store: AccessSigningKeyStore,
@@ -48,12 +51,21 @@ export class AccessSigningKeyService {
 
   /** The active key and every key that still verifies (a published successor included). */
   async verificationKeys(): Promise<AccessVerificationKeyView[]> {
+    return (await this.publishedKeys()).views;
+  }
+
+  private async publishedKeys() {
+    // Another Opfield process may rotate too: the cache also expires on its own.
+    if (this.published && Date.now() - this.published.at < PUBLISHED_KEYS_CACHE_MS) return this.published;
     await this.ensureActiveKey();
     const keys = await this.store.listPublished();
-    return keys
+    const views = keys
       .filter((key) => key.status === 'active' || key.status === 'verification_only')
       .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
       .map((key) => ({ keyId: key.keyId, publicKey: Buffer.from(key.publicKey, 'base64') }));
+    const map = new Map(views.map((key) => [key.keyId, ed25519PublicKeyFromRaw(key.publicKey)]));
+    this.published = { views, map, at: Date.now() };
+    return this.published;
   }
 
   /** The JSON Web Key Set of /.well-known/opfield-access/jwks. */
@@ -79,8 +91,7 @@ export class AccessSigningKeyService {
 
   /** The payload of a token one of the published keys signed for host, else null (see verifyAccessToken). */
   async verify(token: string, host: string, now = this.clock()): Promise<AccessTokenPayload | null> {
-    const keys = await this.verificationKeys();
-    const map = new Map(keys.map((key) => [key.keyId, ed25519PublicKeyFromRaw(key.publicKey)]));
+    const { map } = await this.publishedKeys();
     return verifyAccessToken(token, { keys: map, host, now: Math.floor(now.getTime() / 1000) });
   }
 
@@ -89,6 +100,7 @@ export class AccessSigningKeyService {
     if (keys.some((key) => key.status === 'active')) return;
     // A concurrent first use inserts the same way; the single-active index keeps one.
     await this.store.insertKey(this.newKey('active', this.clock()));
+    this.published = null;
   }
 
   /**
@@ -102,6 +114,7 @@ export class AccessSigningKeyService {
     const active = keys.find((key) => key.status === 'active');
     if (!active) {
       await this.store.insertKey(this.newKey('active', now));
+      this.published = null;
       return true;
     }
     const pending = keys.find(isPending);
@@ -121,6 +134,7 @@ export class AccessSigningKeyService {
     }
     const retired = await this.store.retireExpired(now);
     if (retired > 0) logger.info('Retired replaced access signing keys', { count: retired });
+    if (changed || retired > 0) this.published = null;
     return changed || retired > 0;
   }
 

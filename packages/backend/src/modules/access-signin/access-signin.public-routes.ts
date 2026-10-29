@@ -1,12 +1,11 @@
-import type { Context, MiddlewareHandler } from 'hono';
+import type { Context } from 'hono';
 import { Hono } from 'hono';
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import { container } from '@/container.js';
 import { getClientIpForContext } from '@/lib/request-ip.js';
 import { AppError } from '@/middleware/error-handler.js';
-import { createRateLimiter } from '@/middleware/rate-limit.js';
+import { accessSignInRateLimitMiddleware } from '@/middleware/rate-limit.js';
 import { optionalAuthMiddleware } from '@/modules/auth/auth.middleware.js';
-import { getEnvironmentSettingsSnapshot } from '@/modules/settings/environment-settings.service.js';
 import type { AppEnv } from '@/types.js';
 import {
   PasswordSignInSchema,
@@ -34,16 +33,6 @@ import { AccessSigningKeyService } from './access-signing-key.service.js';
 
 const flow = () => container.resolve(AccessSignInFlowService);
 const external = () => container.resolve(AccessSignInExternalService);
-
-/** Password and shared-password attempts per client address, with the console login budget. */
-const signInAttemptLimit: MiddlewareHandler<AppEnv> = (c, next) => {
-  const limits = getEnvironmentSettingsSnapshot().rateLimits;
-  return createRateLimiter({
-    windowMs: limits.windowMs,
-    maxRequests: limits.authLoginMaxRequests,
-    keyPrefix: 'ratelimit:access-sign-in',
-  })(c, next);
-};
 
 async function visitor(c: Context<AppEnv>): Promise<VisitorMeta> {
   return { clientIp: (await getClientIpForContext(c)) ?? '', userAgent: c.req.header('user-agent') ?? null };
@@ -107,14 +96,14 @@ accessSignInApiRoutes.get('/context', async (c) => {
   return c.json(await flow().context(target, getCookie(c, ACCESS_SESSION_COOKIE), await visitor(c)));
 });
 
-accessSignInApiRoutes.post('/password', signInAttemptLimit, async (c) => {
+accessSignInApiRoutes.post('/password', accessSignInRateLimitMiddleware, async (c) => {
   const body = PasswordSignInSchema.parse(await c.req.json());
   const signed = await flow().signInWithPassword(body, body.username, body.password, await visitor(c));
   await setSessionCookie(c, signed);
   return c.json({ redirect: signed.redirect });
 });
 
-accessSignInApiRoutes.post('/shared', signInAttemptLimit, async (c) => {
+accessSignInApiRoutes.post('/shared', accessSignInRateLimitMiddleware, async (c) => {
   const body = SharedSignInSchema.parse(await c.req.json());
   const signed = await flow().signInWithSharedPassword(body, body.password, await visitor(c));
   await setSessionCookie(c, signed);
@@ -160,10 +149,10 @@ accessSignInBrowserRoutes.get('/sign-in', async (c, next) => {
   const target = targetFromQuery(c);
   if (target) {
     try {
-      const context = await flow().context(target, getCookie(c, ACCESS_SESSION_COOKIE), await visitor(c));
-      if ('redirect' in context) {
+      const redirect = await flow().sessionRedirect(target, getCookie(c, ACCESS_SESSION_COOKIE), await visitor(c));
+      if (redirect) {
         c.header('Cache-Control', 'no-store');
-        return c.redirect(context.redirect, 302);
+        return c.redirect(redirect, 302);
       }
     } catch (error) {
       if (!(error instanceof AppError)) throw error;

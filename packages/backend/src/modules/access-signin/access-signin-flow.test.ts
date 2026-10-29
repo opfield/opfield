@@ -123,8 +123,14 @@ describe('access sign-in host tokens', () => {
     expect('redirect' in again && again.redirect).toMatch(
       /^https:\/\/app\.example\.com\/_opfield\/access\/callback\?t=v1\./
     );
+    // The sign-in page's own redirect check: nothing to look up without a cookie.
+    expect(await flow.sessionRedirect(target('app.example.com'), undefined, meta)).toBeNull();
+    expect(await flow.sessionRedirect(target('app.example.com'), signed.cookie, meta)).toMatch(
+      /^https:\/\/app\.example\.com\/_opfield\/access\/callback\?t=v1\./
+    );
     // Signed out: the session is revoked and the cookie no longer gets in.
     expect(await flow.signOut(signed.cookie)).toBe(true);
+    expect(await flow.sessionRedirect(target('app.example.com'), signed.cookie, meta)).toBeNull();
     expect(await flow.context(target('app.example.com'), signed.cookie, meta)).toMatchObject({ state: 'methods' });
   });
 });

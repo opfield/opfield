@@ -102,6 +102,16 @@ describe('access signing key rotation', () => {
     expect(JSON.parse(Buffer.from(next.split('.')[1], 'base64url').toString()).kid).not.toBe(firstKey.keyId);
     expect(await keys.verify(stillOld, 'a.example.com', now)).not.toBeNull();
     expect(await keys.verify(next, 'a.example.com', now)).not.toBeNull();
+    // Verification reads the key set once until it changes.
+    let reads = 0;
+    const list = store.listPublished.bind(store);
+    store.listPublished = async () => {
+      reads++;
+      return list();
+    };
+    await keys.verify(next, 'a.example.com', now);
+    await keys.verify(stillOld, 'a.example.com', now);
+    expect(reads).toBe(0);
 
     // Past its window: retired, gone from the published keys.
     now = new Date(old.verifyUntil!.getTime());
