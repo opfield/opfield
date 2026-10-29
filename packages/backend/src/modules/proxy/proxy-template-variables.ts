@@ -42,6 +42,7 @@ export const RESERVED_TEMPLATE_VARIABLE_NAMES: ReadonlySet<string> = new Set([
   'redirectStatusCode',
   'cacheStale',
   'customHeaders',
+  'customHostHeader',
   'customRewrites',
   'accessList',
   'accessListHasIpRules',

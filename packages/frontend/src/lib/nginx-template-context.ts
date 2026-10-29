@@ -13,6 +13,7 @@ export const NGINX_TEMPLATE_CONTEXT_VARIABLES: readonly string[] = [
   "cacheStale",
   "connectionsPerIp",
   "customHeaders",
+  "customHostHeader",
   "customRewrites",
   "forwardHost",
   "forwardPort",
