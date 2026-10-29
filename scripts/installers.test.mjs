@@ -1774,6 +1774,63 @@ test('the nginx installer gives the nginx temp directories to a non-root run use
 // R3-05: a daemon binary was checked only against checksums.txt from the same place as the binary. The node installers
 // now run nothing they downloaded before its signed release manifest verified with the update signing keys they carry
 // (key slots and a revocation list, R3-09), and the binary matches the checksum the manifest names.
+// The update signing trust is copied into the backend, the daemons and every installer that verifies a release: a
+// rotation (docs/operations.md) that misses one copy fails here. The backend and the daemons take the primary key from
+// config/update-trust; the installers carry it themselves.
+test('every copy of the update signing trust has the same key slots and revoked keys', () => {
+  const read = (file) => readFileSync(path.resolve(file), 'utf8');
+  const one = (text, pattern, where) => {
+    const match = pattern.exec(text);
+    assert.ok(match, `${where}: ${pattern} not found`);
+    return match[1];
+  };
+  const ids = (values, where) => {
+    const list = values.map((value) => value.trim().toLowerCase()).filter(Boolean).sort();
+    for (const id of list) assert.match(id, /^[0-9a-f]{64}$/, `${where}: revoked key id ${id}`);
+    return list;
+  };
+  const go = read('packages/daemons/shared/updateauth/trust.go');
+  const ts = read('packages/backend/src/lib/update-signing-trust.ts');
+  const releaseKey = read('config/update-trust/update-signing-public-key.pem')
+    .split('\n')
+    .filter((line) => line && !line.startsWith('-----'))
+    .join('');
+  const expected = {
+    secondary: one(go, /^const secondaryPublicKey = "([^"]*)"$/m, 'trust.go'),
+    revoked: ids(
+      [...one(go, /^var revokedKeyIDs = \[\]string\{([^}]*)\}$/m, 'trust.go').matchAll(/"([^"]*)"/g)].map((m) => m[1]),
+      'trust.go'
+    ),
+  };
+  assert.deepEqual(
+    {
+      secondary: one(ts, /^export const SECONDARY_UPDATE_SIGNING_PUBLIC_KEY = '([^']*)';$/m, 'update-signing-trust.ts'),
+      revoked: ids(
+        [
+          ...one(ts, /^export const REVOKED_UPDATE_SIGNING_KEY_IDS: readonly string\[\] = \[([^\]]*)\];$/m, 'update-signing-trust.ts').matchAll(
+            /'([^']*)'/g
+          ),
+        ].map((m) => m[1]),
+        'update-signing-trust.ts'
+      ),
+    },
+    expected,
+    'the backend and the daemons trust the same keys'
+  );
+  for (const script of ['install.sh', 'setup-node.sh', 'setup-docker-node.sh', 'setup-monitoring-node.sh', 'setup-relay-node.sh']) {
+    const text = read(path.join('scripts', script));
+    assert.equal(one(text, /^UPDATE_TRUST_PRIMARY='([^']*)'$/m, script), releaseKey, `${script} primary slot`);
+    assert.deepEqual(
+      {
+        secondary: one(text, /^UPDATE_TRUST_SECONDARY='([^']*)'$/m, script),
+        revoked: ids(one(text, /^UPDATE_TRUST_REVOKED='([^']*)'/m, script).split(/\s+/), script),
+      },
+      expected,
+      `${script} trusts the same keys as the backend and the daemons`
+    );
+  }
+});
+
 test('the node installers verify a daemon against its signed release manifest before installing it', { skip: !linux || spawnSync('sh', ['-c', 'command -v openssl']).status !== 0 }, async () => {
   const releaseKey = readFileSync(path.resolve('config/update-trust/update-signing-public-key.pem'), 'utf8')
     .split('\n')
