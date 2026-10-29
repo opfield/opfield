@@ -89,8 +89,8 @@ func grantSocketToGroup(path string, gid func() (int, error), retry time.Duratio
 				if chmodErr := os.Chmod(path, 0o666); chmodErr != nil {
 					err = chmodErr
 				} else {
-					logger.Warn("maintenance access socket is open to every local user: the daemon's user is not in the nginx workers' group",
-						"group", group, "error", err)
+					logger.Warn("a socket for nginx workers is open to every local user: the daemon's user is not in the nginx workers' group",
+						"path", path, "group", group, "error", err)
 					return
 				}
 			}
@@ -99,7 +99,7 @@ func grantSocketToGroup(path string, gid func() (int, error), retry time.Duratio
 			return
 		}
 		if attempt == 0 {
-			logger.Warn("maintenance access socket waits for the nginx workers' group", "error", err)
+			logger.Warn("a socket for nginx workers waits for the nginx workers' group", "path", path, "error", err)
 		}
 		select {
 		case <-done:

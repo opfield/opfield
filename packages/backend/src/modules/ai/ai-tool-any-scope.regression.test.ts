@@ -111,6 +111,11 @@ const FILTERED_READS = [
   'list_routes',
   'list_webhook_deliveries',
   'list_webhooks',
+  // The installation's identity providers and service tokens (no secrets): an access-list editor picks them in rules.
+  'manage_access_sign_in:identity_providers.get',
+  'manage_access_sign_in:identity_providers.list',
+  'manage_access_sign_in:service_tokens.get',
+  'manage_access_sign_in:service_tokens.list',
   'manage_docker_compose:list',
   'manage_docker_source:admission',
   'manage_docker_source:connectors',

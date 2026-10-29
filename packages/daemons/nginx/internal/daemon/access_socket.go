@@ -28,25 +28,30 @@ type accessServer struct {
 	listener net.Listener
 	keptName string
 	server   *http.Server
+	done     chan struct{}
 }
 
-func startAccessServer(store *access.Store, logger interface{ Warn(string, ...any) }) (*accessServer, error) {
+// startAccessServer serves the access socket. Only nginx's workers ask it (auth_request): like the maintenance access
+// socket it is 0660 and belongs to their group (workerGID), 0666 when the daemon cannot give it to that group.
+func startAccessServer(store *access.Store, logger interface{ Warn(string, ...any) }, workerGID func() (int, error)) (*accessServer, error) {
 	if err := os.MkdirAll(filepath.Dir(accessSocketPath), 0o755); err != nil {
 		return nil, err
 	}
 	// The socket the previous process kept is taken over (service_sockets.go): checks nginx sends during a restart
 	// or update wait in the backlog.
-	listener, keptName, err := listenServiceSocket(accessSocketPath)
+	listener, keptName, err := listenServiceSocket(accessSocketPath, 0o660)
 	if err != nil {
 		return nil, err
 	}
+	done := make(chan struct{})
+	go grantSocketToGroup(accessSocketPath, workerGID, maintenanceAccessGroupRetry, done, logger)
 	server := &http.Server{Handler: access.NewServer(store).Handler(), ReadHeaderTimeout: 5 * time.Second, WriteTimeout: 10 * time.Second}
 	go func() {
 		if err := server.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			logger.Warn("access socket stopped", "error", err)
 		}
 	}()
-	return &accessServer{listener: listener, keptName: keptName, server: server}, nil
+	return &accessServer{listener: listener, keptName: keptName, server: server, done: done}, nil
 }
 
 // close ends the server: for good, or, once the daemon handed its sockets to the next process (handedOver), only
@@ -54,6 +59,9 @@ func startAccessServer(store *access.Store, logger interface{ Warn(string, ...an
 func (s *accessServer) close(handedOver bool) {
 	if s == nil {
 		return
+	}
+	if s.done != nil {
+		close(s.done)
 	}
 	remove := releaseServiceSocket(s.listener, accessSocketPath, s.keptName, handedOver)
 	_ = s.server.Close()
@@ -89,7 +97,8 @@ func (p *NginxPlugin) startAccess(stateDir string) {
 		p.logger.Warn("nginx was built without the auth_request module; sign-in access lists are disabled")
 		return
 	}
-	server, err := startAccessServer(store, p.logger)
+	workers := newNginxPeerAuthority(canonicalExecutablePath(p.cfg.Nginx.Binary), p.mgr.CachedPID)
+	server, err := startAccessServer(store, p.logger, workers.workerGroupGID)
 	if err != nil {
 		p.logger.Warn("access socket is unavailable; sign-in access lists are disabled", "path", accessSocketPath, "error", err)
 		return

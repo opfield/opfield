@@ -53,6 +53,9 @@ export function formatAuditResourceType(resourceType: string): string {
  */
 export const AUDIT_ACTION_LABELS: Readonly<Record<string, string>> = {
   "SSL certificate.move_to_folder": "Moved SSL certificate to a folder",
+  "access_identity_provider.create": "Added access identity provider",
+  "access_identity_provider.update": "Updated access identity provider",
+  "access_identity_provider.delete": "Removed access identity provider",
   "access_list.create": "Created access list",
   "access_list.delete": "Deleted access list",
   "access_list.move_ip_rule": "Moved access list IP rule",
@@ -62,6 +65,11 @@ export const AUDIT_ACTION_LABELS: Readonly<Record<string, string>> = {
   "access_list_folder.delete": "Deleted access list folder",
   "access_list_folder.move": "Moved access list folder",
   "access_list_folder.update": "Updated access list folder",
+  "access_service_token.create": "Created access service token",
+  "access_service_token.update": "Updated access service token",
+  "access_service_token.delete": "Deleted access service token",
+  "access_session.revoke": "Ended a visitor's access session",
+  "access_sign_in.settings_update": "Updated access sign-in settings",
   "admin_user_folder.create": "Created user folder",
   "admin_user_folder.delete": "Deleted user folder",
   "admin_user_folder.move": "Moved user folder",

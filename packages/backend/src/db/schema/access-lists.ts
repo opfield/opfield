@@ -124,7 +124,11 @@ export const accessServiceTokens = pgTable(
   })
 );
 
-export const accessSigningKeyStatusEnum = pgEnum('access_signing_key_status', ['active', 'verification_only', 'retired']);
+export const accessSigningKeyStatusEnum = pgEnum('access_signing_key_status', [
+  'active',
+  'verification_only',
+  'retired',
+]);
 
 /**
  * Ed25519 keys that sign access tokens. One active key signs; a replaced key stays verification_only until
