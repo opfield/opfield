@@ -104,7 +104,8 @@ export class BackupService {
   async createPolicy(
     _databaseId: string,
     _input: BackupPolicyInput,
-    _userId: string
+    _userId: string,
+    _actorScopes?: readonly string[]
   ): Promise<{
     id: string;
     createdById: string | null;
@@ -135,7 +136,8 @@ export class BackupService {
     _databaseId: string,
     _policyId: string,
     _input: BackupPolicyInput,
-    _userId: string
+    _userId: string,
+    _actorScopes?: readonly string[]
   ): Promise<{
     id: string;
     databaseConnectionId: string;
