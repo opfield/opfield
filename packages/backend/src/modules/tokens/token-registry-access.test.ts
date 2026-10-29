@@ -50,6 +50,9 @@ describe('token registry access', () => {
     expect(ownerMayUseRegistry(['docker:containers:view:node-1/app'], 'push', 'team/app', [APP])).toBe(false);
     expect(ownerMayUseRegistry(['docker:containers:edit:node-1/app'], 'push', 'team/app', [APP])).toBe(true);
     expect(ownerMayUseRegistry(['docker:containers:manage:node-1/app'], 'push', 'team/app', [APP])).toBe(true);
+    // A CI token of a node-wide editor keeps pushing the image a container on that node runs.
+    expect(ownerMayUseRegistry(['docker:containers:edit:node-1'], 'push', 'team/app', [APP])).toBe(true);
+    expect(ownerMayUseRegistry(['docker:containers:edit:node-2'], 'push', 'team/app', [APP])).toBe(false);
     // Another container on the node, or no workload using the repository.
     expect(ownerMayUseRegistry(['docker:containers:view:node-1/other'], 'pull', 'team/app', [APP])).toBe(false);
     expect(ownerMayUseRegistry(['docker:containers:view:node-1/app'], 'pull', 'team/app', [])).toBe(false);

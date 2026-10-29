@@ -1,4 +1,4 @@
-import { and, eq, inArray, ne } from 'drizzle-orm';
+import { and, eq, inArray, ne, sql } from 'drizzle-orm';
 import { inject, injectable } from 'tsyringe';
 import { container, TOKENS } from '@/container.js';
 import type { DrizzleClient } from '@/db/client.js';
@@ -6,10 +6,14 @@ import {
   dockerAccessResources,
   dockerBuildArtifacts,
   dockerComposeProjects,
+  dockerComposeRevisions,
+  dockerDeploymentSlots,
   dockerDeployments,
   dockerSourceBindings,
+  nodes,
 } from '@/db/schema/index.js';
 import { LEGACY_REGISTRY_NAMESPACE } from '@/lib/legacy-compat.js';
+import { INTERNAL_REGISTRY_PREFIX, parseInternalImageReference } from '@/modules/docker/docker-image-source.js';
 import type { RegistryRepositoryWorkload, RegistryRepositoryWorkloads } from './token-registry-access.js';
 
 /** A workload a repository's images belong to, before its node and access resource are looked up. */
@@ -70,10 +74,11 @@ function targetKey(target: RegistryWorkloadTarget): string {
 }
 
 /**
- * The workloads whose images live in an internal registry repository, read from the registry's own naming: a build
- * repository names its Git source (whose target is the workload), and every artifact recorded in the repository names
- * its source or its owner. A repository Opfield did not create (pushed from outside) has none: only the broad or the
- * legacy per-repository registry scope reaches it.
+ * The workloads whose images live in an internal registry repository: from the registry's own naming (a build
+ * repository names its Git source, whose target is the workload, and every artifact recorded in the repository names
+ * its source or its owner), and every container, deployment and Compose project that runs an image of it, so a
+ * repository pushed from outside belongs to the workloads that use it. A repository nothing uses has none: only the
+ * broad or the legacy per-repository registry scope reaches it.
  */
 @injectable()
 export class RegistryRepositoryWorkloadService {
@@ -111,6 +116,7 @@ export class RegistryRepositoryWorkloadService {
         if (target) targets.push(target);
       }
     }
+    targets.push(...(await this.runningTargets(repository)));
     const unique = new Map(targets.map((target) => [targetKey(target), target]));
     const workloads: RegistryRepositoryWorkload[] = [];
     for (const target of unique.values()) {
@@ -118,6 +124,65 @@ export class RegistryRepositoryWorkloadService {
       if (workload) workloads.push(workload);
     }
     return workloads;
+  }
+
+  /**
+   * The workloads that run an image of the repository from the internal registry (`127.0.0.1:5443/<repository>`),
+   * also one pushed from outside: deployments by their desired config and blue/green slots, Compose projects by their
+   * active revision, containers by the nodes' container snapshots.
+   */
+  private async runningTargets(repository: string): Promise<RegistryWorkloadTarget[]> {
+    const runs = (image: unknown) =>
+      typeof image === 'string' && parseInternalImageReference(image)?.repository === repository;
+    // A prefilter only (`_` is a wildcard in LIKE); every match is parsed again.
+    const like = `%${INTERNAL_REGISTRY_PREFIX}${repository}%`;
+    const [deployments, slots, projects, dockerNodes] = await Promise.all([
+      this.db
+        .select({ id: dockerDeployments.id, config: dockerDeployments.desiredConfig })
+        .from(dockerDeployments)
+        .where(sql`${dockerDeployments.desiredConfig}->>'image' like ${like}`),
+      this.db
+        .select({
+          deploymentId: dockerDeploymentSlots.deploymentId,
+          image: dockerDeploymentSlots.image,
+          config: dockerDeploymentSlots.desiredConfig,
+        })
+        .from(dockerDeploymentSlots)
+        .where(
+          sql`${dockerDeploymentSlots.image} like ${like} or ${dockerDeploymentSlots.desiredConfig}->>'image' like ${like}`
+        ),
+      this.db
+        .select({ id: dockerComposeProjects.id, model: dockerComposeRevisions.normalizedModel })
+        .from(dockerComposeProjects)
+        .innerJoin(dockerComposeRevisions, eq(dockerComposeRevisions.id, dockerComposeProjects.activeRevisionId))
+        .where(sql`${dockerComposeRevisions.normalizedModel}::text like ${like}`),
+      this.db.select({ id: nodes.id }).from(nodes).where(eq(nodes.type, 'docker')),
+    ]);
+    const targets: RegistryWorkloadTarget[] = [];
+    for (const deployment of deployments) {
+      if (runs(deployment.config?.image)) targets.push({ kind: 'deployment', deploymentId: deployment.id });
+    }
+    for (const slot of slots) {
+      if (runs(slot.image) || runs(slot.config?.image)) {
+        targets.push({ kind: 'deployment', deploymentId: slot.deploymentId });
+      }
+    }
+    for (const project of projects) {
+      if (Object.values(project.model?.services ?? {}).some((service) => runs(service?.image))) {
+        targets.push({ kind: 'compose_project', composeProjectId: project.id });
+      }
+    }
+    const snapshots = (await import('@/modules/docker/docker-snapshot.service.js')).DockerSnapshotService;
+    for (const node of dockerNodes) {
+      const list = await container.resolve(snapshots).getList<Record<string, unknown>[]>(node.id, 'containers');
+      for (const item of Array.isArray(list.data) ? list.data : []) {
+        const name = String(item.name ?? item.Name ?? '').replace(/^\/+/, '');
+        if (name && runs(item.image ?? item.Image)) {
+          targets.push({ kind: 'container', nodeId: node.id, containerName: name });
+        }
+      }
+    }
+    return targets;
   }
 
   /** The node and access resource id the workload's scopes are qualified with; null once the workload is gone. */
