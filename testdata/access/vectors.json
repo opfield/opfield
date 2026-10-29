@@ -1037,6 +1037,34 @@
       },
       "source": "service_token",
       "expect": "allow"
+    },
+    {
+      "name": "basic-only list from outside the required networks is denied without a challenge",
+      "list": {
+        "id": "22222222-2222-4222-8222-222222222222",
+        "signInMethods": [
+          "basic"
+        ],
+        "skipIpRanges": [],
+        "includeRules": [
+          {
+            "selector": "everyone",
+            "values": []
+          }
+        ],
+        "requireRules": [
+          {
+            "selector": "ip",
+            "values": [
+              "10.0.40.0/24",
+              "10.0.41.0/24"
+            ]
+          }
+        ],
+        "excludeRules": []
+      },
+      "clientIp": "192.0.2.1",
+      "expect": "deny"
     }
   ]
 }

@@ -238,6 +238,12 @@ func Evaluate(list *List, client netip.Addr, identity *Identity, source Source) 
 	if inRanges(list.skipRanges, client) {
 		return Allow
 	}
+	// An address a Require ip rule leaves out never gets in, so it is not asked to sign in first.
+	for _, rule := range list.Require {
+		if rule.Selector == SelectorIP && !inRanges(rule.ranges, client) {
+			return Deny
+		}
+	}
 	// A cookie identity this list does not accept counts as none: the visitor signs in again. A service token or a
 	// basic authentication user the request presented stays its identity, and is denied.
 	if identity != nil && source == SourceCookie && !list.usable(identity) {

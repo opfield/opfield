@@ -135,6 +135,9 @@ export function evaluateAccess(
   const excludedIps = list.excludeRules.filter((rule) => rule.selector === 'ip').flatMap((rule) => rule.values);
   if (ipInRanges(request.clientIp, excludedIps)) return 'deny';
   if (ipInRanges(request.clientIp, list.skipIpRanges)) return 'allow';
+  // An address a Require ip rule leaves out never gets in, so it is not asked to sign in first.
+  const requiredIps = list.requireRules.filter((rule) => rule.selector === 'ip');
+  if (requiredIps.some((rule) => !ipInRanges(request.clientIp, rule.values))) return 'deny';
   if (!presented) return withoutIdentity(list);
 
   // A cookie the list cannot use is as good as none; a presented token or Basic header is the visitor's answer.

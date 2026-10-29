@@ -105,8 +105,11 @@ export class AccessSignInExternalService {
     meta: VisitorMeta
   ): Promise<SignedIn> {
     const state = query.get('state') ?? '';
-    const pending = state ? await this.cache.take<PendingIdpSignIn>(`${IDP_STATE_PREFIX}${state}`) : null;
-    if (!pending || pending.providerId !== providerId || boundState !== hashSignInState(state)) {
+    if (!state || boundState !== hashSignInState(state)) {
+      throw new AppError(400, 'ACCESS_SIGN_IN_EXPIRED', 'This sign-in expired; start again');
+    }
+    const pending = await this.cache.take<PendingIdpSignIn>(`${IDP_STATE_PREFIX}${state}`);
+    if (!pending || pending.providerId !== providerId) {
       throw new AppError(400, 'ACCESS_SIGN_IN_EXPIRED', 'This sign-in expired; start again');
     }
     const resolved = await this.flow.resolveTarget(pending.target);
@@ -184,11 +187,15 @@ export class AccessSignInExternalService {
     boundState: string | undefined,
     meta: VisitorMeta
   ): Promise<SignedIn> {
+    // A code shown in another browser must not use up the visitor's own pending sign-in.
+    if (!state || boundState !== hashSignInState(state)) {
+      throw new AppError(400, 'ACCESS_SIGN_IN_EXPIRED', 'This sign-in expired; start again');
+    }
     const issued = code
       ? await this.cache.take<{ userId: string; state: string }>(`${OPFIELD_CODE_PREFIX}${code}`)
       : null;
     const pending = state ? await this.cache.take<PendingOpfieldSignIn>(`${OPFIELD_STATE_PREFIX}${state}`) : null;
-    if (!issued || !pending || issued.state !== state || boundState !== hashSignInState(state)) {
+    if (!issued || !pending || issued.state !== state) {
       throw new AppError(400, 'ACCESS_SIGN_IN_EXPIRED', 'This sign-in expired; start again');
     }
     const resolved = await this.flow.resolveTarget(pending.target);
