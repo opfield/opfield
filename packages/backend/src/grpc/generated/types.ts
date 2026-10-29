@@ -460,6 +460,7 @@ export interface OpfieldCommand {
   getRelayRouteRuntime?: GetRelayRouteRuntimeCommand;
   /** Relay supervisor only (relay_service_port_v1): move the relay worker to another TCP port. */
   setRelayServicePort?: SetRelayServicePortCommand;
+  syncAccessPolicy?: SyncAccessPolicyCommand;
   /** Relay supervisor only (relay_witness_v1): the full desired set of witness processes. */
   applyWitnesses?: ApplyWitnessesCommand;
   /** Storage-profile docker daemons (managed_availability_member_v1): this node's member of an availability set. */
@@ -557,6 +558,52 @@ export interface SyncRelayPolicyCommand {
 export interface SetRelayDrainCommand {
   enabled: boolean;
   forceDisconnect: boolean;
+}
+
+export interface SyncAccessPolicyCommand {
+  revision: number | string;
+  signInOrigin: string;
+  keys: AccessVerificationKey[];
+  lists: AccessListPolicy[];
+  revokedSessions: AccessRevokedSession[];
+  serviceTokens: AccessServiceToken[];
+}
+
+export interface AccessVerificationKey {
+  keyId: string;
+  publicKey: Buffer;
+}
+
+export interface AccessListPolicy {
+  id: string;
+  signInMethods: string[];
+  skipIpRanges: string[];
+  includeRules: AccessRule[];
+  requireRules: AccessRule[];
+  excludeRules: AccessRule[];
+  basicAuthUsers: AccessListUser[];
+}
+
+export interface AccessRule {
+  selector: string;
+  values: string[];
+}
+
+export interface AccessListUser {
+  username: string;
+  bcryptHash: string;
+}
+
+export interface AccessRevokedSession {
+  sessionId: string;
+  expiresAtUnix: number | string;
+}
+
+export interface AccessServiceToken {
+  id: string;
+  clientId: string;
+  secretSha256: string;
+  expiresAtUnix: number | string;
 }
 
 /**
