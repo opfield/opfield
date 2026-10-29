@@ -1162,8 +1162,8 @@ async function crossLane(ctx: MatrixContext, docker: DockerState, storage: Recor
       });
       if (result.status !== 200)
         throw new Error(`event stream through nginx answered ${result.status} ${result.error ?? ''}`);
-      if (result.accelBuffering !== 'no')
-        throw new Error(`event stream through nginx lacks X-Accel-Buffering: no (got "${result.accelBuffering}")`);
+      // nginx acts on X-Accel-Buffering and never passes it on (the crawl checks the header on Opfield itself): here
+      // only the first event's arrival shows the stream left unbuffered.
       if (result.firstEventMs === undefined)
         throw new Error(`no event arrived through the buffering nginx within 15 s (${result.error ?? ''})`);
       ctx.report.note(`event stream through nginx: first event after ${result.firstEventMs} ms`);
