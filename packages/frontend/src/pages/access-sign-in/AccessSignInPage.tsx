@@ -1,6 +1,6 @@
 import { ArrowLeft, ArrowRight, KeyRound, LogIn, UserRound } from "lucide-react";
-import { type FormEvent, type ReactNode, useEffect, useState } from "react";
-import { useLocation } from "react-router-dom";
+import { type FormEvent, type ReactNode, useEffect, useRef, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { AuthShell } from "@/components/auth/AuthShell";
 import { OpfieldMark } from "@/components/common/OpfieldMark";
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,14 @@ type ReadyContext = Exclude<AccessSignInContext, { redirect: string }>;
 type Step = "methods" | "password" | "shared";
 
 const goTo = (url: string) => window.location.assign(url);
+
+/** What a failed provider or Opfield sign-in sent back in `?error=`. */
+const SIGN_IN_ERRORS: Record<string, string> = {
+  ACCESS_HOST_NOT_PROTECTED: "This site does not sign visitors in here",
+  ACCESS_LIST_NOT_FOUND: "This sign-in link is no longer valid",
+  ACCESS_SIGN_IN_FAILED: "Sign-in failed. Try again or choose another sign-in method.",
+};
+const GENERIC_SIGN_IN_ERROR = "Sign-in did not complete. Try again.";
 
 function MethodButton({
   method,
@@ -50,7 +58,14 @@ function MethodButton({
  */
 export function AccessSignInPage() {
   const { search } = useLocation();
+  const navigate = useNavigate();
   const params = new URLSearchParams(search);
+  const errorCode = params.get("error");
+  // The sign-in target without a returned error: what every request and start link carries.
+  const targetParams = new URLSearchParams(search);
+  targetParams.delete("error");
+  const query = targetParams.toString() ? `?${targetParams}` : "";
+  const shownError = useRef(false);
   const flow = {
     list: params.get("list") ?? "",
     host: params.get("host") ?? "",
@@ -64,9 +79,18 @@ export function AccessSignInPage() {
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
 
+  // A provider or Opfield sign-in that failed comes back with ?error=<code>: say so once and
+  // drop it from the address, so a reload does not repeat it.
+  useEffect(() => {
+    if (!errorCode || shownError.current) return;
+    shownError.current = true;
+    toastApiError(null, SIGN_IN_ERRORS[errorCode] ?? GENERIC_SIGN_IN_ERROR);
+    navigate({ search: query }, { replace: true });
+  }, [errorCode, navigate, query]);
+
   useEffect(() => {
     let cancelled = false;
-    authRequest<AccessSignInContext>(`/api/access-sign-in/context${search}`)
+    authRequest<AccessSignInContext>(`/api/access-sign-in/context${query}`)
       .then((next) => {
         if (cancelled) return;
         if ("redirect" in next) return goTo(next.redirect);
@@ -83,7 +107,7 @@ export function AccessSignInPage() {
     return () => {
       cancelled = true;
     };
-  }, [search]);
+  }, [query]);
 
   const submit = async (kind: "password" | "shared", event: FormEvent) => {
     event.preventDefault();
@@ -231,10 +255,10 @@ export function AccessSignInPage() {
   }
 
   const choose = (method: AccessSignInMethodOption) => {
-    if (method.kind === "opfield") return goTo(`/access/opfield/start${search}`);
+    if (method.kind === "opfield") return goTo(`/access/opfield/start${query}`);
     if (method.kind === "idp") {
       const providerId = method.key.replace(/^idp:/, "");
-      return goTo(`/access/idp/${encodeURIComponent(providerId)}/start${search}`);
+      return goTo(`/access/idp/${encodeURIComponent(providerId)}/start${query}`);
     }
     setPassword("");
     setStep(method.kind);

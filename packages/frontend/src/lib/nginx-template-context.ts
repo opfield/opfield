@@ -48,6 +48,7 @@ export const NGINX_TEMPLATE_CONTEXT_VARIABLES: readonly string[] = [
 
 /** Handlebars helpers nginx templates can call. */
 export const NGINX_TEMPLATE_HELPERS: readonly string[] = [
+  "accessListDirectives",
   "applyAccessListToAdvancedLocations",
   "each",
   "eq",

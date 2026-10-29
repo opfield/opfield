@@ -75,7 +75,15 @@ export interface AccessSignInSettings {
   /** Null: the Opfield address serves the sign-in pages. */
   domain: string | null;
   defaultSessionTtlSeconds: number;
+  /** Node or ingress group that serves the sign-in domain's route; both null: no route. */
+  nodeId: string | null;
+  ingressGroupId: string | null;
+  sslCertificateId: string | null;
+  /** "https://access.acme.dev": where the sign-in pages are served (read-only). */
+  signInOrigin: string;
 }
+
+export type AccessSignInSettingsUpdate = Omit<AccessSignInSettings, "signInOrigin">;
 
 export type AccessIdentityProviderKind = "google" | "oidc";
 
@@ -88,7 +96,7 @@ export interface AccessIdentityProvider {
   /** Claim the SSO group rules read; null: no groups. */
   groupsClaim: string | null;
   /** The callback address to register with the provider, when the server reports it. */
-  redirectUri?: string;
+  redirectUri?: string | null;
   createdAt: string;
   updatedAt: string;
 }

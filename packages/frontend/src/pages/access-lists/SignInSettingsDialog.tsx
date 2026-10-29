@@ -15,7 +15,9 @@ import { Input } from "@/components/ui/input";
 import { toastApiError } from "@/lib/api-error-toast";
 import { api } from "@/services/api";
 import { useAuthStore } from "@/stores/auth";
-import type { AccessIdentityProvider } from "@/types";
+import type { AccessIdentityProvider, AccessSignInSettings, Node, SSLCertificate } from "@/types";
+import { StatusPageIngressSelect } from "../settings/StatusPageIngressSelect";
+import { SystemRouteCertificateSelect } from "../settings/SystemRouteCertificateSelect";
 import { AccessServiceTokensPanel } from "./AccessServiceTokensPanel";
 import { IdentityProviderDialog } from "./IdentityProviderDialog";
 import { SessionSelect } from "./SessionSelect";
@@ -33,10 +35,25 @@ function domainOf(input: string): string | null {
   }
 }
 
-/** "https://access.acme.dev" for a sign-in domain; this console's origin without one. */
-function signInOriginOf(input: string): string {
+interface Placement {
+  nodeId: string | null;
+  ingressGroupId: string | null;
+  sslCertificateId: string | null;
+}
+
+const NO_PLACEMENT: Placement = { nodeId: null, ingressGroupId: null, sslCertificateId: null };
+
+/**
+ * Where the sign-in pages are served: the saved origin the server reports while the domain is
+ * unchanged, else the origin the typed domain will get (http on a route without a certificate,
+ * as the server does), else this console's origin.
+ */
+function signInOriginOf(input: string, placement: Placement, saved: AccessSignInSettings | null) {
   const domain = domainOf(input);
-  return domain ? `https://${domain}` : window.location.origin;
+  if (saved && (domain || null) === saved.domain) return saved.signInOrigin;
+  if (!domain) return window.location.origin;
+  const placed = !!(placement.nodeId || placement.ingressGroupId);
+  return `${placed && !placement.sslCertificateId ? "http" : "https"}://${domain}`;
 }
 
 /**
@@ -55,9 +72,13 @@ export function SignInSettingsDialog({
   const id = useId();
   const canEditSettings = useAuthStore((state) => state.hasScope("admin:system"));
   const canManageTokens = useAuthStore((state) => state.hasScope("acl:edit"));
+  const [saved, setSaved] = useState<AccessSignInSettings | null>(null);
   const [domain, setDomain] = useState("");
+  const [placement, setPlacement] = useState<Placement>(NO_PLACEMENT);
   const [sessionTtlSeconds, setSessionTtlSeconds] = useState(DEFAULT_SESSION_TTL_SECONDS);
   const [providers, setProviders] = useState<AccessIdentityProvider[]>([]);
+  const [onlineNginxNodes, setOnlineNginxNodes] = useState<Node[]>([]);
+  const [certificates, setCertificates] = useState<SSLCertificate[]>([]);
   const [settingsLoading, setSettingsLoading] = useState(false);
   const [tokensLoading, setTokensLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -82,15 +103,34 @@ export function SignInSettingsDialog({
       api
         .getAccessSignInSettings()
         .then((settings) => {
+          setSaved(settings);
           setDomain(settings.domain ?? "");
+          setPlacement({
+            nodeId: settings.nodeId,
+            ingressGroupId: settings.ingressGroupId,
+            sslCertificateId: settings.sslCertificateId,
+          });
           setSessionTtlSeconds(settings.defaultSessionTtlSeconds);
         })
         .catch((error) => toastApiError(error, "Failed to load sign-in settings")),
       loadProviders(),
+      // The sign-in domain's route: the same placement and certificate choices as the status page.
+      api
+        .listNodes({ type: "nginx", limit: 100 })
+        .then((result) =>
+          setOnlineNginxNodes(result.data.filter((node) => node.status === "online"))
+        )
+        .catch(() => setOnlineNginxNodes([])),
+      api
+        .listSSLCertificates({ limit: 100 })
+        .then((result) => setCertificates(result.data ?? []))
+        .catch(() => setCertificates([])),
     ]).finally(() => setSettingsLoading(false));
   }, [canEditSettings, canManageTokens, loadProviders, open]);
 
   const tokensLoaded = useCallback(() => setTokensLoading(false), []);
+  // A saved route moves only between its node and a group with it, like the status page's.
+  const savedPlaced = !!(saved?.domain && (saved.nodeId || saved.ingressGroupId));
 
   const save = async () => {
     const nextDomain = domainOf(domain);
@@ -103,6 +143,7 @@ export function SignInSettingsDialog({
       await api.updateAccessSignInSettings({
         domain: nextDomain || null,
         defaultSessionTtlSeconds: sessionTtlSeconds,
+        ...(nextDomain ? placement : NO_PLACEMENT),
       });
       toast.success("Sign-in settings saved");
       onOpenChange(false);
@@ -149,6 +190,43 @@ export function SignInSettingsDialog({
                     route their lists allow without signing in again.
                   </p>
                 </div>
+                {domainOf(domain) ? (
+                  <>
+                    <div className="space-y-1.5">
+                      <p className="text-sm font-medium">Ingress node</p>
+                      <StatusPageIngressSelect
+                        nodeId={placement.nodeId}
+                        ingressGroupId={placement.ingressGroupId}
+                        enabled={savedPlaced}
+                        disabled={saving}
+                        onlineNginxNodes={onlineNginxNodes}
+                        onChange={(target) => setPlacement((prev) => ({ ...prev, ...target }))}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Online Ingress node, or ingress group, that serves the sign-in domain.
+                        Without one, the domain must reach Opfield another way.
+                      </p>
+                    </div>
+                    <div className="space-y-1.5">
+                      <label htmlFor={`${id}-certificate`} className="text-sm font-medium">
+                        SSL certificate
+                      </label>
+                      <SystemRouteCertificateSelect
+                        id={`${id}-certificate`}
+                        value={placement.sslCertificateId}
+                        certificates={certificates}
+                        disabled={saving}
+                        onChange={(sslCertificateId) =>
+                          setPlacement((prev) => ({ ...prev, sslCertificateId }))
+                        }
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Certificate browsers receive for the sign-in domain. It must be active and
+                        cover the domain.
+                      </p>
+                    </div>
+                  </>
+                ) : null}
                 <div className="space-y-1.5">
                   <label htmlFor={`${id}-session`} className="text-sm font-medium">
                     Default session length
@@ -227,7 +305,7 @@ export function SignInSettingsDialog({
         open={providerDialogOpen}
         onOpenChange={setProviderDialogOpen}
         provider={editingProvider}
-        signInOrigin={signInOriginOf(domain)}
+        signInOrigin={signInOriginOf(domain, placement, saved)}
         onSaved={providerChanged}
       />
     </>

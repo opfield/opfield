@@ -4,6 +4,7 @@ import type {
   AccessServiceToken,
   AccessServiceTokenCreated,
   AccessSignInSettings,
+  AccessSignInSettingsUpdate,
 } from "@/types";
 import type { ApiClientBaseConstructor } from "./api-mixins";
 
@@ -14,7 +15,9 @@ export function withAccessSignInApi<TBase extends ApiClientBaseConstructor>(Base
       return this.unwrapData(this.request<{ data: AccessSignInSettings }>("/access-settings"));
     }
 
-    async updateAccessSignInSettings(data: AccessSignInSettings): Promise<AccessSignInSettings> {
+    async updateAccessSignInSettings(
+      data: AccessSignInSettingsUpdate
+    ): Promise<AccessSignInSettings> {
       return this.unwrapData(
         this.request<{ data: AccessSignInSettings }>("/access-settings", {
           method: "PUT",
