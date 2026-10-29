@@ -113,11 +113,23 @@ export class BindingRestartRepro {
 
   /** Polls inspect every 0.5 s until Docker reports `restarting` (the crash loop's backoff window). */
   async waitRestarting(name: string) {
+    const seen = new Map<string, number>();
+    let last: Inspect | undefined;
     const hit = await waitFor(
-      async () => ((await inspect(this.ctx, this.nodeId, name))?.status === 'restarting' ? true : undefined),
+      async () => {
+        last = await inspect(this.ctx, this.nodeId, name);
+        const status = last?.status ?? 'missing';
+        seen.set(status, (seen.get(status) ?? 0) + 1);
+        return status === 'restarting' ? true : undefined;
+      },
       { timeoutMs: 90_000, intervalMs: 500 }
     );
-    if (!hit) throw new Error(`${name} never showed State.Status=restarting within 90 s`);
+    if (!hit) {
+      const reads = [...seen].map(([status, count]) => `${status} ×${count}`).join(', ');
+      throw new Error(
+        `${name} never showed State.Status=restarting within 90 s (reads: ${reads}; last restart count ${last?.restartCount ?? '?'})`
+      );
+    }
   }
 
   async createBinding(kind: LinkKind, name: string) {
