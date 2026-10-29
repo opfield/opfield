@@ -1,6 +1,7 @@
 import { timingSafeEqual } from 'node:crypto';
 import { nanoid } from 'nanoid';
 import { injectable } from 'tsyringe';
+import { bumpKnownDeviceEpoch } from '@/modules/auth/known-device-epoch.js';
 import { getEnvironmentSettingsSnapshot } from '@/modules/settings/environment-settings.service.js';
 import type { AuthMethod, PublicSession, SessionData, User } from '@/types.js';
 import type { CacheService } from './cache.service.js';
@@ -253,6 +254,8 @@ export class SessionService {
   }
 
   async destroyAllUserSessions(userId: string): Promise<void> {
+    // A security reset: known-device cookies of the account stop counting too.
+    await bumpKnownDeviceEpoch(this.cache, userId);
     const sessionIds = await this.cache.smembers(`${USER_SESSIONS_PREFIX}${userId}`);
 
     for (const sessionId of sessionIds) {
@@ -317,6 +320,7 @@ export class SessionService {
   }
 
   async revokeOtherUserSessions(userId: string, currentSessionId: string): Promise<number> {
+    await bumpKnownDeviceEpoch(this.cache, userId);
     const sessionIds = await this.cache.smembers(`${USER_SESSIONS_PREFIX}${userId}`);
     let revoked = 0;
     for (const sessionId of sessionIds) {

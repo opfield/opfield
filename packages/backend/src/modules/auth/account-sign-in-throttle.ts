@@ -5,6 +5,7 @@ import { createChildLogger } from '@/lib/logger.js';
 import { AppError } from '@/middleware/error-handler.js';
 import { AuditService } from '@/modules/audit/audit.service.js';
 import type { CacheService } from '@/services/cache.service.js';
+import type { KnownDevice } from './known-device-cookie.js';
 
 const logger = createChildLogger('AccountSignInThrottle');
 
@@ -70,19 +71,33 @@ export type SignInSubject = { userId: string } | { email: string };
 
 export type SignInFactor = 'password' | 'email_otp' | 'mfa';
 
-function subjectKey(subject: SignInSubject): string {
+export function subjectKey(subject: SignInSubject): string {
   if ('userId' in subject) return `user:${subject.userId}`;
   return `email:${createHash('sha256').update(subject.email.trim().toLowerCase()).digest('hex')}`;
 }
 
 /**
  * The client a sign-in check comes from. `ip`: its address, only when it tells clients apart
- * (getDistinctClientIpForContext). `knownDeviceUserId`: the account a valid known-device cookie of this browser
- * names (readKnownDeviceUserId).
+ * (getDistinctClientIpForContext). `knownDevice`: the account and device a valid known-device cookie of this browser
+ * names (readKnownDevice).
  */
 export interface SignInClient {
   ip?: string;
-  knownDeviceUserId?: string;
+  knownDevice?: KnownDevice;
+}
+
+/**
+ * What the per-client limits count for a client: its address (an IPv6 one by its /64), or, without an address that
+ * tells clients apart, the known-device token of the account so a known device is never unlimited.
+ */
+export function clientCounterKey(subject: SignInSubject, client: SignInClient): string | undefined {
+  if (client.ip) return `ip:${clientLimitKey(client.ip)}`;
+  if (isKnownDeviceOf(subject, client)) return `device:${client.knownDevice!.deviceKey}`;
+  return undefined;
+}
+
+export function isKnownDeviceOf(subject: SignInSubject, client: SignInClient): boolean {
+  return 'userId' in subject && client.knownDevice?.userId === subject.userId;
 }
 
 interface AttemptKeys {
@@ -92,18 +107,17 @@ interface AttemptKeys {
 
 function attemptKeys(subject: SignInSubject, client: SignInClient): AttemptKeys {
   const account = subjectKey(subject);
-  const knownDevice = 'userId' in subject && client.knownDeviceUserId === subject.userId;
-  const network = client.ip ? clientLimitKey(client.ip) : undefined;
+  const clientKey = clientCounterKey(subject, client);
   return {
-    ...(network
+    ...(clientKey
       ? {
           client: {
-            attempts: `auth:sign-in:attempts:${account}:ip:${network}`,
-            lock: `auth:sign-in:locked:${account}:ip:${network}`,
+            attempts: `auth:sign-in:attempts:${account}:${clientKey}`,
+            lock: `auth:sign-in:locked:${account}:${clientKey}`,
           },
         }
       : {}),
-    ...(knownDevice
+    ...(isKnownDeviceOf(subject, client)
       ? {}
       : { account: { attempts: `auth:sign-in:attempts:${account}`, lock: `auth:sign-in:locked:${account}` } }),
   };
@@ -129,8 +143,9 @@ function signInLocked(retryAfterMs: number): AppError {
  * proxy's), only the account-wide limit applies, so one client cannot lock everybody else out at 10.
  *
  * A browser that signed in to the account before carries a known-device cookie for it and is not held by the
- * account-wide lock (its own per-address lock still applies). Residual: while an attacker keeps the account-wide lock
- * up, a targeted account cannot sign in from a new device or a browser without that cookie.
+ * account-wide lock; its own per-address lock still applies, or without a usable address a lock per device token.
+ * Residual: while an attacker keeps the account-wide lock up, a targeted account cannot sign in from a new device or a
+ * browser without that cookie.
  */
 export class AccountSignInThrottle {
   constructor(private readonly cache: Pick<CacheService, 'getClient'>) {}

@@ -51,6 +51,7 @@ import type { SessionService } from '@/services/session.service.js';
 import type { User } from '@/types.js';
 import type { AuthSettingsService } from './auth.settings.service.js';
 import { type AvatarStorageService, isStoredAvatarUrl } from './avatar-storage.service.js';
+import { bumpKnownDeviceEpoch } from './known-device-epoch.js';
 import {
   computeEffectiveGroupAccess,
   computeEffectiveUserAccess,
@@ -1301,6 +1302,8 @@ export class AuthService {
       throw new Error('User not found');
     }
 
+    // Sessions stay (status and sign-out); known-device cookies of the account stop counting.
+    await bumpKnownDeviceEpoch(this.cacheService, userId);
     this.emitUser(userId, 'updated');
     this.emitPermissions(userId, [], null, 'user_blocked');
     return this.mapDbUserToUser(updatedUser);

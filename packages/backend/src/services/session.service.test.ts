@@ -37,6 +37,12 @@ class MemoryCache {
     return true;
   }
 
+  async incr(key: string): Promise<number> {
+    const next = Number(this.values.get(key) ?? 0) + 1;
+    this.values.set(key, next);
+    return next;
+  }
+
   async smembers(key: string): Promise<string[]> {
     return [...(this.sets.get(key) ?? [])];
   }

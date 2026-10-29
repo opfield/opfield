@@ -12,6 +12,7 @@ import { AuthMailService } from '@/modules/auth/auth-mail.service.js';
 import { LocalAuthService } from '@/modules/auth/local-auth.service.js';
 import { MfaService } from '@/modules/auth/mfa.service.js';
 import { OidcSettingsService } from '@/modules/auth/oidc-settings.service.js';
+import { getSessionCookieName } from '@/modules/auth/session-cookie.js';
 import { CloudLinkService } from '@/modules/cloud-link/cloud-link.service.js';
 import { groupRoutes } from '@/modules/groups/group.routes.js';
 import { GroupService } from '@/modules/groups/group.service.js';
@@ -412,6 +413,32 @@ describe('admin user impersonation', () => {
       'session-1',
       expect.objectContaining({ userAgent: undefined })
     );
+  });
+
+  // AUTH-2: the cookie follows the protocol the request came over, not a public URL that still says http://.
+  it('sets the __Host- impersonation cookie for an HTTPS request when the public URL says http', async () => {
+    registerImpersonationDependencies(TARGET_USER);
+    container.registerInstance(GeneralSettingsService, {
+      requirePublicUrl: vi.fn().mockResolvedValue('http://opfield.example.com'),
+      getPublicUrl: vi.fn().mockResolvedValue('http://opfield.example.com'),
+    } as unknown as GeneralSettingsService);
+
+    const response = await createApp().request(
+      `http://opfield.example.com/api/admin/users/${TARGET_USER.id}/impersonate`,
+      {
+        method: 'POST',
+        headers: {
+          ...sessionHeaders(),
+          'X-Forwarded-Proto': 'https',
+          Cookie: `${getSessionCookieName('https')}=session-1`,
+        },
+      }
+    );
+
+    expect(response.status).toBe(200);
+    const cookie = response.headers.getSetCookie().find((value) => value.includes('impersonation-session'));
+    expect(cookie).toMatch(new RegExp(`^${getSessionCookieName('https')}=impersonation-session`));
+    expect(cookie).toMatch(/; Secure/);
   });
 
   it('keeps starting impersonation browser-session-only for bearer tokens', async () => {

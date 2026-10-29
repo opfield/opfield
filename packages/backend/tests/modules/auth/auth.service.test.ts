@@ -82,13 +82,16 @@ describe('AuthService.blockUser', () => {
     const eventBus = {
       publish: vi.fn(),
     };
-    const service = new AuthService(db as any, sessionService as any, {} as any, {} as any, {} as any);
+    const cacheService = { incr: vi.fn().mockResolvedValue(1) };
+    const service = new AuthService(db as any, sessionService as any, cacheService as any, {} as any, {} as any);
     service.setEventBus(eventBus as any);
 
     const user = await service.blockUser(dbUser.id);
 
     expect(user.isBlocked).toBe(true);
     expect(sessionService.destroyAllUserSessions).not.toHaveBeenCalled();
+    // Known-device cookies of the account stop counting (AUTH-3).
+    expect(cacheService.incr).toHaveBeenCalledWith(`auth:known-device-epoch:${dbUser.id}`);
     expect(eventBus.publish).toHaveBeenCalledWith('user.changed', { id: dbUser.id, action: 'updated' });
     expect(eventBus.publish).toHaveBeenCalledWith(`permissions.changed.${dbUser.id}`, {
       scopes: [],
@@ -154,7 +157,7 @@ describe('AuthService remaining system administrator', () => {
     const service = new AuthService(
       { transaction: locks.transaction } as any,
       {} as any,
-      {} as any,
+      { incr: async () => 1 } as any,
       {} as any,
       {} as any
     );

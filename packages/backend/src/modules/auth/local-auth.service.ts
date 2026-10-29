@@ -18,13 +18,12 @@ import { AccountSignInThrottle, type SignInClient } from './account-sign-in-thro
 import type { AuthSettingsService } from './auth.settings.service.js';
 import type { AuthEmailRateSlot } from './auth-email-queue.service.js';
 import type { AuthMailService } from './auth-mail.service.js';
+import { EmailCodeIssuanceLimit } from './email-code-issuance-limit.js';
 
 const EMAIL_CHALLENGE_TTL_SECONDS = 10 * 60;
 const PASSWORD_LINK_TTL_SECONDS = 30 * 60;
 const PASSWORD_RESET_WINDOW_SECONDS = 60 * 60;
-const EMAIL_OTP_WINDOW_SECONDS = 60 * 60;
 const MAX_PASSWORD_RESETS_PER_WINDOW = 3;
-const MAX_EMAIL_OTP_CODES_PER_WINDOW = 5;
 const MAX_CHALLENGE_ATTEMPTS = 5;
 // A bcrypt hash of a discarded random secret, cost 12 like stored passwords: compared when there is no account or no
 // password, so a refused sign-in takes as long whether the account exists or not. Matching it signs nobody in.
@@ -163,6 +162,7 @@ function normalizeEmail(email: string): string {
 @injectable()
 export class LocalAuthService {
   private readonly signInThrottle: AccountSignInThrottle;
+  private readonly emailCodeLimit: EmailCodeIssuanceLimit;
 
   constructor(
     @inject(TOKENS.DrizzleClient) private readonly db: DrizzleClient,
@@ -174,6 +174,7 @@ export class LocalAuthService {
     private readonly generalSettingsService?: GeneralSettingsService
   ) {
     this.signInThrottle = new AccountSignInThrottle(cacheService);
+    this.emailCodeLimit = new EmailCodeIssuanceLimit(cacheService);
   }
 
   async authenticatePassword(email: string, password: string, client: SignInClient = {}): Promise<User | null> {
@@ -199,7 +200,7 @@ export class LocalAuthService {
     return null;
   }
 
-  async beginEmailSignIn(email: string): Promise<EmailSignInContinuation> {
+  async beginEmailSignIn(email: string, client: SignInClient = {}): Promise<EmailSignInContinuation> {
     const methods = (await this.authSettingsService.getConfig()).methods;
     if (!methods.password && !methods.emailOtp) {
       throw new AppError(409, 'EMAIL_SIGN_IN_DISABLED', 'Email sign-in is disabled');
@@ -211,35 +212,35 @@ export class LocalAuthService {
         })
       : null;
     if (otpUser && !otpUser.isBlocked) {
-      const challengeId = await this.requestEmailOtp(email);
+      const challengeId = await this.requestEmailOtp(email, client);
       return { method: 'email_otp', challengeId: challengeId ?? crypto.randomUUID() };
     }
 
     // Password is the generic fallback when both methods are available: unknown, OIDC and password accounts all get
     // it. An email-code account gets a challenge instead, so this answer does tell those accounts apart from the rest
-    // (accepted: a uniform answer would change the sign-in flow); the per-account code limit bounds the emails it sends.
+    // (accepted: a uniform answer would change the sign-in flow); EmailCodeIssuanceLimit bounds the emails it sends.
     if (methods.password) return { method: 'password' };
 
     return { method: 'email_otp', challengeId: crypto.randomUUID() };
   }
 
-  async requestEmailOtp(email: string): Promise<string | null> {
+  /**
+   * Emails a sign-in code; null when no email-code account has this address. Requesting one is unauthenticated, so it
+   * is limited per account and client (EmailCodeIssuanceLimit); over a limit it throws 429 for known and unknown
+   * addresses alike.
+   */
+  async requestEmailOtp(email: string, client: SignInClient = {}): Promise<string | null> {
     const methods = (await this.authSettingsService.getConfig()).methods;
     if (!methods.emailOtp) return null;
     const user = await this.db.query.users.findFirst({
       where: and(eq(users.email, normalizeEmail(email)), eq(users.authMethod, 'email_otp')),
     });
-    if (!user || user.isBlocked) return null;
-    // At most five codes per account and hour: requesting one is unauthenticated and emails the account.
-    const reserved = await this.reserveWindowSlot(
-      `local_auth:email_otp:${user.id}`,
-      MAX_EMAIL_OTP_CODES_PER_WINDOW,
-      EMAIL_OTP_WINDOW_SECONDS
-    );
-    if (!reserved.slot) return null;
+    const recipient = user && !user.isBlocked ? user : null;
+    await this.emailCodeLimit.reserve(recipient ? { userId: recipient.id } : { email }, client);
+    if (!recipient) return null;
     const code = randomInt(0, 1_000_000).toString().padStart(6, '0');
-    const challengeId = await this.createChallenge(user.id, 'email_otp', code, EMAIL_CHALLENGE_TTL_SECONDS);
-    await this.authMailService.sendSecurityEmail(user.email, { kind: 'email_otp', code });
+    const challengeId = await this.createChallenge(recipient.id, 'email_otp', code, EMAIL_CHALLENGE_TTL_SECONDS);
+    await this.authMailService.sendSecurityEmail(recipient.email, { kind: 'email_otp', code });
     return challengeId;
   }
 

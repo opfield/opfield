@@ -10,11 +10,7 @@ import { AuthService } from '@/modules/auth/auth.service.js';
 import { AuthSettingsService } from '@/modules/auth/auth.settings.service.js';
 import { AuthMailService } from '@/modules/auth/auth-mail.service.js';
 import { OidcSettingsService } from '@/modules/auth/oidc-settings.service.js';
-import {
-  clearSessionCookies,
-  getSessionCookieName,
-  sessionCookieRequestOriginForContext,
-} from '@/modules/auth/session-cookie.js';
+import { clearSessionCookies, setSessionCookie } from '@/modules/auth/session-cookie.js';
 import { claimRestoredOwnerLink } from '@/modules/configuration-transfer/owner-password-link.js';
 import { SetupRestoreService } from '@/modules/configuration-transfer/setup-restore.service.js';
 import { toLicenseAppError } from '@/modules/license/license.errors.js';
@@ -288,14 +284,7 @@ setupRoutes.post('/wizard/session', async (c) => {
     userAgent: c.req.header('user-agent'),
   });
   // Named for the protocol the browser came over, the same one the session cookie is read by (selectSessionCookie).
-  const secure = new URL(sessionCookieRequestOriginForContext(c)).protocol === 'https:';
-  setCookie(c, getSessionCookieName(secure ? 'https' : 'http'), session.sessionId, {
-    httpOnly: true,
-    secure,
-    sameSite: 'Lax',
-    maxAge: Math.max(1, Math.floor((session.expiresAt - Date.now()) / 1000)),
-    path: '/',
-  });
+  setSessionCookie(c, session.sessionId, (session.expiresAt - Date.now()) / 1000);
   return c.json({ data: { expiresAt: new Date(session.expiresAt).toISOString() } });
 });
 

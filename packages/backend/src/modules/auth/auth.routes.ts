@@ -63,7 +63,7 @@ import {
   PasswordResetTokenSchema,
 } from './auth-route-schemas.js';
 import { AvatarStorageService } from './avatar-storage.service.js';
-import { issueKnownDeviceCookie, readKnownDeviceUserId } from './known-device-cookie.js';
+import { issueKnownDeviceCookie, readKnownDevice } from './known-device-cookie.js';
 import { sessionAllowedForCookie } from './legacy-session-cookie.js';
 import { requiresSessionMfaReauthentication } from './live-session-user.js';
 import { LocalAuthService } from './local-auth.service.js';
@@ -73,11 +73,9 @@ import { PasskeyService } from './passkey.service.js';
 import { getPublicAuthMethods } from './public-auth-methods.js';
 import {
   clearSessionCookies,
-  getSessionCookieNameForUrl,
-  isLoopbackUrl,
-  LEGACY_SESSION_COOKIE_NAME,
   selectSessionCookie,
   sessionCookieRequestOriginForContext,
+  setSessionCookie,
 } from './session-cookie.js';
 
 export const authRoutes = new OpenAPIHono<AppEnv>({ defaultHook: openApiValidationHook });
@@ -110,26 +108,15 @@ async function setLocalSession(c: any, user: import('@/types.js').User, authMeth
     ...(mfaSatisfied ? { mfaSatisfiedAt: Date.now() } : {}),
   });
   await container.resolve(AuthService).recordSuccessfulSignIn(user.id);
-  const publicUrl = await getPublicUrl();
-  const publicUrlObject = new URL(publicUrl);
-  const cookieOptions = {
-    httpOnly: true,
-    secure: publicUrlObject.protocol === 'https:',
-    sameSite: 'Lax' as const,
-    maxAge: getEnvironmentSettingsSnapshot().sessions.expirySeconds,
-    path: '/',
-  };
-  setCookie(c, getSessionCookieNameForUrl(publicUrl), sessionId, cookieOptions);
-  issueKnownDeviceCookie(c, user.id, cookieOptions.secure);
-
-  if (isLoopbackUrl(publicUrl)) {
-    setCookie(c, LEGACY_SESSION_COOKIE_NAME, sessionId, cookieOptions);
-  }
+  setSessionCookie(c, sessionId, getEnvironmentSettingsSnapshot().sessions.expirySeconds, {
+    withPlainLoopbackCookie: true,
+  });
+  await issueKnownDeviceCookie(c, user.id);
 }
 
 /** Who a sign-in check comes from, for the per-account throttle (see AccountSignInThrottle). */
 async function signInClient(c: any): Promise<SignInClient> {
-  return { ip: await getDistinctClientIpForContext(c), knownDeviceUserId: readKnownDeviceUserId(c) };
+  return { ip: await getDistinctClientIpForContext(c), knownDevice: await readKnownDevice(c) };
 }
 
 async function getPublicUrl(): Promise<string> {
@@ -383,13 +370,7 @@ authRoutes.openapi(callbackRoute, async (c) => {
     });
 
     const publicUrl = await getPublicUrl();
-    setCookie(c, getSessionCookieNameForUrl(publicUrl), result.sessionId, {
-      httpOnly: true,
-      secure: new URL(publicUrl).protocol === 'https:',
-      sameSite: 'Lax',
-      maxAge: getEnvironmentSettingsSnapshot().sessions.expirySeconds,
-      path: '/',
-    });
+    setSessionCookie(c, result.sessionId, getEnvironmentSettingsSnapshot().sessions.expirySeconds);
 
     let safeReturnTo: string | null = null;
     let directReturnTo: string | null = null;
@@ -461,13 +442,17 @@ authRoutes.post('/password/login', async (c) => {
 
 authRoutes.post('/email/continue', async (c) => {
   const input = EmailSchema.parse(await c.req.json());
-  return c.json(await container.resolve(LocalAuthService).beginEmailSignIn(input.email));
+  return c.json(await container.resolve(LocalAuthService).beginEmailSignIn(input.email, await signInClient(c)));
 });
 
 authRoutes.post('/email-otp/request', async (c) => {
   const input = EmailSchema.parse(await c.req.json());
   const localAuth = container.resolve(LocalAuthService);
-  const challengeId = await localAuth.requestEmailOtp(input.email).catch(() => null);
+  // Only the issuance limit answers differently (429, for every address alike); a failed delivery stays silent.
+  const challengeId = await localAuth.requestEmailOtp(input.email, await signInClient(c)).catch((error: unknown) => {
+    if (error instanceof AppError && error.statusCode === 429) throw error;
+    return null;
+  });
   return c.json({ ok: true, challengeId: challengeId ?? crypto.randomUUID() });
 });
 
@@ -663,14 +648,7 @@ authRoutes.openapi(stopImpersonationRoute, async (c) => {
     throw new AppError(401, 'ORIGINAL_SESSION_INVALID', 'The original administrator session is no longer valid');
   }
 
-  const publicUrl = await getPublicUrl();
-  setCookie(c, getSessionCookieNameForUrl(publicUrl), original.sessionId, {
-    httpOnly: true,
-    secure: new URL(publicUrl).protocol === 'https:',
-    sameSite: 'Lax',
-    maxAge: Math.max(1, Math.floor((original.session.expiresAt - Date.now()) / 1000)),
-    path: '/',
-  });
+  setSessionCookie(c, original.sessionId, (original.session.expiresAt - Date.now()) / 1000);
   await sessionService.destroySession(impersonationSessionId);
 
   const subject = impersonationSession.user;

@@ -136,6 +136,38 @@ export function selectSessionCookie(
   return null;
 }
 
+/** Whether this request came over HTTPS, as the session and known-device cookies see it (sessionCookieRequestOrigin). */
+export function isHttpsCookieRequest(c: Context): boolean {
+  return new URL(sessionCookieRequestOriginForContext(c)).protocol === 'https:';
+}
+
+/**
+ * Sets the browser session cookie. Its name and Secure flag follow the protocol the request came over, the same rule
+ * the cookie is read by (selectSessionCookie), never the saved public URL: a console whose public URL still says
+ * http:// behind an HTTPS proxy gets the `__Host-` cookie it will be read back by. A loopback console also gets the
+ * plain `session_id` when `withPlainLoopbackCookie` is set (local sign-in).
+ */
+export function setSessionCookie(
+  c: Context,
+  sessionId: string,
+  maxAgeSeconds: number,
+  options: { withPlainLoopbackCookie?: boolean } = {}
+): void {
+  const origin = sessionCookieRequestOriginForContext(c);
+  const secure = new URL(origin).protocol === 'https:';
+  const cookieOptions = {
+    httpOnly: true,
+    secure,
+    sameSite: 'Lax' as const,
+    maxAge: Math.max(1, Math.floor(maxAgeSeconds)),
+    path: '/',
+  };
+  setCookie(c, getSessionCookieName(secure ? 'https' : 'http'), sessionId, cookieOptions);
+  if (options.withPlainLoopbackCookie && isLoopbackUrl(origin)) {
+    setCookie(c, LEGACY_SESSION_COOKIE_NAME, sessionId, cookieOptions);
+  }
+}
+
 /** Moves a session read under a legacy name (an HTTPS request) to the `__Host-` cookie and clears the legacy one. */
 export function reissueLegacySessionCookie(c: Context, selected: SelectedSessionCookie, expiresAt: number): void {
   if (!selected.legacy) return;

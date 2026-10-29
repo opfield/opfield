@@ -373,16 +373,39 @@ describe('LocalAuthService password sign-in (R1-04, R1-08)', () => {
       service.authenticatePassword('user@example.com', 'right', { ip: '203.0.113.20' })
     ).rejects.toMatchObject({ statusCode: 429 });
     await expect(
-      service.authenticatePassword('user@example.com', 'right', { ip: '203.0.113.20', knownDeviceUserId: 'user-2' })
+      service.authenticatePassword('user@example.com', 'right', {
+        ip: '203.0.113.20',
+        knownDevice: { userId: 'user-2', deviceKey: 'device-1' },
+      })
     ).rejects.toMatchObject({ statusCode: 429 });
     await expect(
-      service.authenticatePassword('user@example.com', 'right', { ip: '203.0.113.20', knownDeviceUserId: 'user-1' })
+      service.authenticatePassword('user@example.com', 'right', {
+        ip: '203.0.113.20',
+        knownDevice: { userId: 'user-1', deviceKey: 'device-1' },
+      })
     ).resolves.toMatchObject({ id: 'user-1' });
 
     redis.locks.add('auth:sign-in:locked:user:user-1:ip:203.0.113.20');
     await expect(
-      service.authenticatePassword('user@example.com', 'right', { ip: '203.0.113.20', knownDeviceUserId: 'user-1' })
+      service.authenticatePassword('user@example.com', 'right', {
+        ip: '203.0.113.20',
+        knownDevice: { userId: 'user-1', deviceKey: 'device-1' },
+      })
     ).rejects.toMatchObject({ statusCode: 429 });
+  });
+
+  it('keeps a lock per known-device token when the address does not tell clients apart', async () => {
+    vi.spyOn(bcrypt, 'compare').mockResolvedValue(false as never);
+    const { service, redis } = setup();
+    const knownDevice = { userId: 'user-1', deviceKey: 'device-1' };
+
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      await expect(service.authenticatePassword('user@example.com', 'wrong', { knownDevice })).resolves.toBeNull();
+    }
+    await expect(service.authenticatePassword('user@example.com', 'wrong', { knownDevice })).rejects.toMatchObject({
+      statusCode: 429,
+    });
+    expect([...redis.locks]).toEqual(['auth:sign-in:locked:user:user-1:device:device-1']);
   });
 
   it('does not count a correct password as a failure', async () => {
@@ -419,12 +442,25 @@ describe('LocalAuthService password sign-in (R1-04, R1-08)', () => {
   });
 });
 
-describe('LocalAuthService email codes (R1-04)', () => {
+describe('LocalAuthService email codes (R1-04, AUTH-1)', () => {
   const OTP_USER = { id: 'user-2', email: 'otp@example.com', isBlocked: false, authMethod: 'email_otp' };
 
-  function setup(options: { reserved?: unknown[] } = {}) {
-    const reserve = vi.fn().mockResolvedValue(options.reserved ?? [1, 0]);
-    const redis = memoryRedis((script, args) => reserve(script, ...args));
+  /** The issuance limit's sliding windows, all or nothing, like its Redis script. */
+  function memoryWindows() {
+    const windows = new Map<string, number>();
+    return (script: string, args: unknown[]) => {
+      if (!script.includes('ARGV[3 + i]')) return [1, 0];
+      const keys = args.filter((arg) => typeof arg === 'string' && arg.startsWith('auth:email-code:')) as string[];
+      const limits = args.slice(keys.length + 3).map(Number);
+      if (keys.some((key, index) => (windows.get(key) ?? 0) >= limits[index]!)) return [0, 30 * 60_000];
+      for (const key of keys) windows.set(key, (windows.get(key) ?? 0) + 1);
+      return [1, 0];
+    };
+  }
+
+  function setup(options: { user?: unknown } = {}) {
+    const windows = memoryWindows();
+    const redis = memoryRedis(windows);
     const store = new Map<string, unknown>();
     const cache = {
       getClient: () => ({ eval: redis.evalScript }),
@@ -433,32 +469,64 @@ describe('LocalAuthService email codes (R1-04)', () => {
     } as unknown as CacheService;
     const sendSecurityEmail = vi.fn().mockResolvedValue('sent');
     const service = new LocalAuthService(
-      { query: { users: { findFirst: vi.fn().mockResolvedValue(OTP_USER) } } } as never,
+      {
+        query: {
+          users: { findFirst: vi.fn().mockResolvedValue(options.user === undefined ? OTP_USER : options.user) },
+        },
+      } as never,
       cache,
       {} as never,
       { getConfig: vi.fn().mockResolvedValue({ methods: { password: false, emailOtp: true } }) } as never,
       { sendSecurityEmail } as never,
       {} as never
     );
-    return { service, reserve, redis, store, sendSecurityEmail };
+    return { service, redis, store, sendSecurityEmail };
   }
 
-  it('sends at most five codes per account and hour', async () => {
-    const allowed = setup();
-    await expect(allowed.service.requestEmailOtp(OTP_USER.email)).resolves.toEqual(expect.any(String));
-    expect(allowed.reserve).toHaveBeenCalledWith(
-      expect.any(String),
-      'local_auth:email_otp:user-2',
-      expect.any(Number),
-      expect.any(Number),
-      expect.any(String),
-      5,
-      3600
-    );
+  it('sends at most five codes per account and client per hour, then answers 429 with when to retry', async () => {
+    const { service, sendSecurityEmail } = setup();
+    const client = { ip: '198.51.100.7' };
 
-    const throttled = setup({ reserved: [0, 60_000] });
-    await expect(throttled.service.requestEmailOtp(OTP_USER.email)).resolves.toBeNull();
-    expect(throttled.sendSecurityEmail).not.toHaveBeenCalled();
+    for (let request = 0; request < 5; request += 1) {
+      await expect(service.requestEmailOtp(OTP_USER.email, client)).resolves.toEqual(expect.any(String));
+    }
+    await expect(service.requestEmailOtp(OTP_USER.email, client)).rejects.toMatchObject({
+      statusCode: 429,
+      code: 'EMAIL_CODE_RATE_LIMITED',
+      details: { retryAfterSeconds: 1800 },
+    });
+    expect(sendSecurityEmail).toHaveBeenCalledTimes(5);
+
+    // Another client still gets codes for the account.
+    await expect(service.requestEmailOtp(OTP_USER.email, { ip: '203.0.113.20' })).resolves.toEqual(expect.any(String));
+  });
+
+  it('answers an unknown address the same way, so the limit does not reveal which addresses exist', async () => {
+    const { service, sendSecurityEmail } = setup({ user: null });
+    const client = { ip: '198.51.100.7' };
+
+    for (let request = 0; request < 5; request += 1) {
+      await expect(service.requestEmailOtp('nobody@example.com', client)).resolves.toBeNull();
+    }
+    await expect(service.requestEmailOtp('nobody@example.com', client)).rejects.toMatchObject({ statusCode: 429 });
+    expect(sendSecurityEmail).not.toHaveBeenCalled();
+  });
+
+  it('caps an account at 30 codes an hour from all clients, except for its known devices', async () => {
+    const { service } = setup();
+
+    for (let request = 0; request < 30; request += 1) {
+      await service.requestEmailOtp(OTP_USER.email, { ip: `198.51.100.${request}` });
+    }
+    await expect(service.requestEmailOtp(OTP_USER.email, { ip: '203.0.113.20' })).rejects.toMatchObject({
+      statusCode: 429,
+    });
+    await expect(
+      service.requestEmailOtp(OTP_USER.email, {
+        ip: '203.0.113.20',
+        knownDevice: { userId: OTP_USER.id, deviceKey: 'device-1' },
+      })
+    ).resolves.toEqual(expect.any(String));
   });
 
   it('takes an account attempt before a code is checked and refuses codes while the account is locked', async () => {

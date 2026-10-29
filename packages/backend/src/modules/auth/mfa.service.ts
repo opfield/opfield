@@ -10,6 +10,7 @@ import { AppError } from '@/middleware/error-handler.js';
 import type { CacheService } from '@/services/cache.service.js';
 import type { CryptoService } from '@/services/crypto.service.js';
 import { AccountSignInThrottle, type SignInClient } from './account-sign-in-throttle.js';
+import { bumpKnownDeviceEpoch } from './known-device-epoch.js';
 
 const TOTP_SETUP_TTL_SECONDS = 10 * 60;
 const MAX_MFA_LOGIN_ATTEMPTS = 5;
@@ -304,6 +305,7 @@ export class MfaService {
   }
 
   async resetMfa(userId: string): Promise<void> {
+    await bumpKnownDeviceEpoch(this.cacheService, userId);
     await this.db.delete(userTotpFactors).where(eq(userTotpFactors.userId, userId));
     await this.db.delete(userRecoveryCodes).where(eq(userRecoveryCodes.userId, userId));
     await this.db.delete(userPasskeys).where(eq(userPasskeys.userId, userId));
