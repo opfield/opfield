@@ -105,6 +105,8 @@ export class InferenceBudgetPolicyService {
           // An expired persisted window may have been left behind by the old
           // disabled-limit path. Recover only entries after that window ended;
           // an explicit reset instead fences recovery at its reset timestamp.
+          // The walk reads the whole ledger only for a window with no persisted reset at all, which exists until the
+          // user's first admission persists every window; after that `since` bounds it to entries after the window.
           const since = reset?.windowActive ? new Date(reset.resetAt.getTime() + window.durationMs) : reset?.resetAt;
           return [
             window.dimension,

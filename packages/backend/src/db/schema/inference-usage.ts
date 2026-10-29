@@ -174,7 +174,8 @@ export const inferenceUsageLedger = pgTable(
   },
   (table) => [
     index('inference_usage_ledger_user_time_idx').on(table.userId, table.occurredAt),
-    // Budget checks sum a user's open windows from the index alone (credits and API cost are key columns).
+    // Budget checks sum a user's open windows from the index alone. Credits and API cost are key columns because
+    // drizzle cannot declare INCLUDE; this keeps the schema and the database identical for later migrations.
     index('inference_usage_ledger_user_budget_time_idx').on(
       table.userId,
       table.budgetType,
