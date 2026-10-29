@@ -6,7 +6,7 @@ import react from "@vitejs/plugin-react";
 import { defineConfig, loadEnv } from "vite";
 import { VERSIONED_PUBLIC_ASSET } from "./src/lib/public-asset-versioning";
 
-const LOGIN_ENTRY_PATHS = new Set(["/login", "/reset-password", "/callback"]);
+const LOGIN_ENTRY_PATHS = new Set(["/login", "/reset-password", "/callback", "/access/sign-in"]);
 
 function publicAssetVersion(file: string): string | null {
   const full = path.join(import.meta.dirname, "public", file);
@@ -60,6 +60,11 @@ export default defineConfig(({ mode }) => {
           ws: true,
         },
         "/auth": {
+          target: backendTarget,
+          changeOrigin: true,
+        },
+        // Access list sign-in redirects (the sign-in page itself is the login entry).
+        "^/access/(idp|opfield)/": {
           target: backendTarget,
           changeOrigin: true,
         },

@@ -404,13 +404,13 @@ export function SettingsTab({
         <PanelShell
           icon={<ShieldCheck className="h-4 w-4" />}
           title="Access List"
-          description="Restrict access via IP rules or basic authentication"
+          description="Ask visitors to sign in, or let listed addresses in"
           className="overflow-visible"
         >
           <SettingsControlRow
             title="Policy"
             description="Access policy applied to this route"
-            help="Applies the selected reusable Access List before traffic reaches the upstream. A policy may restrict client IP addresses, require Basic Authentication, or require both."
+            help="Applies the selected reusable Access List before traffic reaches the upstream. Visitors sign in with one of its methods and pass its rules; addresses it lists skip sign-in."
           >
             <Combobox
               value={accessListId}

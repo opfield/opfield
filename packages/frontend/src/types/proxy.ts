@@ -1,3 +1,4 @@
+import type { AccessList } from "./access";
 import type { AppMembershipRef } from "./apps";
 import type { NodeAppearanceColor } from "./nodes";
 import type { CertificateDistributionState, SSLCertificate } from "./ssl";
@@ -360,31 +361,6 @@ export interface CreateProxyAdditionalRouteRequest {
 
 export type UpdateProxyAdditionalRouteRequest = Partial<CreateProxyAdditionalRouteRequest>;
 
-// Access List Types
-export interface IPRule {
-  type: "allow" | "deny";
-  value: string;
-}
-
-export interface BasicAuthUser {
-  username: string;
-}
-
-export interface AccessList {
-  id: string;
-  name: string;
-  description: string | null;
-  ipRules: IPRule[];
-  basicAuthEnabled: boolean;
-  basicAuthUsers: BasicAuthUser[];
-  /** Access list folder; null is ungrouped. */
-  folderId?: string | null;
-  sortOrder?: number;
-  createdAt: string;
-  updatedAt: string;
-  usageCount?: number;
-}
-
 // Request types (Opfield)
 /** A hostname of a route about to be created that no registered domain covers. */
 export interface MissingRouteDomain {
@@ -504,14 +480,4 @@ export interface NginxTemplate {
   sortOrder?: number;
   createdAt: string;
   updatedAt: string;
-}
-
-export interface CreateAccessListRequest {
-  name: string;
-  description?: string;
-  ipRules: IPRule[];
-  basicAuthEnabled?: boolean;
-  basicAuthUsers?: { username: string; password: string }[];
-  /** Destination folder on create (null: ungrouped). */
-  folderId?: string | null;
 }
