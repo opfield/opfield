@@ -145,7 +145,8 @@ func TestCallback(t *testing.T) {
 	}
 
 	w := callback(token, "/reports?q=1", "nonce-1")
-	if w.Code != http.StatusFound || w.Header().Get("Location") != "/reports?q=1" {
+	if w.Code != http.StatusFound || w.Header().Get("Location") != "/reports?q=1" ||
+		w.Header().Get("Referrer-Policy") != "no-referrer" || w.Header().Get("Cache-Control") != "no-store" {
 		t.Fatalf("callback %d %v", w.Code, w.Header())
 	}
 	cookies := map[string]*http.Cookie{}
@@ -160,7 +161,7 @@ func TestCallback(t *testing.T) {
 		t.Fatalf("state cookie not cleared: %+v", state)
 	}
 
-	for returnTo, want := range map[string]string{"//evil.example": "/", "https://evil.example/": "/", "/\\evil": "/", "": "/"} {
+	for returnTo, want := range map[string]string{"//evil.example": "/", "https://evil.example/": "/", "/\\evil": "/", "": "/", "/" + strings.Repeat("a", 4096): "/"} {
 		if w := callback(token, returnTo, "nonce-1"); w.Header().Get("Location") != want {
 			t.Errorf("return %q went to %q", returnTo, w.Header().Get("Location"))
 		}

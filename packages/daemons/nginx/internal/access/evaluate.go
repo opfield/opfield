@@ -279,10 +279,13 @@ func Evaluate(list *List, client netip.Addr, identity *Identity, source Source) 
 	return refused
 }
 
-// usable reports whether the list accepts an identity of its method at all.
+// usable reports whether the list accepts an identity of its method at all; a service token only when an Include rule
+// names it.
 func (l *List) usable(identity *Identity) bool {
 	if identity.Method == MethodServiceToken {
-		return slices.ContainsFunc(l.Include, func(rule Rule) bool { return rule.Selector == SelectorServiceToken })
+		return slices.ContainsFunc(l.Include, func(rule Rule) bool {
+			return rule.Selector == SelectorServiceToken && slices.Contains(rule.Values, identity.Sub)
+		})
 	}
 	if !slices.Contains(l.SignInMethods, identity.Method) {
 		return false

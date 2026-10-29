@@ -975,6 +975,68 @@
       },
       "clientIp": "203.0.113.250",
       "expect": "deny"
+    },
+    {
+      "name": "service token not named by the service token rule is denied even with an everyone rule",
+      "list": {
+        "id": "33333333-3333-4333-8333-333333333333",
+        "signInMethods": [
+          "opfield"
+        ],
+        "skipIpRanges": [],
+        "includeRules": [
+          {
+            "selector": "everyone",
+            "values": []
+          },
+          {
+            "selector": "service_token",
+            "values": [
+              "tok-ci"
+            ]
+          }
+        ],
+        "requireRules": [],
+        "excludeRules": []
+      },
+      "clientIp": "203.0.113.9",
+      "identity": {
+        "m": "service_token",
+        "sub": "tok-other"
+      },
+      "source": "service_token",
+      "expect": "deny"
+    },
+    {
+      "name": "service token named by the service token rule next to an everyone rule",
+      "list": {
+        "id": "33333333-3333-4333-8333-333333333333",
+        "signInMethods": [
+          "opfield"
+        ],
+        "skipIpRanges": [],
+        "includeRules": [
+          {
+            "selector": "everyone",
+            "values": []
+          },
+          {
+            "selector": "service_token",
+            "values": [
+              "tok-ci"
+            ]
+          }
+        ],
+        "requireRules": [],
+        "excludeRules": []
+      },
+      "clientIp": "203.0.113.9",
+      "identity": {
+        "m": "service_token",
+        "sub": "tok-ci"
+      },
+      "source": "service_token",
+      "expect": "allow"
     }
   ]
 }

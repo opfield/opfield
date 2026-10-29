@@ -178,6 +178,8 @@ func previewAccessCheckDirectives(accessListID string) []string {
 	lines = append(lines, "    }",
 		"    location = "+accessCallbackPath+" {",
 		"        auth_request off;",
+		// The request line carries the access token.
+		"        access_log off;",
 		"        proxy_pass "+accessSocket+":/callback;",
 		"        proxy_set_header X-Opfield-Access-Host $host;",
 		"        proxy_set_header X-Opfield-Access-Secure $https;",

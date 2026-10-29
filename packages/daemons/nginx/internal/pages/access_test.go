@@ -210,7 +210,7 @@ func TestPreviewAccessChecksOnTheAccessSocket(t *testing.T) {
 	for _, want := range []string{
 		"    server_name checked.pages.example;\n    auth_request /_opfield/access/check;\n    error_page 401 = @opfield_access_challenge;\n",
 		"    location = /_opfield/access/check {\n        internal;\n        auth_request off;\n        proxy_pass http://unix:/run/nginx-daemon/access.sock:/check;\n        proxy_pass_request_body off;\n        proxy_set_header Content-Length \"\";\n        proxy_set_header X-Opfield-Access-List \"" + accessListID + "\";\n        proxy_set_header X-Opfield-Access-Host $host;\n        proxy_set_header X-Opfield-Access-Client-Ip $remote_addr;\n        proxy_set_header X-Opfield-Access-Uri $request_uri;\n        proxy_set_header X-Opfield-Access-Secure $https;\n    }\n",
-		"    location = /_opfield/access/callback {\n        auth_request off;\n        proxy_pass http://unix:/run/nginx-daemon/access.sock:/callback;\n",
+		"    location = /_opfield/access/callback {\n        auth_request off;\n        access_log off;\n        proxy_pass http://unix:/run/nginx-daemon/access.sock:/callback;\n",
 		"    location @opfield_access_challenge {\n        auth_request off;\n        rewrite ^ /challenge break;\n        proxy_pass http://unix:/run/nginx-daemon/access.sock;\n",
 		"        auth_basic off;\n        auth_request off;\n",
 	} {

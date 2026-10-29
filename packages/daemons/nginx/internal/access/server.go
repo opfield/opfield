@@ -218,7 +218,9 @@ func (s *Server) redirectToSignIn(w http.ResponseWriter, r *http.Request, req *r
 // serveCallback takes the token the sign-in page issued for this host: valid and carrying the nonce of the visitor's
 // state cookie, it becomes the access cookie and the visitor goes back to the page they asked for.
 func (s *Server) serveCallback(w http.ResponseWriter, r *http.Request) {
+	// The callback URL carries the token: never cached, never sent on as a referrer.
 	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Referrer-Policy", "no-referrer")
 	policy := s.store.Policy()
 	if policy == nil {
 		w.WriteHeader(http.StatusServiceUnavailable)
@@ -256,10 +258,13 @@ func secureRequest(r *http.Request) bool {
 	return r.Header.Get(SecureHeader) == "on"
 }
 
+// maxReturnPathLength bounds the page a visitor returns to, as the sign-in page does.
+const maxReturnPathLength = 4096
+
 // safeReturnPath keeps a return target on the same host: a path starting with one slash, else "/".
 func safeReturnPath(value string) string {
 	if !strings.HasPrefix(value, "/") || strings.HasPrefix(value, "//") || strings.HasPrefix(value, "/\\") ||
-		strings.ContainsAny(value, "\r\n\t\\") || len(value) > 8192 {
+		strings.ContainsAny(value, "\r\n\t\\") || len(value) > maxReturnPathLength {
 		return "/"
 	}
 	return value
