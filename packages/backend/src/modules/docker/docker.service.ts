@@ -212,6 +212,10 @@ export type DockerSnapshotReadBack = (
   change?: { volume: string; removed?: boolean }
 ) => Promise<void>;
 
+/** The transitions a recreated container's caller waits out before it answers, and for how long at most. */
+const RECREATE_SETTLE_STATES: readonly ContainerTransition[] = ['updating', 'recreating'];
+const RECREATE_SETTLE_TIMEOUT_MS = 60_000;
+
 /** See DockerSnapshotReconciler.readBackRecreatedContainer. */
 export type DockerRecreateReadBack = (nodeId: string, name: string, newId: string, oldId: string) => Promise<void>;
 
@@ -301,10 +305,12 @@ export class DockerManagementService {
   }
 
   /**
-   * Reads a recreated container back into the snapshots: a caller that waited for the replacement itself (by a live
-   * inspect) calls it before it answers, so a read right after the answer finds the replacement.
+   * Settles a recreated container for a caller that waited for the replacement itself (by a live inspect) and answers
+   * next: it waits for the recreate's watch to release the name (a stop right after a binding change was 409
+   * CONTAINER_BUSY), then reads the container back into the snapshots, so a read right after the answer finds it.
    */
   async readBackRecreatedContainer(nodeId: string, name: string, newId: string, oldId: string): Promise<void> {
+    await this.containerTransitions.waitWhile(nodeId, name, RECREATE_SETTLE_STATES, RECREATE_SETTLE_TIMEOUT_MS);
     await this.recreateReadBack?.(nodeId, name, newId, oldId);
   }
 
@@ -736,8 +742,9 @@ export class DockerManagementService {
       failTask: (taskId, error, nodeId, containerName) => this.failTask(taskId, error, nodeId, containerName),
       preserveContainerIdentity: (nodeId, name, runtimeId) =>
         this.accessResourceService?.preserveContainerRuntimeId(nodeId, name, runtimeId) ?? Promise.resolve(),
+      // The watch holds the name itself: it reads the replacement back without waiting for its own release.
       readBackRecreatedContainer: (nodeId, name, newId, oldId) =>
-        this.readBackRecreatedContainer(nodeId, name, newId, oldId),
+        this.recreateReadBack?.(nodeId, name, newId, oldId) ?? Promise.resolve(),
     };
   }
 
@@ -836,6 +843,19 @@ export class DockerManagementService {
     return new AppError(409, 'CONTAINER_BUSY', `Container "${identifier}" is currently ${transition}`, {
       name: identifier,
     });
+  }
+
+  /**
+   * Runs a lifecycle request that a recreate may overtake: the route found the container, then the recreate removed it
+   * before the request reached the node. While the recreate holds the name that is 409 CONTAINER_BUSY, as for a
+   * request that arrives during the swap, not the daemon's "No such container".
+   */
+  private async busyWhileReplaced<T>(nodeId: string, containerId: string, run: () => Promise<T>): Promise<T> {
+    try {
+      return await run();
+    } catch (error) {
+      throw this.busyWhileTransitioning(nodeId, containerId, error);
+    }
   }
 
   private async resolveContainerName(nodeId: string, containerId: string): Promise<string> {
@@ -1599,6 +1619,17 @@ export class DockerManagementService {
 
   /** `appIncident`: the app kill switch starts a host-network container it stopped (its own hold does not apply). */
   async startContainer(nodeId: string, containerId: string, userId: string, options: { appIncident?: boolean } = {}) {
+    return this.busyWhileReplaced(nodeId, containerId, () =>
+      this.startContainerNow(nodeId, containerId, userId, options)
+    );
+  }
+
+  private async startContainerNow(
+    nodeId: string,
+    containerId: string,
+    userId: string,
+    options: { appIncident?: boolean }
+  ) {
     await this.assertContainerBuildRolloutAllowed(nodeId, containerId);
     if (!options.appIncident && this.appFreeze && (await this.appFreeze.anyIsolationOpen())) {
       await this.appFreeze.assertMayStart(nodeId, await this.resolveContainerName(nodeId, containerId));
@@ -1611,6 +1642,12 @@ export class DockerManagementService {
   }
 
   async stopContainer(nodeId: string, containerId: string, timeout: number | undefined, userId: string) {
+    return this.busyWhileReplaced(nodeId, containerId, () =>
+      this.stopContainerNow(nodeId, containerId, timeout, userId)
+    );
+  }
+
+  private async stopContainerNow(nodeId: string, containerId: string, timeout: number | undefined, userId: string) {
     await this.assertContainerBuildRolloutAllowed(nodeId, containerId);
     if (await this.availabilityMutationCoordinator?.setRunning(nodeId, containerId, false, userId)) return;
     const containerName = await this.resolveContainerName(nodeId, containerId);
@@ -1620,6 +1657,12 @@ export class DockerManagementService {
   }
 
   async restartContainer(nodeId: string, containerId: string, timeout: number | undefined, userId: string) {
+    return this.busyWhileReplaced(nodeId, containerId, () =>
+      this.restartContainerNow(nodeId, containerId, timeout, userId)
+    );
+  }
+
+  private async restartContainerNow(nodeId: string, containerId: string, timeout: number | undefined, userId: string) {
     await this.assertContainerBuildRolloutAllowed(nodeId, containerId);
     if (await this.availabilityMutationCoordinator?.setRunning(nodeId, containerId, true, userId, true)) return;
     const containerName = await this.resolveContainerName(nodeId, containerId);
