@@ -89,9 +89,11 @@ type setMeshSet struct {
 type setMesh struct {
 	plugin *DockerPlugin
 	mu     sync.Mutex
-	sets   map[string]*setMeshSet
-	wake   chan struct{}
-	once   sync.Once
+	// reconciling serializes reconcile: two passes at once could both bind the address of a set that just left.
+	reconciling sync.Mutex
+	sets        map[string]*setMeshSet
+	wake        chan struct{}
+	once        sync.Once
 	// inspect and listen are replaced by tests.
 	inspect func(ctx context.Context, name string) (netip.Addr, bool, error)
 	listen  func(address string) (net.Listener, error)
@@ -508,6 +510,8 @@ func (s *setMesh) inspectNetwork(ctx context.Context, name string) (netip.Addr, 
 
 // reconcile binds every exposed listener whose network exists.
 func (s *setMesh) reconcile() {
+	s.reconciling.Lock()
+	defer s.reconciling.Unlock()
 	s.mu.Lock()
 	ids := make([]string, 0, len(s.sets))
 	for id := range s.sets {
