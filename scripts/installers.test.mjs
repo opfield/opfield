@@ -2335,6 +2335,40 @@ test('install.sh --version installs an exact release on a fresh host, with the r
   }
 });
 
+// install.sh verifies signed releases with pkeyutl -rawin (OpenSSL 3): on OpenSSL 1.1.1 a release install stops with
+// that reason before any change. A --source-dir build verifies no signature and needs no OpenSSL 3 (R-7).
+test('install.sh asks for OpenSSL 3 only when it verifies a signed release', { skip: spawnSync('sh', ['-c', 'command -v openssl']).status !== 0 }, async () => {
+  const installSh = path.join(scriptsDir, 'install.sh');
+  const realOpenssl = spawnSync('sh', ['-c', 'command -v openssl'], { encoding: 'utf8' }).stdout.trim();
+  const work = await mkdtemp(path.join(tmpdir(), 'install-openssl111-'));
+  try {
+    await spawnAsync('mkdir', ['-p', path.join(work, 'bin'), path.join(work, 'src')]);
+    await writeFile(
+      path.join(work, 'bin/openssl'),
+      `#!/bin/sh\ncase "$1 $2" in "pkeyutl -help") echo "Usage: pkeyutl [options]" >&2; exit 1 ;; esac\n[ "$1" = version ] && { echo "OpenSSL 1.1.1w  11 Sep 2023"; exit 0; }\nexec '${realOpenssl}' "$@"\n`
+    );
+    await chmod(path.join(work, 'bin/openssl'), 0o755);
+    await writeFile(path.join(work, 'src/Dockerfile'), 'FROM scratch\n');
+    await writeFile(path.join(work, 'src/package.json'), '{}\n');
+    const run = (args) => {
+      const result = spawnSync('bash', [installSh, '--dry-run', '--install-dir', path.join(work, 'opt'), ...args], {
+        encoding: 'utf8',
+        timeout: 30_000,
+        input: '',
+        env: { ...process.env, TERM: 'dumb', PATH: `${path.join(work, 'bin')}:${process.env.PATH}`, RELEASES_API_URL: 'http://127.0.0.1:9/never' },
+      });
+      return { status: result.status, output: `${result.stdout}${result.stderr}` };
+    };
+    const release = run([]);
+    assert.notEqual(release.status, 0);
+    assert.match(release.output, /OpenSSL 3 or later is required to verify the signed release; this host has OpenSSL 1\.1\.1w/);
+    const source = run(['--source-dir', path.join(work, 'src')]);
+    assert.doesNotMatch(source.output, /OpenSSL 3 or later is required/);
+  } finally {
+    await rm(work, { recursive: true, force: true });
+  }
+});
+
 test('install.sh --domain and --acme-email: help, validation before any host change, and the console ports', async () => {
   const installSh = path.join(scriptsDir, 'install.sh');
   const source = readFileSync(installSh, 'utf8');

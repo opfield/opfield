@@ -1158,7 +1158,8 @@ if [[ "$DRY_RUN" -eq 0 ]]; then
   ensure_docker_available
   command_exists curl || die "curl is required"
   command_exists openssl || die "openssl is required"
-  require_signature_verifier
+  # A source build verifies no signed release.
+  [[ -n "$SOURCE_DIR" ]] || require_signature_verifier
   "${DOCKER[@]}" compose version >/dev/null 2>&1 || die "Docker Compose v2 is required"
 
   if [[ ! -d "$INSTALL_DIR" ]]; then
@@ -1183,7 +1184,8 @@ RESUME=0
 if [[ "$DRY_RUN" -eq 1 ]]; then
   command -v curl >/dev/null || die "curl is required to inspect the release in dry-run mode"
   command -v openssl >/dev/null || die "openssl is required to verify the release in dry-run mode"
-  require_signature_verifier
+  # A source build verifies no signed release.
+  [[ -n "$SOURCE_DIR" ]] || require_signature_verifier
   DRY_RUN_LOG="$(mktemp)"
   LOG_FILE="$DRY_RUN_LOG"
 else
