@@ -180,3 +180,23 @@ func TestCallback(t *testing.T) {
 		}
 	}
 }
+
+// A visitor the sign-in page let in moments ago but this list refuses (the two saw different addresses, say) is
+// denied instead of sent back to sign in, which would loop.
+func TestFreshlySignedInRefusalIsNotRedirected(t *testing.T) {
+	server, _, sign := testServer(t, true)
+	fresh := testClaims("lena@gmail.com")
+	fresh.IssuedAt = testNow.Add(-10 * time.Second).Unix()
+	header := http.Header{"Cookie": {TokenCookie + "=" + sign(fresh)}}
+	for _, path := range []string{"/check", "/challenge"} {
+		if w := serve(server, accessRequest(path, testListID, "203.0.113.9", header)); w.Code != http.StatusForbidden || w.Header().Get("Location") != "" {
+			t.Fatalf("%s: %d %v", path, w.Code, w.Header())
+		}
+	}
+	// An older sign-in is sent to the sign-in page, which says there is no access.
+	old := testClaims("lena@gmail.com")
+	header = http.Header{"Cookie": {TokenCookie + "=" + sign(old)}}
+	if w := serve(server, accessRequest("/challenge", testListID, "203.0.113.9", header)); w.Code != http.StatusFound {
+		t.Fatalf("older sign-in: %d", w.Code)
+	}
+}

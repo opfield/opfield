@@ -121,4 +121,14 @@ func (h *Handler) handleSyncAccessPolicy(cmd *pb.SyncAccessPolicyCommand, result
 	}
 	result.Detail = fmt.Sprintf("access policy revision %d applied", cmd.Revision)
 	h.logger.Info("access policy applied", "revision", cmd.Revision, "lists", len(cmd.Lists))
+	// Protected Pages previews switch between access checks and their lists' fallback directives.
+	if h.pagesRuntime != nil {
+		rendered, err := h.pagesRuntime.RefreshAccessChecks()
+		if err != nil {
+			h.logger.Warn("some protected Pages previews were not rendered for the new access policy", "error", err)
+		}
+		if rendered > 0 {
+			h.logger.Info("protected Pages previews rendered for the new access policy", "previews", rendered)
+		}
+	}
 }

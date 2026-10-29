@@ -240,3 +240,53 @@ func TestPreviewAccessChecksOnTheAccessSocket(t *testing.T) {
 		t.Fatalf("unsynced list without fallback rules must deny everyone:\n%s", closed)
 	}
 }
+
+// A preview materialized before its list's policy reached the access socket switches to access checks when the
+// policy arrives, and back to the fallback when the list leaves it.
+func TestPreviewAccessFollowsThePolicy(t *testing.T) {
+	runtime, _ := accessRuntime(t)
+	synced := map[string]bool{}
+	runtime.SetAccessChecks(func(id string) bool { return synced[id] })
+	access := &PreviewAccess{AccessListID: accessListID, IPRules: []PreviewIPRule{{Type: "allow", Value: "10.0.0.0/8"}}}
+	if err := runtime.MaterializePreview(profileID, deploymentID, "follow.pages.example", "", "", PreviewFallback{SPAFallback: true, Access: access}); err != nil {
+		t.Fatal(err)
+	}
+	if err := runtime.MaterializePreview(profileID, deploymentID, "public.pages.example", "", ""); err != nil {
+		t.Fatal(err)
+	}
+	read := func() string {
+		config, err := os.ReadFile(runtime.previewConfigPath("follow.pages.example"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return string(config)
+	}
+	fallback := read()
+	if strings.Contains(fallback, "auth_request") {
+		t.Fatalf("unsynced list rendered with checks:\n%s", fallback)
+	}
+
+	synced[accessListID] = true
+	if changed, err := runtime.RefreshAccessChecks(); err != nil || changed != 1 {
+		t.Fatalf("refresh after the policy arrived: %d %v", changed, err)
+	}
+	checked := read()
+	if !strings.Contains(checked, "    auth_request /_opfield/access/check;\n") || strings.Contains(checked, "allow 10.0.0.0/8") || !strings.Contains(checked, "try_files $uri $uri/ /index.html;") {
+		t.Fatalf("preview not rendered with checks:\n%s", checked)
+	}
+	if changed, err := runtime.RefreshAccessChecks(); err != nil || changed != 0 {
+		t.Fatalf("a refresh without policy changes rendered again: %d %v", changed, err)
+	}
+
+	delete(synced, accessListID)
+	if changed, err := runtime.RefreshAccessChecks(); err != nil || changed != 1 || read() != fallback {
+		t.Fatalf("refresh after the list left the policy: %d %v\n%s", changed, err, read())
+	}
+
+	if err := runtime.RemovePreview("follow.pages.example"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(runtime.previewAccessRecordPath("follow.pages.example")); !os.IsNotExist(err) {
+		t.Fatalf("record of a removed preview kept: %v", err)
+	}
+}

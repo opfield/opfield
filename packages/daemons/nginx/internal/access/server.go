@@ -58,6 +58,9 @@ func (s *Server) Handler() http.Handler {
 	return mux
 }
 
+// freshSignInSeconds is how long after a sign-in a refused cookie identity is denied instead of sent to sign in again.
+const freshSignInSeconds = 60
+
 // request is one request nginx asks about.
 type request struct {
 	policy   *Policy
@@ -66,8 +69,9 @@ type request struct {
 	client   netip.Addr
 	identity *Identity
 	source   Source
-	// token is the access token the identity came from (cookie identities).
+	// token is the access token the identity came from and issuedAt its iat (cookie identities).
 	token    string
+	issuedAt int64
 	decision Decision
 }
 
@@ -99,12 +103,17 @@ func (s *Server) evaluate(r *http.Request) *request {
 			}
 			if claims, err := policy.VerifyToken(cookie.Value, req.host, now); err == nil {
 				identity := claims.Identity
-				req.identity, req.source, req.token = &identity, SourceCookie, cookie.Value
+				req.identity, req.source, req.token, req.issuedAt = &identity, SourceCookie, cookie.Value, claims.IssuedAt
 				break
 			}
 		}
 	}
 	req.decision = Evaluate(list, req.client, req.identity, req.source)
+	// The sign-in page let this visitor in moments ago, yet the list refuses them here (the two saw different client
+	// addresses, say): another sign-in redirect would only come back here, so the answer is a deny.
+	if req.decision == Redirect && req.source == SourceCookie && req.identity != nil && now.Unix()-req.issuedAt < freshSignInSeconds {
+		req.decision = Deny
+	}
 	return req
 }
 

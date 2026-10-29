@@ -409,12 +409,19 @@ func (r *Runtime) MaterializePreview(profileID, deploymentID, hostname, certific
 		return err
 	}
 	content := r.previewConfig(hostname, deploymentID, certificateID, certificateVersion, runtimeConfigPath, fallback)
-	return r.applyConfigWith(r.previewConfigPath(hostname), []byte(content), fallback.DeferReload)
+	if err := r.applyConfigWith(r.previewConfigPath(hostname), []byte(content), fallback.DeferReload); err != nil {
+		return err
+	}
+	// The preview renders again when its list's access checks come or go (access_refresh.go).
+	return r.recordPreviewAccess(hostname, deploymentID, certificateID, certificateVersion, fallback)
 }
 
 func (r *Runtime) RemovePreview(hostname string) error {
 	if !validHostname(hostname) {
 		return errors.New("invalid preview hostname")
+	}
+	if err := removePreviewAccessRecord(r.previewAccessRecordPath(hostname)); err != nil {
+		return err
 	}
 	// The managed default servers answer the hostname once its server block is gone: nothing to leave behind.
 	if r.answersUnknownHosts() {
