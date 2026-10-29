@@ -12,6 +12,7 @@ Access lists with sign-in methods send visitors of a protected route or Pages ho
 
 ## Identity providers (admin:system; reads also acl:view)
 - \`identity_providers.list|get|create|update|delete\` (/api/access-identity-providers): \`kind\` google or oidc, \`name\` (the button), \`issuer\` (oidc; Google is https://accounts.google.com), \`clientId\`, \`clientSecret\` (stored encrypted, never returned; omitted on update keeps it), \`groupsClaim\` (claim sso_group rules read).
+- Only an email the provider marks verified (\`email_verified: true\`) is used: \`email\` and \`email_domain\` rules need a provider that verifies emails (Google does); \`sso_group\` rules work either way.
 - Register \`redirectUri\` (in every response) at the provider. Delete is refused (409) while a list offers the provider.
 
 ## Service tokens (acl:edit; reads also acl:view)

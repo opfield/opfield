@@ -130,8 +130,14 @@ accessSignInApiRoutes.post('/sign-out', async (c) => {
 // On the console origin: the console session says which Opfield account signs in.
 accessSignInApiRoutes.get('/opfield/authorize', optionalAuthMiddleware, async (c) => {
   const state = c.req.query('state') ?? '';
-  const user = c.get('user');
   c.header('Cache-Control', 'no-store');
+  // Only the person at the browser vouches for the account: a bearer token (API, OAuth, MCP) never signs anyone in.
+  const authType = c.get('authType');
+  if (authType && authType !== 'session') {
+    throw new AppError(403, 'ACCESS_SIGN_IN_SESSION_REQUIRED', 'Opfield account sign-in needs a console session');
+  }
+  // An administrator acting as another user signs in as nobody: the visitor signs in with their own account.
+  const user = c.get('impersonation') ? undefined : c.get('user');
   if (!user) {
     const here = new URL(c.req.url);
     const login = new URL('/login', here.origin);

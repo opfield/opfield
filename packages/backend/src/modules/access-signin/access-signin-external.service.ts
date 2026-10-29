@@ -41,6 +41,11 @@ function claimString(claims: Record<string, unknown>, name: string): string | un
   return typeof value === 'string' && value.trim() ? value.trim() : undefined;
 }
 
+/** Only an address the provider says it verified is an identity email rules may match (no claim: unverified). */
+export function verifiedEmail(claims: Record<string, unknown>): string | undefined {
+  return claims.email_verified === true ? claimString(claims, 'email')?.toLowerCase() : undefined;
+}
+
 /** Group names from the provider's groups claim: an array of strings or one string. */
 export function groupsFromClaim(claims: Record<string, unknown>, claim: string | null): string[] {
   if (!claim) return [];
@@ -129,8 +134,7 @@ export class AccessSignInExternalService {
     }
     const subject = claimString(claims, 'sub');
     if (!subject) throw new AppError(401, 'ACCESS_SIGN_IN_FAILED', `${provider.name} did not name the account`);
-    // An address the provider has not verified is not an identity email rules may match.
-    const email = claims.email_verified === false ? undefined : claimString(claims, 'email')?.toLowerCase();
+    const email = verifiedEmail(claims);
     const groups = groupsFromClaim(claims, provider.groupsClaim);
     return this.flow.completeSignIn(
       resolved,

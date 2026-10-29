@@ -43,6 +43,17 @@ export function normalizeAccessHost(host: string | null | undefined): string {
   return (colon === -1 ? value : value.slice(0, colon)).replace(/\.$/, '');
 }
 
+const DNS_LABEL = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
+
+/**
+ * A strict lowercase DNS name (labels of a-z, 0-9 and inner hyphens, 1-63 characters, at most 253 in total): no port,
+ * user info, path or fragment. Only such a host ever gets a token or a callback URL.
+ */
+export function isAccessHostName(host: string): boolean {
+  if (!host || host.length > 253) return false;
+  return host.split('.').every((label) => DNS_LABEL.test(label));
+}
+
 /** A KeyObject from a raw 32-byte Ed25519 public key. */
 export function ed25519PublicKeyFromRaw(raw: Buffer): KeyObject {
   return createPublicKey({ key: { kty: 'OKP', crv: 'Ed25519', x: raw.toString('base64url') }, format: 'jwk' });

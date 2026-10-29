@@ -8,7 +8,7 @@ import type { SignInTarget } from './access-signin.schemas.js';
 import type { AccessListRow, AccessSignInDirectory } from './access-signin-directory.js';
 import type { AccessSignInSettings } from './access-signin-settings.service.js';
 import type { AccessSigningKeyService } from './access-signing-key.service.js';
-import { type AccessTokenIdentity, normalizeAccessHost } from './access-token.js';
+import { type AccessTokenIdentity, isAccessHostName, normalizeAccessHost } from './access-token.js';
 
 /** The central session cookie on the sign-in domain (aud = sign-in host). */
 export const ACCESS_SESSION_COOKIE = 'opfield_access_session';
@@ -87,7 +87,7 @@ export class AccessSignInFlowService {
     const list = await this.deps.directory.getList(target.list);
     if (!list) throw new AppError(404, 'ACCESS_LIST_NOT_FOUND', 'This sign-in link is no longer valid');
     const host = normalizeAccessHost(target.host);
-    const served = host ? await this.deps.directory.hostOfList(list.id, host) : null;
+    const served = isAccessHostName(host) ? await this.deps.directory.hostOfList(list.id, host) : null;
     if (!served) {
       throw new AppError(400, 'ACCESS_HOST_NOT_PROTECTED', 'This site does not sign visitors in here');
     }
@@ -223,6 +223,11 @@ export class AccessSignInFlowService {
     session: AccessSessionRow,
     identity: AccessTokenIdentity
   ): Promise<string> {
+    const url = new URL(`${resolved.secure ? 'https' : 'http'}://${resolved.host}/_opfield/access/callback`);
+    // The token goes to exactly the host it is for, never to a host the URL parser reads differently.
+    if (!isAccessHostName(resolved.host) || url.hostname !== resolved.host) {
+      throw new AppError(400, 'ACCESS_HOST_NOT_PROTECTED', 'This site does not sign visitors in here');
+    }
     const now = this.now();
     const ttl = await this.ttlSeconds(resolved.list);
     const exp = Math.min(unix(session.expiresAt), unix(now) + ttl);
@@ -234,7 +239,6 @@ export class AccessSignInFlowService {
       idn: identity,
       non: resolved.nonce,
     });
-    const url = new URL(`${resolved.secure ? 'https' : 'http'}://${resolved.host}/_opfield/access/callback`);
     url.searchParams.set('t', token);
     url.searchParams.set('r', resolved.returnPath);
     return url.toString();

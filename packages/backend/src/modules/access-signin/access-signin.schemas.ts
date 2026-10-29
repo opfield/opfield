@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { isAccessHostName } from './access-token.js';
 
 const domainNameRegex = /^([a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$/;
 
@@ -105,14 +106,19 @@ export type AccessSessionListQuery = z.infer<typeof AccessSessionListQuerySchema
 
 export const SignInTargetSchema = z.object({
   list: z.string().uuid(),
-  host: z.string().trim().min(1).max(253),
+  // $host of the protected request: a strict DNS name (see isAccessHostName).
+  host: z.string().trim().toLowerCase().refine(isAccessHostName, 'host must be a DNS name'),
   // The daemon's state nonce (32 random bytes, base64url).
   n: z
     .string()
     .min(16)
     .max(128)
     .regex(/^[A-Za-z0-9_-]+$/),
-  r: z.string().max(4096).optional(),
+  // A longer return path than the daemon keeps (4096) degrades to "/" rather than refusing the sign-in.
+  r: z
+    .string()
+    .optional()
+    .transform((value) => (value && value.length > 4096 ? '/' : value)),
 });
 export type SignInTarget = z.infer<typeof SignInTargetSchema>;
 

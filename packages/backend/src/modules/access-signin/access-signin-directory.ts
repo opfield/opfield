@@ -10,7 +10,7 @@ import {
   proxyHosts,
   users,
 } from '@/db/schema/index.js';
-import { normalizeAccessHost } from './access-token.js';
+import { isAccessHostName, normalizeAccessHost } from './access-token.js';
 
 export type AccessListRow = typeof accessLists.$inferSelect;
 
@@ -41,7 +41,7 @@ export interface AccessSignInDirectory {
 export function domainServesHost(domain: string, host: string): boolean {
   const name = normalizeAccessHost(domain);
   const target = normalizeAccessHost(host);
-  if (!name || !target) return false;
+  if (!name || !target || !isAccessHostName(target)) return false;
   if (name === target) return true;
   if (!name.startsWith('*.')) return false;
   const parent = name.slice(1);
