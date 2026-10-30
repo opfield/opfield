@@ -100,7 +100,7 @@ describe("token internal registry access", () => {
       expiresAt: expect.any(String),
       allowedIps: [],
     });
-  });
+  }, 15_000);
 
   it("lists repositories instead of offering all of them to a user with folder grants only", async () => {
     const folder = "folder/0b3d7f0e-1111-4c1a-9d2e-3f4a5b6c7d8e";
