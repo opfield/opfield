@@ -1257,7 +1257,7 @@ describe('OAuthService.revokeToken', () => {
   });
 });
 
-describe('OAuthService authorization code reuse (R1-14)', () => {
+describe('OAuthService authorization code reuse', () => {
   const verifier = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQ';
   const request = {
     grant_type: 'authorization_code' as const,
@@ -1297,34 +1297,18 @@ describe('OAuthService authorization code reuse (R1-14)', () => {
   const revoked = (calls: Array<{ table: unknown; values: Record<string, unknown> }>, table: unknown) =>
     calls.some((call) => call.table === table && call.values.revokedAt instanceof Date);
 
-  it('revokes the tokens a code was exchanged for when the used code comes back', async () => {
+  it('refuses a used code with invalid_grant and keeps the tokens its first exchange issued', async () => {
     const { service, code, db, updateCalls, auditLog } = setup();
-    await service.exchangeToken(request);
-    expect(revoked(updateCalls, oauthAccessTokens)).toBe(false);
+    const first = await service.exchangeToken(request);
+    expect(first).toMatchObject({ access_token: expect.any(String) });
 
     code.usedAt = new Date();
     db.query.oauthAuthorizationCodes.findFirst.mockResolvedValue(code);
-    await expect(service.exchangeToken(request)).rejects.toThrow('Invalid authorization code');
+    await expect(service.exchangeToken(request)).rejects.toMatchObject({ statusCode: 400, code: 'INVALID_GRANT' });
 
-    expect(revoked(updateCalls, oauthAccessTokens)).toBe(true);
-    expect(revoked(updateCalls, oauthRefreshTokens)).toBe(true);
-    expect(auditLog).toHaveBeenCalledWith(
-      expect.objectContaining({
-        action: 'oauth.authorization_revoke',
-        resourceId: 'goc_client',
-        details: expect.objectContaining({ reason: 'authorization_code_reuse', targetUserId: USER.id }),
-      })
-    );
-  });
-
-  it('revokes what an exchange issued when a replay of its code arrived meanwhile', async () => {
-    const { service, store, updateCalls } = setup();
-    store.set('oauth:code:code-1:reused', true);
-
-    await expect(service.exchangeToken(request)).rejects.toThrow('Authorization code already used');
-
-    expect(revoked(updateCalls, oauthAccessTokens)).toBe(true);
-    expect(revoked(updateCalls, oauthRefreshTokens)).toBe(true);
+    expect(revoked(updateCalls, oauthAccessTokens)).toBe(false);
+    expect(revoked(updateCalls, oauthRefreshTokens)).toBe(false);
+    expect(auditLog).not.toHaveBeenCalledWith(expect.objectContaining({ action: 'oauth.authorization_revoke' }));
   });
 
   it('leaves tokens alone for an unknown code', async () => {

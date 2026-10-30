@@ -631,25 +631,6 @@ export class OAuthTokenLifecycle {
     return authorization;
   }
 
-  /**
-   * Revokes the tokens an authorization code was exchanged for, with every refresh token rotated from them: the code
-   * was presented again, so it may be in other hands (RFC 6749 section 4.1.2).
-   */
-  async revokeIssuedTokens(issued: { refreshTokenId: string | null; accessTokenId: string | null }): Promise<void> {
-    const now = new Date();
-    if (issued.accessTokenId) {
-      await this.deps.db
-        .update(oauthAccessTokens)
-        .set({ revokedAt: now })
-        .where(and(eq(oauthAccessTokens.id, issued.accessTokenId), isNull(oauthAccessTokens.revokedAt)));
-    }
-    if (!issued.refreshTokenId) return;
-    const seed = await this.deps.db.query.oauthRefreshTokens.findFirst({
-      where: eq(oauthRefreshTokens.id, issued.refreshTokenId),
-    });
-    if (seed) await this.revokeRefreshTokenFamily(seed, now);
-  }
-
   private async revokeRefreshTokenFamily(
     seed: { id: string; clientId: string; userId: string; resource: string | null },
     now = new Date()

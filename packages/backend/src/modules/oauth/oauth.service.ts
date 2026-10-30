@@ -28,7 +28,6 @@ import type { CacheService } from '@/services/cache.service.js';
 import type { EventBusService } from '@/services/event-bus.service.js';
 import type { User } from '@/types.js';
 import type { OAuthAuthorizeQuery, OAuthClientRegistrationInput, OAuthTokenRequest } from './oauth.schemas.js';
-import { OAuthCodeReuseGuard } from './oauth-code-reuse.js';
 import { hashSecret, markOAuthClientGranted, OAuthTokenLifecycle, randomSecret } from './oauth-token-lifecycle.js';
 
 const CONSENT_PREFIX = 'oauth:consent:';
@@ -123,7 +122,6 @@ function assertRedirectUriAllowed(uri: string, extendedCompatibility: boolean): 
 @injectable()
 export class OAuthService {
   private readonly tokenLifecycle: OAuthTokenLifecycle;
-  private readonly codeReuse: OAuthCodeReuseGuard;
   private eventBus?: EventBusService;
 
   constructor(
@@ -143,7 +141,6 @@ export class OAuthService {
       assertResourceAllowed: (user, resource) => this.assertResourceAllowed(user, resource),
       grantScopes: (user, resource, requestedScopes) => this.grantScopes(user, resource, requestedScopes),
     });
-    this.codeReuse = new OAuthCodeReuseGuard(this.cacheService, this.tokenLifecycle, this.auditService);
   }
 
   setEventBus(eventBus: EventBusService): void {
@@ -400,11 +397,9 @@ export class OAuthService {
     const code = await this.db.query.oauthAuthorizationCodes.findFirst({
       where: eq(oauthAuthorizationCodes.codeHash, hashSecret(input.code)),
     });
-    if (code?.usedAt) {
-      await this.codeReuse.revokeTokensOf(code);
-      throw new AppError(400, 'INVALID_GRANT', 'Invalid authorization code');
-    }
-    if (!code || code.clientId !== input.client_id || code.redirectUri !== input.redirect_uri) {
+    // A used code is refused; the tokens its first exchange issued stay valid, so a client that retries the exchange
+    // after a lost response keeps them.
+    if (!code || code.clientId !== input.client_id || code.redirectUri !== input.redirect_uri || code.usedAt) {
       throw new AppError(400, 'INVALID_GRANT', 'Invalid authorization code');
     }
     if (code.expiresAt.getTime() < Date.now()) throw new AppError(400, 'INVALID_GRANT', 'Authorization code expired');
@@ -427,10 +422,7 @@ export class OAuthService {
       .set({ usedAt: new Date() })
       .where(and(eq(oauthAuthorizationCodes.id, code.id), isNull(oauthAuthorizationCodes.usedAt)))
       .returning({ id: oauthAuthorizationCodes.id });
-    if (!usedCode) {
-      await this.codeReuse.revokeTokensOf(code);
-      throw new AppError(400, 'INVALID_GRANT', 'Authorization code already used');
-    }
+    if (!usedCode) throw new AppError(400, 'INVALID_GRANT', 'Authorization code already used');
 
     const issued = await this.tokenLifecycle.issueTokens({
       clientId: code.clientId,
@@ -438,9 +430,6 @@ export class OAuthService {
       scopes,
       resource,
     });
-    if (await this.codeReuse.recordIssued(code, issued)) {
-      throw new AppError(400, 'INVALID_GRANT', 'Authorization code already used');
-    }
     return issued.response;
   }
 
