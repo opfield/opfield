@@ -128,6 +128,31 @@ describe('node setup commands', () => {
     expect(quoted?.curl).toContain("OPFIELD_NODE_TOKEN='tok'\\''en' sudo --preserve-env=OPFIELD_NODE_TOKEN bash ");
   });
 
+  it('offer the 2.12.8 --token command beside it for hosts whose sudo does not keep the variable', () => {
+    const [publicCommand] = storageCommands('v2.11.0');
+    expect(publicCommand?.tokenArgument?.curl.split(' && \\\n')).toEqual([
+      'cd "$(mktemp -d)"',
+      `curl -fsSL -o setup-storage-node.sh ${RELEASE}/setup-storage-node.sh`,
+      `curl -fsSL -o opfield-node-installers.sha256 ${RELEASE}/opfield-node-installers.sha256`,
+      "grep ' setup-storage-node.sh$' opfield-node-installers.sha256 | sha256sum -c -",
+      [
+        'sudo bash setup-storage-node.sh \\',
+        '  --opfield gw.example.com:9443 \\',
+        '  --token gw_node_v2_token \\',
+        `  --opfield-cert-sha256 ${CERT} \\`,
+        '  --version v2.11.0',
+      ].join('\n'),
+    ]);
+    expect(publicCommand?.tokenArgument?.wget).toContain(
+      'sudo bash setup-storage-node.sh \\\n  --opfield gw.example.com:9443'
+    );
+    expect(publicCommand?.tokenArgument?.wget).not.toContain('OPFIELD_NODE_TOKEN');
+    const [unreleased] = storageCommands(null);
+    expect(unreleased?.tokenArgument?.curl).toMatch(
+      /\| sudo bash -s -- \\\n {2}--opfield .*\n {2}--token gw_node_v2_token /
+    );
+  });
+
   it('keep running the installers from main on an unreleased build', () => {
     for (const version of ['dev', 'main-0123abc', 'v2.11.0-dirty', '']) expect(installerRelease(version)).toBeNull();
     expect(installerRelease('v2.11.0-rc.34')).toBe('v2.11.0-rc.34');
@@ -187,6 +212,8 @@ describe('node setup commands', () => {
     // That installer reads the token only from --token.
     expect(command?.curl).toContain('--token opf_node_v2_token');
     expect(command?.curl).not.toContain('OPFIELD_NODE_TOKEN');
+    // Its command already is the --token form.
+    expect(command?.tokenArgument).toBeUndefined();
   });
 
   it('give no node without an enrollment address a command', () => {

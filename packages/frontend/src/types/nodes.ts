@@ -269,6 +269,8 @@ export interface NodeInstallCommand {
   address: string;
   curl: string;
   wget: string;
+  /** The same command with --token and a plain sudo bash, for hosts whose sudo does not keep OPFIELD_NODE_TOKEN. */
+  tokenArgument?: { curl: string; wget: string };
 }
 
 export interface NodeInstallation {

@@ -1556,7 +1556,8 @@ Environment variables:
   OPFIELD_NODE_DISABLE_CONSOLE  Set to 1 to disable the host console
   OPFIELD_NODE_DISABLE_FILES    Set to 1 to disable host file access
   OPFIELD_RELEASES_API_URL      Override the Opfield release feed
-  OPFIELD_ARTIFACT_BASE_URL     Override the Opfield artifact base URL
+  OPFIELD_ARTIFACT_BASE_URL     Override the Opfield artifact base URL (a mirror serves each binary's
+                                signed <artifact>.update.json next to it)
 
 Examples:
   # Interactive (prompts for everything):
@@ -3873,7 +3874,7 @@ verify_release_artifact() {
             verify_checksum "$file" "$artifact"
             return 0
         fi
-        die "Could not download the signed release manifest ${base}/${artifact}.update.json; nothing was installed. (A development build without signed manifests installs with OPFIELD_ALLOW_UNSIGNED_ARTIFACTS=1.)"
+        die "Could not download the signed release manifest ${base}/${artifact}.update.json; nothing was installed. (A mirror set with OPFIELD_ARTIFACT_BASE_URL must serve each binary's .update.json next to it, copied from the release; a development build without signed manifests installs with OPFIELD_ALLOW_UNSIGNED_ARTIFACTS=1.)"
     fi
     if [[ "$(artifact_json_field "$manifest" schemaVersion)" != "1" ||
         "$(artifact_json_field "$manifest" keyId)" != "$LEGACY_UPDATE_KEY_ID" ]] ||

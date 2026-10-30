@@ -7,6 +7,7 @@ import { CopyCodeBlock } from "@/components/common/CopyCodeBlock";
 import { OneTimeSecretDialog } from "@/components/common/OneTimeSecretDialog";
 import { HostAccessInstallOptions } from "@/components/nodes/HostAccessInstallOptions";
 import { HostingNodeWizard } from "@/components/nodes/HostingNodeWizard";
+import { TokenArgumentInstallCommand } from "@/components/nodes/TokenArgumentInstallCommand";
 import { UnreleasedInstallerNote } from "@/components/nodes/UnreleasedInstallerNote";
 import { Button } from "@/components/ui/button";
 import {
@@ -329,9 +330,12 @@ export function NodeEnrollmentDialog({
 
   const targets = result?.installCommands ?? [];
   const selectedTarget = targets.find((target) => target.target === targetId) ?? targets[0];
-  const command = withHostAccessInstallFlags(
-    selectedTarget?.[transport] ?? "",
-    result?.type === "relay" ? hostAccess : { ...hostAccess, protectedMode: false }
+  const commandHostAccess =
+    result?.type === "relay" ? hostAccess : { ...hostAccess, protectedMode: false };
+  const command = withHostAccessInstallFlags(selectedTarget?.[transport] ?? "", commandHostAccess);
+  const tokenArgumentCommand = withHostAccessInstallFlags(
+    selectedTarget?.tokenArgument?.[transport] ?? "",
+    commandHostAccess
   );
 
   const setupDescription =
@@ -599,6 +603,7 @@ export function NodeEnrollmentDialog({
                 className="[&>p]:hidden"
               />
             )}
+            {selectedTarget && <TokenArgumentInstallCommand command={tokenArgumentCommand} />}
           </div>
         )}
       </OneTimeSecretDialog>

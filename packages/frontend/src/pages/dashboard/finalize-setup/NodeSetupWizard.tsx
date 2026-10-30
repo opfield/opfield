@@ -5,6 +5,7 @@ import { CopyCodeBlock } from "@/components/common/CopyCodeBlock";
 import { PanelShell } from "@/components/common/PanelShell";
 import { SettingsControlRow } from "@/components/common/SettingsControlRow";
 import { HostAccessInstallOptions } from "@/components/nodes/HostAccessInstallOptions";
+import { TokenArgumentInstallCommand } from "@/components/nodes/TokenArgumentInstallCommand";
 import { UnreleasedInstallerNote } from "@/components/nodes/UnreleasedInstallerNote";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -147,6 +148,10 @@ export function NodeSetupWizard({
 
   const selectedTarget = targets.find((target) => target.target === targetId) ?? targets[0];
   const command = withHostAccessInstallFlags(selectedTarget?.[transport] ?? "", hostAccess);
+  const tokenArgumentCommand = withHostAccessInstallFlags(
+    selectedTarget?.tokenArgument?.[transport] ?? "",
+    hostAccess
+  );
 
   const stepKey = online ? "complete" : enrollment ? "enrollment" : "details";
   return (
@@ -246,6 +251,7 @@ export function NodeSetupWizard({
               codeClassName="min-h-0"
             />
           )}
+          {selectedTarget && <TokenArgumentInstallCommand command={tokenArgumentCommand} />}
         </div>
       ) : (
         <PanelShell

@@ -26,6 +26,7 @@ import { SimpleTable, type SimpleTableColumn } from "@/components/common/SimpleT
 import { HostAccessInstallOptions } from "@/components/nodes/HostAccessInstallOptions";
 import { NodeEnrollmentDialog } from "@/components/nodes/NodeEnrollmentDialog";
 import { ProtectedNodeBadge } from "@/components/nodes/ProtectedNodeBadge";
+import { TokenArgumentInstallCommand } from "@/components/nodes/TokenArgumentInstallCommand";
 import { UnreleasedInstallerNote } from "@/components/nodes/UnreleasedInstallerNote";
 import { RelayPortDialog } from "@/components/relays/RelayPortDialog";
 import { WitnessHostingToggle } from "@/components/relays/WitnessHostingToggle";
@@ -1318,12 +1319,20 @@ export function RelaySettingsSection({ canEdit }: { canEdit: boolean }) {
         {shownReenrollment?.installCommands.map((command) => {
           const value = withHostAccessInstallFlags(command.curl, hostAccess);
           return (
-            <CopyCodeBlock
-              key={command.target}
-              label={command.label}
-              value={value}
-              copyValue={value.replace(/\s*\\\n\s*/g, " ")}
-            />
+            <div key={command.target} className="space-y-1.5">
+              <CopyCodeBlock
+                label={command.label}
+                value={value}
+                copyValue={value.replace(/\s*\\\n\s*/g, " ")}
+              />
+              <TokenArgumentInstallCommand
+                command={
+                  command.tokenArgument
+                    ? withHostAccessInstallFlags(command.tokenArgument.curl, hostAccess)
+                    : undefined
+                }
+              />
+            </div>
           );
         })}
       </OneTimeSecretDialog>

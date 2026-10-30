@@ -97,11 +97,15 @@ const CreateNodeResponseSchema = dataResponseSchema(
           address: z.string(),
           curl: z.string(),
           wget: z.string(),
+          tokenArgument: z.object({ curl: z.string(), wget: z.string() }).optional().openapi({
+            description:
+              'The same command with the token as --token and a plain sudo bash, for a host whose sudo does not keep OPFIELD_NODE_TOKEN (sudoers without SETENV or env_keep for it, sudo before 1.8.21). Other local users can read the token on the command line while the installer runs.',
+          }),
         })
       )
       .openapi({
         description:
-          'Setup command for each enrollment target, using curl or wget. A release build downloads the installer of its own release, checks it against opfield-node-installers.sha256 and pins the daemon release that matches this Opfield installation.',
+          'Setup command for each enrollment target, using curl or wget. The enrollment token goes to the installer in OPFIELD_NODE_TOKEN; tokenArgument has the --token variant. A release build downloads the installer of its own release, checks it against opfield-node-installers.sha256 and pins the daemon release that matches this Opfield installation.',
       }),
   })
 );

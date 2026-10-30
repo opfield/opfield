@@ -61,6 +61,13 @@ export interface NodeInstallCommand {
   address: string;
   curl: string;
   wget: string;
+  /**
+   * The same command with the token as `--token` and a plain `sudo bash`, as before 2.13: for a host whose sudo does
+   * not keep OPFIELD_NODE_TOKEN (sudoers without SETENV or env_keep for it, sudo before 1.8.21). The token is then
+   * on the installer's command line, which other local users can read while it runs. Absent when the command itself
+   * already passes --token.
+   */
+  tokenArgument?: { curl: string; wget: string };
 }
 
 export interface NodeInstallation {
@@ -264,7 +271,22 @@ export function nodeInstallCommands(input: {
         token: legacyRelay ? undefined : input.token,
         checksums: legacyRelay ? LEGACY_INSTALLER_CHECKSUMS : undefined,
       });
-    return [{ target, label, address, curl: command('curl'), wget: command('wget') }];
+    if (legacyRelay) return [{ target, label, address, curl: command('curl'), wget: command('wget') }];
+    // Every installer of this release still takes --token (setup-*.sh): the command of 2.12.8 for hosts where sudo
+    // refuses to pass the variable on.
+    const tokenArgs: Array<readonly [string, string]> = [args[0]!, ['--token', input.token], ...args.slice(1)];
+    const tokenArgument = (transport: InstallTransport) =>
+      nodeInstallCommand({ installer, release, transport, args: tokenArgs });
+    return [
+      {
+        target,
+        label,
+        address,
+        curl: command('curl'),
+        wget: command('wget'),
+        tokenArgument: { curl: tokenArgument('curl'), wget: tokenArgument('wget') },
+      },
+    ];
   });
 }
 

@@ -465,7 +465,7 @@ OPFIELD_NODE_TOKEN='<enrollment-token>' sudo --preserve-env=OPFIELD_NODE_TOKEN b
   --opfield <opfield-host>:9443 --opfield-cert-sha256 sha256:<opfield-cert-fingerprint> --version <opfield-version>
 \`\`\`
 
-The enrollment token goes through the environment of the sudo command alone, never the command line, where other users of the server could read it, and it does not stay exported in the shell.
+The enrollment token goes through the environment of the sudo command alone, never the command line, where other users of the server could read it, and it does not stay exported in the shell. Each installCommands entry also has \`tokenArgument\` (curl and wget): the same command as \`sudo bash <installer> --token <token> ...\`, as in 2.12. Offer it when sudo on the host refuses to keep OPFIELD_NODE_TOKEN ("sorry, you are not allowed to set the following environment variables": a sudoers entry without SETENV or env_keep for it, sudo before 1.8.21); the token is then visible on the command line while the installer runs.
 
 The installers by node type: **nginx** setup-node.sh, **docker** and **builder** setup-docker-node.sh, **storage** setup-storage-node.sh, legacy **databases** setup-database-node.sh, **monitoring** setup-monitoring-node.sh, **relay** setup-relay-node.sh (with \`--advertise-address\`).
 
