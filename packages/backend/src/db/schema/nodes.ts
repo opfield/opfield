@@ -171,6 +171,9 @@ export interface NodeHealthReport {
   // Nginx daemons: a problem of the host's nginx service that only root can fix, as one sentence ending with the
   // command that fixes it. Absent when there is none.
   nginxServiceProblem?: string;
+  // Docker daemons: why the daemon cannot tell which local user opens a connection to its registry proxy and backup
+  // relay ports, which then serve every local user, ending with what fixes it. Absent while the check works.
+  loopbackPeerProblem?: string;
   // Docker daemons of 2.12.3 and later (not build workers): whether the node's Docker Engine can start containers
   // (dockerd and its containerd both answer). Absent from older daemons.
   dockerEngine?: NodeDockerEngineHealth;

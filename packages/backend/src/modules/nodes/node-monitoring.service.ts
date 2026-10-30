@@ -45,6 +45,9 @@ export function compactMonitoringHistorySnapshot(snapshot: any): MonitoringSnaps
       ...(typeof health.nginxServiceProblem === 'string' && health.nginxServiceProblem
         ? { nginxServiceProblem: health.nginxServiceProblem }
         : {}),
+      ...(typeof health.loopbackPeerProblem === 'string' && health.loopbackPeerProblem
+        ? { loopbackPeerProblem: health.loopbackPeerProblem }
+        : {}),
       ...(health.legacyNames && typeof health.legacyNames === 'object' ? { legacyNames: health.legacyNames } : {}),
       ...(health.nginxUpgrade && typeof health.nginxUpgrade === 'object' ? { nginxUpgrade: health.nginxUpgrade } : {}),
       ...(typeof health.nginxVersionNotice === 'string' && health.nginxVersionNotice

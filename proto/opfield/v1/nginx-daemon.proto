@@ -318,6 +318,12 @@ message HealthReport {
   // Nginx daemons that upgrade the host's nginx themselves: where that upgrade
   // stands (nginx-upgrade range 220-224). Absent from older daemons.
   NginxUpgradeReport nginx_upgrade = 220;
+  // Docker daemons of 2.13.1 and later: why the daemon cannot tell which local
+  // user opens a connection to its loopback listeners (registry proxy, backup
+  // relay routes), which then serve every local user, as one sentence ending
+  // with what fixes it; empty while the check works (loopback-peer range
+  // 225-229).
+  string loopback_peer_problem = 225;
 }
 
 // The nginx daemon's upgrade of the host's nginx to the nginx.org stable

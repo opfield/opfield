@@ -320,6 +320,8 @@ export interface HealthReport {
   updateConnections?: DaemonUpdateConnections | null;
   /** Nginx daemons: a problem of the host's nginx service only root can fix, with the command that fixes it (field 43). */
   nginxServiceProblem?: string;
+  /** Docker daemons: why the loopback listeners cannot check the local user and serve every one (field 225). */
+  loopbackPeerProblem?: string;
   /** Daemons of 2.12.1 and later: objects still under their pre-Opfield names, by kind (field 44). */
   legacyNames?: Record<string, number>;
   /** Docker daemons: the build of the node's lease watchdog from its heartbeat; empty when none runs (field 45). */

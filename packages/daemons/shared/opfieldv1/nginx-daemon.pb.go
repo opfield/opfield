@@ -1793,9 +1793,15 @@ type HealthReport struct {
 	DockerEngineHealth *DockerEngineHealth `protobuf:"bytes,215,opt,name=docker_engine_health,json=dockerEngineHealth,proto3" json:"docker_engine_health,omitempty"`
 	// Nginx daemons that upgrade the host's nginx themselves: where that upgrade
 	// stands (nginx-upgrade range 220-224). Absent from older daemons.
-	NginxUpgrade  *NginxUpgradeReport `protobuf:"bytes,220,opt,name=nginx_upgrade,json=nginxUpgrade,proto3" json:"nginx_upgrade,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	NginxUpgrade *NginxUpgradeReport `protobuf:"bytes,220,opt,name=nginx_upgrade,json=nginxUpgrade,proto3" json:"nginx_upgrade,omitempty"`
+	// Docker daemons of 2.13.1 and later: why the daemon cannot tell which local
+	// user opens a connection to its loopback listeners (registry proxy, backup
+	// relay routes), which then serve every local user, as one sentence ending
+	// with what fixes it; empty while the check works (loopback-peer range
+	// 225-229).
+	LoopbackPeerProblem string `protobuf:"bytes,225,opt,name=loopback_peer_problem,json=loopbackPeerProblem,proto3" json:"loopback_peer_problem,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
 }
 
 func (x *HealthReport) Reset() {
@@ -2169,6 +2175,13 @@ func (x *HealthReport) GetNginxUpgrade() *NginxUpgradeReport {
 		return x.NginxUpgrade
 	}
 	return nil
+}
+
+func (x *HealthReport) GetLoopbackPeerProblem() string {
+	if x != nil {
+		return x.LoopbackPeerProblem
+	}
+	return ""
 }
 
 // The nginx daemon's upgrade of the host's nginx to the nginx.org stable
@@ -17054,7 +17067,7 @@ const file_opfield_v1_nginx_daemon_proto_rawDesc = "" +
 	"\asuccess\x18\x02 \x01(\bR\asuccess\x12\x14\n" +
 	"\x05error\x18\x03 \x01(\tR\x05error\x12\x16\n" +
 	"\x06detail\x18\x04 \x01(\tR\x06detail\x12\x12\n" +
-	"\x04data\x18\x05 \x01(\fR\x04data\"\xf0\x14\n" +
+	"\x04data\x18\x05 \x01(\fR\x04data\"\xa5\x15\n" +
 	"\fHealthReport\x12#\n" +
 	"\rnginx_running\x18\x01 \x01(\bR\fnginxRunning\x12!\n" +
 	"\fconfig_valid\x18\x02 \x01(\bR\vconfigValid\x120\n" +
@@ -17109,7 +17122,8 @@ const file_opfield_v1_nginx_daemon_proto_rawDesc = "" +
 	"\n" +
 	"nginx_logs\x18\xd2\x01 \x01(\v2\x19.opfield.v1.NginxLogUsageR\tnginxLogs\x12Q\n" +
 	"\x14docker_engine_health\x18\xd7\x01 \x01(\v2\x1e.opfield.v1.DockerEngineHealthR\x12dockerEngineHealth\x12D\n" +
-	"\rnginx_upgrade\x18\xdc\x01 \x01(\v2\x1e.opfield.v1.NginxUpgradeReportR\fnginxUpgrade\x1a>\n" +
+	"\rnginx_upgrade\x18\xdc\x01 \x01(\v2\x1e.opfield.v1.NginxUpgradeReportR\fnginxUpgrade\x123\n" +
+	"\x15loopback_peer_problem\x18\xe1\x01 \x01(\tR\x13loopbackPeerProblem\x1a>\n" +
 	"\x10LegacyNamesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\rR\x05value:\x028\x01\"\x8d\x02\n" +

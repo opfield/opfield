@@ -229,10 +229,12 @@ func (m *dockerRegistryProxyManager) startListener() error {
 		return fmt.Errorf("listen for registry proxy: %w", err)
 	}
 	// Any local process may connect to 127.0.0.1:5443, and the proxy pulls and pushes with the node's registry
-	// grants: only dockerd and BuildKit (root) and this daemon's user are served.
-	restricted := loopbackpeer.Restrict(listener, loopbackpeer.Users(os.Getuid()), loopbackpeer.RefusalLog(func(uid int, remote net.Addr) {
+	// grants: only dockerd and BuildKit (root) and this daemon's user are served, also as the host uids a
+	// user-namespaced engine (userns-remap, rootless) maps them to. A node that cannot look up peers serves every
+	// local user.
+	restricted := loopbackpeer.Restrict(listener, m.plugin.localPeerUsers(os.Getuid()), loopbackpeer.RefusalLog(func(uid int, remote net.Addr) {
 		m.log().Warn("registry proxy refused a local connection of another user", "uid", uid, "remote", remote.String())
-	}))
+	}), m.plugin.localPeerUnchecked)
 	tlsListener := tls.NewListener(restricted, &tls.Config{GetCertificate: m.getCertificate, MinVersion: tls.VersionTLS13})
 	server := &http.Server{Handler: http.HandlerFunc(m.serveHTTP), ReadHeaderTimeout: 10 * time.Second, IdleTimeout: 2 * time.Minute}
 	m.mu.Lock()

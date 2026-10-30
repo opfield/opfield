@@ -803,7 +803,7 @@ func (p *DockerPlugin) openManagedDatabaseBinding(connection net.Conn, bindingID
 }
 
 // backupRelayRoutePeers decides which local users a backup relay route serves (replaced in tests).
-var backupRelayRoutePeers = func() func(uid int) bool { return loopbackpeer.Users(os.Getuid(), backupRunnerUID) }
+var backupRelayRoutePeers = func(p *DockerPlugin) func(uid int) bool { return p.localPeerUsers(os.Getuid(), backupRunnerUID) }
 
 // OpenBackupRelayRoute resolves a signed per-run connect grant. routeID is the
 // RelayGrantAssignment.ownerId (the backup run UUID); the matching endpoint
@@ -824,12 +824,13 @@ func (p *DockerPlugin) OpenBackupRelayRoute(ctx context.Context, ownerKind, rout
 		return nil, fmt.Errorf("open backup relay loopback listener: %w", err)
 	}
 	// Any local process may connect to the port while the run lasts: only the run's own clients are served, the
-	// backup runner container (host network, backupRunnerUID), this daemon (native storage bridge) and root.
-	listener := loopbackpeer.Restrict(loopback, backupRelayRoutePeers(), loopbackpeer.RefusalLog(func(uid int, remote net.Addr) {
+	// backup runner container (host network, backupRunnerUID), this daemon (native storage bridge) and root, also as
+	// the host uids a user-namespaced engine maps them to. A node that cannot look up peers serves every local user.
+	listener := loopbackpeer.Restrict(loopback, backupRelayRoutePeers(p), loopbackpeer.RefusalLog(func(uid int, remote net.Addr) {
 		if p.logger != nil {
 			p.logger.Warn("backup relay route refused a local connection of another user", "owner_kind", ownerKind, "uid", uid, "remote", remote.String())
 		}
-	}))
+	}), p.localPeerUnchecked)
 	routeCtx, cancel := context.WithCancel(ctx)
 	route := &BackupRelayRoute{Address: listener.Addr().String(), listener: listener, cancel: cancel, done: make(chan struct{})}
 	go func() {

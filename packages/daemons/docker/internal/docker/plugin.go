@@ -43,6 +43,9 @@ type DockerPlugin struct {
 	// engineHealth is whether dockerd and containerd answer, as the
 	// background probe last found (engine_health.go).
 	engineHealth engineHealth
+	// localPeers: the remapped uids the loopback listeners also serve, and the once-only log of a node that cannot
+	// look up loopback peers (local_peers.go).
+	localPeers localPeerState
 
 	allowlist       *AllowlistChecker
 	envStore        *EnvStore

@@ -478,6 +478,11 @@ export function NodeMonitoringTab({
           </span>
         </Notice>
       )}
+      {health?.loopbackPeerProblem && (
+        <Notice tone="warning" title="Local connections to the Docker daemon are not checked">
+          <span className="break-words">{health.loopbackPeerProblem}</span>
+        </Notice>
+      )}
       {nodeType === "nginx" && health?.nginxServiceProblem && (
         <Notice tone="destructive" title="nginx needs a fix as root on the host">
           <span className="break-words">{health.nginxServiceProblem}</span>

@@ -71,7 +71,7 @@ func TestBackupRelayRouteRefusesOtherLocalUsers(t *testing.T) {
 	}
 
 	previous := backupRelayRoutePeers
-	backupRelayRoutePeers = func() func(int) bool { return func(int) bool { return false } }
+	backupRelayRoutePeers = func(*DockerPlugin) func(int) bool { return func(int) bool { return false } }
 	t.Cleanup(func() { backupRelayRoutePeers = previous })
 	dial(open())
 	deadline := time.Now().Add(2 * time.Second)

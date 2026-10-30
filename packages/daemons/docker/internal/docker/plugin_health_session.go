@@ -3,6 +3,7 @@ package docker
 import (
 	"context"
 	"github.com/opfield/opfield/daemon-shared/lifecycle"
+	"github.com/opfield/opfield/daemon-shared/loopbackpeer"
 	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
 	"github.com/opfield/opfield/daemon-shared/stream"
 	"github.com/opfield/opfield/daemon-shared/sysmetrics"
@@ -11,6 +12,11 @@ import (
 func (p *DockerPlugin) CollectHealth(base *pb.HealthReport) *pb.HealthReport {
 	for kind, count := range p.legacyNames.current(p) {
 		lifecycle.AddLegacyNames(base, kind, count)
+	}
+	// The registry proxy and backup relay routes serve every local user on a node that cannot look up loopback peers.
+	if err := loopbackpeer.Check(); err != nil {
+		base.LoopbackPeerProblem = loopbackPeerProblem(err)
+		p.localPeerUnchecked(err)
 	}
 	if p.cfg.Docker.Mode == "builder" {
 		return base

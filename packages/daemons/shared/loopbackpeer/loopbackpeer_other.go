@@ -7,7 +7,7 @@ import (
 	"net"
 )
 
-// UID needs sock_diag: elsewhere no loopback peer can be identified, and Restrict refuses every connection.
+// UID needs sock_diag: elsewhere no loopback peer can be identified, Check fails and Restrict serves every connection.
 func UID(connection net.Conn) (int, error) {
 	if _, ok := connection.RemoteAddr().(*net.TCPAddr); !ok {
 		return 0, errNotLoopback

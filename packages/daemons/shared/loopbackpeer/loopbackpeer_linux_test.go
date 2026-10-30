@@ -4,6 +4,7 @@ package loopbackpeer
 
 import (
 	"encoding/binary"
+	"errors"
 	"net"
 	"os"
 	"sync/atomic"
@@ -95,7 +96,7 @@ func TestRestrictServesOnlyAllowedUsers(t *testing.T) {
 	allow.Store(true)
 	refusedUIDs := make(chan int, 4)
 	listener := Restrict(inner, func(uid int) bool { return allow.Load() && uid == os.Getuid() },
-		func(uid int, _ net.Addr) { refusedUIDs <- uid })
+		func(uid int, _ net.Addr) { refusedUIDs <- uid }, nil)
 	defer listener.Close()
 	accepted := make(chan net.Conn, 4)
 	go func() {
@@ -148,5 +149,82 @@ func TestUsersAllowsRootAndTheNamedUsers(t *testing.T) {
 		if allowed(uid) != want {
 			t.Fatalf("Users(1000, 65532)(%d) = %v, want %v", uid, !want, want)
 		}
+	}
+}
+
+// A host whose sock_diag lookup does not work (no inet_diag, an unprivileged container, gVisor) serves every local
+// user as before the check existed, and says why; once the lookup works again, the check applies.
+func TestRestrictServesEveryUserWhileTheLookupDoesNotWork(t *testing.T) {
+	previous := selfTest
+	t.Cleanup(func() {
+		selfTest = previous
+		resetCheck()
+	})
+	selfTest = func() error { return errors.New("no inet_diag") }
+	resetCheck()
+	inner, err := net.Listen("tcp4", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	unchecked := make(chan error, 4)
+	listener := Restrict(inner, func(int) bool { return false }, nil, func(err error) { unchecked <- err })
+	defer listener.Close()
+	accepted := make(chan net.Conn, 4)
+	go func() {
+		for {
+			connection, err := listener.Accept()
+			if err != nil {
+				return
+			}
+			accepted <- connection
+		}
+	}()
+	client, err := net.Dial("tcp4", inner.Addr().String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer client.Close()
+	select {
+	case connection := <-accepted:
+		_ = connection.Close()
+	case <-time.After(2 * time.Second):
+		t.Fatal("a connection was refused while the lookup does not work")
+	}
+	if err := <-unchecked; err == nil || err.Error() != "no inet_diag" {
+		t.Fatalf("unchecked reason = %v", err)
+	}
+}
+
+func TestCheckPassesWhereTheLookupWorks(t *testing.T) {
+	resetCheck()
+	t.Cleanup(resetCheck)
+	if err := Check(); err != nil {
+		t.Fatalf("self-test failed on a host with sock_diag: %v", err)
+	}
+}
+
+func TestCheckRetriesAFailureAfterAMinute(t *testing.T) {
+	previous := selfTest
+	t.Cleanup(func() {
+		selfTest = previous
+		resetCheck()
+	})
+	calls := 0
+	selfTest = func() error {
+		calls++
+		return errors.New("no inet_diag")
+	}
+	resetCheck()
+	_ = Check()
+	_ = Check()
+	if calls != 1 {
+		t.Fatalf("self-test ran %d times within a minute", calls)
+	}
+	check.Lock()
+	check.at = time.Now().Add(-2 * checkRetry)
+	check.Unlock()
+	_ = Check()
+	if calls != 2 {
+		t.Fatalf("a failed self-test was not run again after a minute (%d runs)", calls)
 	}
 }

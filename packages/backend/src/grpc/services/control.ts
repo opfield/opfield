@@ -1311,6 +1311,9 @@ export function createControlHandlers(deps: GrpcServerDeps) {
                 ...(msg.healthReport.nginxServiceProblem
                   ? { nginxServiceProblem: String(msg.healthReport.nginxServiceProblem) }
                   : {}),
+                ...(msg.healthReport.loopbackPeerProblem
+                  ? { loopbackPeerProblem: String(msg.healthReport.loopbackPeerProblem) }
+                  : {}),
                 ...(legacyNameCounts(msg.healthReport.legacyNames)
                   ? { legacyNames: legacyNameCounts(msg.healthReport.legacyNames) as Record<string, number> }
                   : {}),

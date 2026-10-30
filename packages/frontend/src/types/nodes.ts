@@ -127,6 +127,8 @@ export interface NodeHealthReport {
   updateConnections?: NodeUpdateConnections;
   /** Nginx daemons: a problem of the host's nginx service only root can fix, ending with the command that fixes it. */
   nginxServiceProblem?: string;
+  /** Docker daemons: why the registry proxy and backup relay ports cannot check the local user and serve every one. */
+  loopbackPeerProblem?: string;
   /** Nginx daemons that upgrade the host's nginx themselves: where that upgrade stands. */
   nginxUpgrade?: {
     state: string;
