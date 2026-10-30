@@ -6,7 +6,7 @@ import { container } from '@/container.js';
 import { errorHandler } from '@/middleware/error-handler.js';
 import type { AppEnv } from '@/types.js';
 
-const caller = vi.hoisted(() => ({ authType: 'session' }));
+const caller = vi.hoisted(() => ({ authType: 'session', impersonation: null as unknown }));
 
 vi.mock('@/modules/auth/auth.middleware.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/modules/auth/auth.middleware.js')>()),
@@ -14,6 +14,7 @@ vi.mock('@/modules/auth/auth.middleware.js', async (importOriginal) => ({
     c.set('user', { id: 'user-1', scopes: ['feat:ai:use'] });
     c.set('effectiveScopes', ['feat:ai:use']);
     c.set('authType', caller.authType);
+    c.set('impersonation', caller.impersonation);
     await next();
   },
 }));
@@ -44,24 +45,28 @@ function setup() {
 afterEach(() => {
   container.reset();
   caller.authType = 'session';
+  caller.impersonation = null;
 });
 
 describe('inference key routes', () => {
-  it.each(['api-token', 'oauth-token'])('refuses minting or changing a key with an %s', async (authType) => {
+  it.each(['session', 'api-token', 'oauth-token'])('mints and changes a key with a %s', async (authType) => {
     caller.authType = authType;
+    const { service, send } = setup();
+    expect((await send('POST', '/tokens', { name: 'ci' })).status).toBe(201);
+    expect(service.createToken).toHaveBeenCalledWith('user-1', expect.objectContaining({ name: 'ci' }));
+    expect((await send('PATCH', '/tokens/key-1', { name: 'ci' })).status).toBe(200);
+    expect(service.updateToken).toHaveBeenCalled();
+  });
+
+  it('refuses minting or changing a key while impersonating', async () => {
+    caller.impersonation = { adminUserId: 'admin-1' };
     const { service, send } = setup();
     expect((await send('POST', '/tokens', { name: 'ci' })).status).toBe(403);
     expect((await send('PATCH', '/tokens/key-1', { name: 'ci' })).status).toBe(403);
     expect(service.createToken).not.toHaveBeenCalled();
     expect(service.updateToken).not.toHaveBeenCalled();
-    // Listing and revoking stay programmatic.
+    // Listing and revoking stay open.
     expect((await send('GET', '/tokens')).status).toBe(200);
     expect((await send('DELETE', '/tokens/key-1')).status).toBe(204);
-  });
-
-  it('mints a key from a browser session', async () => {
-    const { service, send } = setup();
-    expect((await send('POST', '/tokens', { name: 'ci' })).status).toBe(201);
-    expect(service.createToken).toHaveBeenCalledWith('user-1', expect.objectContaining({ name: 'ci' }));
   });
 });

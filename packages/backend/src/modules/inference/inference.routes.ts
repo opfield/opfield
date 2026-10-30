@@ -4,9 +4,9 @@ import { openApiValidationHook } from '@/lib/openapi.js';
 import {
   assertNotImpersonating,
   authMiddleware,
+  rejectImpersonation,
   requireAccountScope,
   requireScope,
-  sessionOnly,
 } from '@/modules/auth/auth.middleware.js';
 import type { AppEnv } from '@/types.js';
 import { InferenceUsageService } from './accounting/inference-usage.service.js';
@@ -77,10 +77,10 @@ inferenceManagementRoutes.use('*', authMiddleware);
 // Personal opfi_ inference keys need feat:ai:use on the caller itself, so a bearer token must hold it.
 inferenceManagementRoutes.use('/tokens', requireScope('feat:ai:use'));
 inferenceManagementRoutes.use('/tokens/*', requireScope('feat:ai:use'));
-// A new or widened opfi_ key outlives the credential that asks for it (its expiry, addresses and revocation), so
-// only a browser session mints or changes one, like API tokens; listing and revoking stay programmatic.
-inferenceManagementRoutes.on('POST', '/tokens', sessionOnly);
-inferenceManagementRoutes.on('PATCH', '/tokens/:id', sessionOnly);
+// API and OAuth tokens holding feat:ai:use manage the owner's opfi_ keys (harness plugins mint them over OAuth). A new or
+// widened key outlives an impersonation session, so only the subject mints or changes one.
+inferenceManagementRoutes.on('POST', '/tokens', rejectImpersonation);
+inferenceManagementRoutes.on('PATCH', '/tokens/:id', rejectImpersonation);
 inferenceManagementRoutes.use('/catalog', requireScope('feat:ai:use'));
 // Administration routes below require their own delegated inference:* scopes; bearer callers may
 // satisfy the feat:ai:use baseline through the token owner's live account.
