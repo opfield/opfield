@@ -3,11 +3,12 @@ import { OpenAPIHono } from '@hono/zod-openapi';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { container, TOKENS } from '@/container.js';
 import { errorHandler } from '@/middleware/error-handler.js';
+import { CryptoService } from '@/services/crypto.service.js';
 import type { AppEnv } from '@/types.js';
 import { registerDockerDeploymentRoutes } from './docker-deployment.routes.js';
 import { DockerDeploymentService } from './docker-deployment.service.js';
 import { DockerWebhookService } from './docker-webhook.service.js';
-import { hashWebhookToken } from './docker-webhook-token.js';
+import { hashWebhookToken, revealWebhookToken, sealWebhookToken } from './docker-webhook-token.js';
 
 const NODE = '11111111-1111-4111-8111-111111111111';
 const DEPLOYMENT = '22222222-2222-4222-8222-222222222222';
@@ -100,9 +101,11 @@ describe('deployment webhook token under impersonation', () => {
 });
 
 describe('deployment webhook token storage', () => {
-  it('shows the token only in the response that issued it, and keeps only its hash', async () => {
+  it('shows the stored URL token again, stores a rotated one hashed and encrypted, and flags a hash-only webhook', async () => {
+    container.registerInstance(CryptoService, new CryptoService('ab'.repeat(32)));
     const service = registerService();
-    service.getWebhook.mockResolvedValue({ id: 'webhook-1', token: null, tokenHash: hashWebhookToken('old-token') });
+    const TOKEN = '33333333-3333-4333-8333-333333333333';
+    service.getWebhook.mockResolvedValue({ id: 'webhook-1', ...sealWebhookToken(TOKEN) });
     const patches: Array<Record<string, unknown>> = [];
     const db = {
       update: () => ({
@@ -122,10 +125,16 @@ describe('deployment webhook token storage', () => {
     const router = app([`docker:containers:webhooks:${NODE}/${DEPLOYMENT}`]);
 
     const read = (await (await send(router, 'GET', '/webhook')).json()) as { data: unknown };
-    expect(read.data).toEqual({ id: 'webhook-1', token: null });
+    expect(read.data).toEqual({ id: 'webhook-1', token: TOKEN, tokenLost: false });
 
     const rotated = (await (await send(router, 'POST', '/webhook/regenerate')).json()) as { data: unknown };
-    expect(rotated.data).toEqual({ id: 'webhook-1', token: 'new-token' });
-    expect(patches).toEqual([{ tokenHash: hashWebhookToken('new-token'), token: null }]);
+    expect(rotated.data).toEqual({ id: 'webhook-1', token: 'new-token', tokenLost: false });
+    expect(patches).toHaveLength(1);
+    expect(patches[0]).toMatchObject({ tokenHash: hashWebhookToken('new-token'), token: null });
+    expect(revealWebhookToken(patches[0]!)).toBe('new-token');
+
+    service.getWebhook.mockResolvedValue({ id: 'webhook-1', token: null, tokenHash: hashWebhookToken(TOKEN) });
+    const lost = (await (await send(router, 'GET', '/webhook')).json()) as { data: unknown };
+    expect(lost.data).toEqual({ id: 'webhook-1', token: null, tokenLost: true });
   });
 });

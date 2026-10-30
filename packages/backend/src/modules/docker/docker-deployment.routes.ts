@@ -493,8 +493,9 @@ export function registerDockerDeploymentRoutes(router: OpenAPIHono<AppEnv>) {
     async (c) => {
       const service = container.resolve(DockerDeploymentService);
       const data = await service.getWebhook(c.req.param('nodeId')!, c.req.param('deploymentId')!);
-      // The token is shown only by the call that issued it; an impersonating admin never sees it.
-      return c.json({ data: data ? presentWebhook(data) : data });
+      // An impersonating admin sees the config, never the user's webhook token.
+      const presented = data ? presentWebhook(data) : data;
+      return c.json({ data: presented && c.get('impersonation') ? { ...presented, token: null } : presented });
     }
   );
 

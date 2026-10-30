@@ -277,7 +277,7 @@ Programmatic clients read and write raw nginx config with the same \`proxy:raw:*
 - \`POST /api/docker/nodes/:nodeId/images/pull-sync\` — pull image synchronously (validates image exists)
 
 ### Docker Webhooks
-- \`GET /api/docker/nodes/:nodeId/containers/:name/webhook\` — get webhook config
+- \`GET /api/docker/nodes/:nodeId/containers/:name/webhook\` — get webhook config with its token (\`tokenLost: true\` and no token for a webhook whose URL 2.13.0 did not keep; regenerate it)
 - \`PUT /api/docker/nodes/:nodeId/containers/:name/webhook\` — enable/update webhook
 - \`DELETE /api/docker/nodes/:nodeId/containers/:name/webhook\` — disable webhook
 - \`POST /api/webhooks/docker/:token\` — trigger webhook update (no auth header needed, token is in URL)

@@ -1,8 +1,13 @@
+import 'reflect-metadata';
 import { describe, expect, it } from 'vitest';
+import { container } from '@/container.js';
+import { CryptoService } from '@/services/crypto.service.js';
 import { presentDeploymentForCaller, redactDeploymentEnvironment } from './docker-deployment-redaction.js';
+import { sealWebhookToken } from './docker-webhook-token.js';
 
 const NODE_ID = '11111111-1111-4111-8111-111111111111';
 const DEPLOYMENT_ID = '22222222-2222-4222-8222-222222222222';
+const TOKEN = '33333333-3333-4333-8333-333333333333';
 
 function deployment() {
   return {
@@ -51,19 +56,30 @@ describe('deployment environment redaction', () => {
     expect(presented.webhook.token).toBe('[REDACTED]');
   });
 
-  it('never returns the stored token hash, and leaves a token that is not stored in the clear null', () => {
-    const sealed = {
-      ...deployment(),
-      webhook: { id: 'webhook-1', token: null, tokenHash: 'a'.repeat(64) },
-    };
-    const presented = presentDeploymentForCaller(sealed, [`docker:containers:view:${NODE_ID}`], NODE_ID, DEPLOYMENT_ID);
-    expect(presented.webhook).toEqual({ id: 'webhook-1', token: null });
+  it('reveals the webhook token to webhook managers, never the stored hash or ciphertext', () => {
+    container.registerInstance(CryptoService, new CryptoService('ab'.repeat(32)));
+    const sealed = { ...deployment(), webhook: { id: 'webhook-1', ...sealWebhookToken(TOKEN) } };
     const revealed = presentDeploymentForCaller(
       sealed,
       [`docker:containers:webhooks:${NODE_ID}/${DEPLOYMENT_ID}`],
       NODE_ID,
       DEPLOYMENT_ID
     );
-    expect(revealed.webhook).toEqual({ id: 'webhook-1', token: null });
+    expect(revealed.webhook).toEqual({ id: 'webhook-1', token: TOKEN, tokenLost: false });
+    const hidden = presentDeploymentForCaller(sealed, [`docker:containers:view:${NODE_ID}`], NODE_ID, DEPLOYMENT_ID);
+    expect(hidden.webhook).toEqual({ id: 'webhook-1', token: '[REDACTED]', tokenLost: false });
+  });
+
+  it('flags a webhook that only has a hash as lost, with no token', () => {
+    const sealed = { ...deployment(), webhook: { id: 'webhook-1', token: null, tokenHash: 'a'.repeat(64) } };
+    const revealed = presentDeploymentForCaller(
+      sealed,
+      [`docker:containers:webhooks:${NODE_ID}/${DEPLOYMENT_ID}`],
+      NODE_ID,
+      DEPLOYMENT_ID
+    );
+    expect(revealed.webhook).toEqual({ id: 'webhook-1', token: null, tokenLost: true });
+    const hidden = presentDeploymentForCaller(sealed, [`docker:containers:view:${NODE_ID}`], NODE_ID, DEPLOYMENT_ID);
+    expect(hidden.webhook).toEqual({ id: 'webhook-1', token: null, tokenLost: true });
   });
 });

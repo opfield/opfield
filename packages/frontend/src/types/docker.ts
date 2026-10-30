@@ -686,8 +686,10 @@ export interface DockerWebhook {
   id: string;
   nodeId: string;
   containerName: string;
-  /** Present only in the response that enabled the webhook or regenerated its token; the server keeps a hash. */
+  /** The token of the webhook URL; null while impersonating or when the URL was not kept (`tokenLost`). */
   token: string | null;
+  /** The webhook works, but 2.13.0 kept only a hash of its token: the URL can be shown only by regenerating it. */
+  tokenLost?: boolean;
   enabled: boolean;
   targetType?: "container" | "deployment";
   deploymentId?: string | null;

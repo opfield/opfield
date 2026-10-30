@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { confirm } from "@/components/common/ConfirmDialog";
 import { CopyCodeBlock } from "@/components/common/CopyCodeBlock";
 import { CopyValueField } from "@/components/common/CopyValueField";
+import { Notice, NoticeAction } from "@/components/common/Notice";
 import { PanelShell } from "@/components/common/PanelShell";
 import { useContentLoading } from "@/components/common/reveal-gate";
 import { SettingsHelpTitle } from "@/components/common/SettingsControlRow";
@@ -49,8 +50,6 @@ export function WebhookSection(props: WebhookSectionProps) {
   const [webhook, setWebhookState] = useState<DockerWebhook | null>(
     isDeployment ? (props.initialWebhook ?? null) : null
   );
-  // The server keeps only a hash of the token, so the URL exists only in the response that issued it.
-  const [issued, setIssued] = useState<{ webhookId: string; token: string } | null>(null);
   const [loading, setLoading] = useState(true);
 
   const [cleanup, setCleanup] = useState<DockerImageCleanupSettings | null>(null);
@@ -130,8 +129,10 @@ export function WebhookSection(props: WebhookSectionProps) {
   });
 
   const webhookEnabled = !!webhook?.enabled;
-  const webhookToken =
-    webhook?.token ?? (issued && issued.webhookId === webhook?.id ? issued.token : null);
+  // `[REDACTED]` (deployment details without webhook access) and null (impersonation, or a URL 2.13.0 did not keep)
+  // give no URL to show.
+  const webhookToken = webhook?.token && webhook.token !== "[REDACTED]" ? webhook.token : null;
+  const webhookTokenLost = webhookEnabled && !!webhook?.tokenLost;
   const webhookUrl =
     webhookEnabled && webhookToken
       ? `${window.location.origin}/api/webhooks/docker/${webhookToken}`
@@ -145,7 +146,6 @@ export function WebhookSection(props: WebhookSectionProps) {
       const data = isDeployment
         ? await api.upsertDeploymentWebhook(nodeId, targetName, { enabled: true })
         : await api.upsertContainerWebhook(nodeId, targetName, { enabled: true });
-      setIssued(data.token ? { webhookId: data.id, token: data.token } : null);
       setWebhook(data);
     } catch (err) {
       toastApiError(err, "Failed to enable webhook");
@@ -197,7 +197,6 @@ export function WebhookSection(props: WebhookSectionProps) {
       const data = isDeployment
         ? await api.regenerateDeploymentWebhookToken(nodeId, targetName)
         : await api.regenerateWebhookToken(nodeId, targetName);
-      setIssued(data.token ? { webhookId: data.id, token: data.token } : null);
       setWebhook(data);
       toast.success("Webhook URL regenerated");
     } catch (err) {
@@ -260,7 +259,7 @@ export function WebhookSection(props: WebhookSectionProps) {
               <div className="px-4 py-3">
                 <CopyValueField
                   label="Webhook URL"
-                  value={webhookUrl || "Shown only when created or regenerated"}
+                  value={webhookUrl || (webhookTokenLost ? "Not kept by Opfield 2.13.0" : "Hidden")}
                   copyable={!!webhookUrl}
                   valueClassName={webhookUrl ? undefined : "text-muted-foreground"}
                   actions={
@@ -277,6 +276,27 @@ export function WebhookSection(props: WebhookSectionProps) {
                   }
                 />
               </div>
+
+              {webhookTokenLost ? (
+                <div className="px-4 py-3">
+                  <Notice
+                    tone="warning"
+                    title="This webhook's URL was not kept"
+                    actions={
+                      <NoticeAction
+                        tone="warning"
+                        onClick={handleRegenerate}
+                        disabled={props.disabled}
+                      >
+                        Regenerate URL
+                      </NoticeAction>
+                    }
+                  >
+                    Opfield 2.13.0 kept only a hash of it. The URL your CI uses still works, but it
+                    cannot be shown again. Regenerate it to get a new URL, then update your CI.
+                  </Notice>
+                </div>
+              ) : null}
 
               {curlExample ? (
                 <div className="px-4 py-3">

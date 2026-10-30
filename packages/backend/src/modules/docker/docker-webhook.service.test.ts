@@ -1,5 +1,8 @@
+import 'reflect-metadata';
 import { describe, expect, it, vi } from 'vitest';
+import { container } from '@/container.js';
 import { LEGACY_REGISTRY_NAMESPACE } from '@/lib/legacy-compat.js';
+import { CryptoService } from '@/services/crypto.service.js';
 import { assertDockerMountChangeAllowed, normalizeMountDefinitionsFromConfig } from './docker-socket-mount.guard.js';
 import { DockerWebhookService } from './docker-webhook.service.js';
 
@@ -383,6 +386,7 @@ describe('DockerWebhookService', () => {
   });
 
   it('records the account that created, changed or rotated a container webhook', async () => {
+    container.registerInstance(CryptoService, new CryptoService('ab'.repeat(32)));
     const row: Record<string, unknown> = {};
     const writes: Array<Record<string, unknown>> = [];
     const returning = async () => [{ ...row }];

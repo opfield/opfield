@@ -120,7 +120,7 @@ other stable hint to locate the recreated container and continue with its new ID
 
 ## Image Updates & Webhooks
 - **Manual image tag change**: in container Settings, the Image Tag field allows changing the version. Changing the tag and clicking Recreate will pull the new image and recreate the container.
-- **Webhook updates**: each container can have a webhook URL enabled (Settings → Webhook section). CI pipelines POST to the webhook URL to trigger automatic pull + recreate. URL format: \`POST /api/webhooks/docker/<token>\` with optional body \`{"tag":"v1.2.3"}\`. No auth header needed — the token in the URL is the auth. Opfield stores only a hash of the token: the URL is shown once, when the webhook is enabled or its token regenerated (the response of upsert_webhook or regenerate_webhook_token), and cannot be read again.
+- **Webhook updates**: each container can have a webhook URL enabled (Settings → Webhook section). CI pipelines POST to the webhook URL to trigger automatic pull + recreate. URL format: \`POST /api/webhooks/docker/<token>\` with optional body \`{"tag":"v1.2.3"}\`. No auth header needed — the token in the URL is the auth. get_webhook returns the token, so the URL can be read again. A webhook that Opfield 2.13.0 reduced to a hash of its token has \`token: null\` and \`tokenLost: true\`: its URL still works but cannot be shown; regenerate_webhook_token issues a new URL (the old one stops working).
 - **Auto-cleanup**: webhook config supports automatic cleanup of old image versions after updates, with configurable retention count.
 - Webhook configuration requires the \`docker:containers:webhooks\` scope.
 - Use \`update_docker_container_image\` tool to change a container's image tag programmatically (pulls + recreates).

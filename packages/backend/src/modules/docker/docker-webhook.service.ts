@@ -18,7 +18,13 @@ import { envListToMap, normalizeEnvRecord } from './docker-env-operations.js';
 import type { DockerImageCleanupService } from './docker-image-cleanup.service.js';
 import type { DockerRegistryService } from './docker-registry.service.js';
 import type { DockerTaskService } from './docker-task.service.js';
-import { hashWebhookToken, issueWebhookToken, presentWebhook, WEBHOOK_TOKEN_RE } from './docker-webhook-token.js';
+import {
+  hashWebhookToken,
+  issueWebhookToken,
+  presentWebhook,
+  sealWebhookToken,
+  WEBHOOK_TOKEN_RE,
+} from './docker-webhook-token.js';
 
 const logger = createChildLogger('DockerWebhookService');
 
@@ -65,8 +71,10 @@ export class DockerWebhookService {
     if (!WEBHOOK_TOKEN_RE.test(token)) return null;
     const tokenHash = hashWebhookToken(token);
     const [row] = await this.db.select().from(dockerWebhooks).where(eq(dockerWebhooks.tokenHash, tokenHash)).limit(1);
-    if (row) return presentWebhook(row);
-    // A webhook written by a path that does not hash (the token column default) is matched once and hashed here.
+    // A webhook call needs the row, not the token it was called with.
+    if (row) return presentWebhook(row, { reveal: false });
+    // A webhook written by a path that stores the token in the clear (the token column default) is matched once and
+    // stored hashed and encrypted here.
     const [legacy] = await this.db
       .select()
       .from(dockerWebhooks)
@@ -75,25 +83,24 @@ export class DockerWebhookService {
     if (!legacy) return null;
     await this.db
       .update(dockerWebhooks)
-      .set({ tokenHash, token: null })
+      .set(sealWebhookToken(token))
       .where(and(eq(dockerWebhooks.id, legacy.id), eq(dockerWebhooks.token, token.toLowerCase())));
-    return presentWebhook(legacy);
+    return presentWebhook(legacy, { reveal: false });
   }
 
   /**
-   * The response of a call that created or rotated a webhook through another service (deployment webhooks): hashes the
-   * plaintext token that service wrote, and returns the row with the token shown once. A row that carries no plaintext
-   * token (an enabled webhook saved again) comes back with `token: null`.
+   * The response of a call that created or rotated a webhook through another service (deployment webhooks): stores the
+   * plaintext token that service wrote hashed and encrypted, and returns the row with its token. A row that carries no
+   * plaintext token (an enabled webhook saved again) is returned with its stored token.
    */
-  async sealIssuedToken<T extends { id: string; token?: string | null; tokenHash?: string | null }>(row: T) {
+  async sealIssuedToken<
+    T extends { id: string; token?: string | null; tokenHash?: string | null; tokenEncrypted?: string | null },
+  >(row: T) {
     const token = row.token ?? null;
-    if (token) {
-      await this.db
-        .update(dockerWebhooks)
-        .set({ tokenHash: hashWebhookToken(token), token: null })
-        .where(eq(dockerWebhooks.id, row.id));
-    }
-    return presentWebhook(row, token);
+    if (!token) return presentWebhook(row);
+    const stored = sealWebhookToken(token);
+    await this.db.update(dockerWebhooks).set(stored).where(eq(dockerWebhooks.id, row.id));
+    return presentWebhook({ ...row, ...stored });
   }
 
   async getByDeployment(deploymentId: string) {
@@ -122,7 +129,6 @@ export class DockerWebhookService {
       return presentWebhook(updated);
     }
 
-    // The URL is shown once, in this response; only its hash is stored.
     const issued = issueWebhookToken();
     const [created] = await this.db
       .insert(dockerWebhooks)
@@ -130,8 +136,7 @@ export class DockerWebhookService {
         nodeId,
         containerName,
         targetType: 'container',
-        token: null,
-        tokenHash: issued.tokenHash,
+        ...issued.stored,
         enabled: input.enabled ?? true,
         createdById: userId,
         updatedById: userId,
@@ -146,7 +151,7 @@ export class DockerWebhookService {
       details: { nodeId, containerName },
     });
     this.emit('created', created);
-    return presentWebhook(created, issued.token);
+    return presentWebhook(created);
   }
 
   async remove(nodeId: string, containerName: string, userId: string) {
@@ -172,7 +177,7 @@ export class DockerWebhookService {
     const issued = issueWebhookToken();
     const [updated] = await this.db
       .update(dockerWebhooks)
-      .set({ token: null, tokenHash: issued.tokenHash, updatedById: userId, updatedAt: new Date() })
+      .set({ ...issued.stored, updatedById: userId, updatedAt: new Date() })
       .where(eq(dockerWebhooks.id, existing.id))
       .returning();
 
@@ -184,7 +189,7 @@ export class DockerWebhookService {
       details: { nodeId, containerName },
     });
     this.emit('updated', updated);
-    return presentWebhook(updated, issued.token);
+    return presentWebhook(updated);
   }
 
   // ─── Core update action ───────────────────────────────────────────
@@ -373,7 +378,7 @@ export class DockerWebhookService {
   // ─── Helpers ──────────────────────────────────────────────────────
 
   private emit(action: string, data: Record<string, unknown>) {
-    const { token: _token, tokenHash: _tokenHash, ...safeData } = data;
+    const { token: _token, tokenHash: _tokenHash, tokenEncrypted: _tokenEncrypted, ...safeData } = data;
     this.eventBus?.publish('docker.webhook.changed', { ...safeData, action });
   }
 }
