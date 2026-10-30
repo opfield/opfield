@@ -44,30 +44,26 @@ describe('client IP trust settings', () => {
     expect(writes).toHaveLength(1);
   });
 
-  it('reads a stored reverse proxy without trusted proxies as auto, with a warning, and saves over it', async () => {
-    const { db, writes } = settingsDb({
-      clientIpSource: 'reverse_proxy',
-      trustedProxyCidrs: [],
-      trustCloudflareHeaders: false,
-    });
+  it('keeps a stored reverse proxy without trusted proxies: same meaning, a warning, and re-saves pass', async () => {
+    const stored = { clientIpSource: 'reverse_proxy', trustedProxyCidrs: [], trustCloudflareHeaders: false };
+    const { db, writes } = settingsDb(stored);
     const service = new NetworkSettingsService(db);
     const config = await service.getConfig();
-    expect(config).toMatchObject({ clientIpSource: 'auto', reverseProxyWithoutTrustedProxies: true });
+    expect(config).toEqual(stored);
 
-    // Forwarded headers stay believed from the private-network proxy, no longer from public peers, and the settings
-    // page says why.
+    // Forwarded headers are believed as in 2.12.8; the settings page recommends adding the proxy's ranges.
     const forwarded = new Headers({ 'x-forwarded-for': '203.0.113.9' });
-    expect(resolveClientIp(forwarded, '172.18.0.2', config)).toMatchObject({
+    expect(resolveClientIp(forwarded, '198.51.100.20', config)).toMatchObject({
       ipAddress: '203.0.113.9',
       warning: REVERSE_PROXY_WITHOUT_PROXIES_WARNING,
     });
-    expect(resolveClientIp(forwarded, '198.51.100.20', config)).toMatchObject({
-      ipAddress: '198.51.100.20',
-      warning: REVERSE_PROXY_WITHOUT_PROXIES_WARNING,
-    });
 
-    // Saving anything else stores plain auto; the marker is never written.
-    await service.updateConfig({ trustCloudflareHeaders: true });
-    expect(writes).toEqual([{ clientIpSource: 'auto', trustedProxyCidrs: [], trustCloudflareHeaders: true }]);
+    // A script that PUTs the unchanged stored value, or a change of another field, is not refused.
+    await expect(service.updateConfig({ ...stored } as never)).resolves.toEqual(stored);
+    await expect(service.updateConfig({ trustCloudflareHeaders: true })).resolves.toEqual({
+      ...stored,
+      trustCloudflareHeaders: true,
+    });
+    expect(writes).toHaveLength(2);
   });
 });

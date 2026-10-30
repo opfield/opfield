@@ -5,6 +5,7 @@ import { currentCloudflareCidrList } from '@/lib/cloudflare-ip-ranges.js';
 import { ipInAnyCidr, normalizeIp } from '@/lib/ip-cidr.js';
 import {
   DEFAULT_NETWORK_SECURITY_SETTINGS,
+  isReverseProxyWithoutTrustedProxies,
   type NetworkSecuritySettings,
   NetworkSettingsService,
   REVERSE_PROXY_WITHOUT_PROXIES_WARNING,
@@ -18,48 +19,25 @@ export interface ClientIpResolution {
   warning?: string;
   /**
    * The address does not tell clients apart: proxy headers came in but are not trusted (so every client behind that
-   * proxy resolves to the proxy) or the settings carry the reverse_proxy-without-trusted-proxies marker. Per-client
-   * limits must not key on it (nor on a missing address).
+   * proxy resolves to the proxy). Per-client limits must not key on it (nor on a missing address).
    */
   sharedAddress?: true;
 }
-
-/** Loopback, private (RFC 1918, ULA) and link-local peers: where a reverse proxy without configured ranges sits. */
-const LEGACY_REVERSE_PROXY_PEERS = [
-  '127.0.0.0/8',
-  '10.0.0.0/8',
-  '172.16.0.0/12',
-  '192.168.0.0/16',
-  '169.254.0.0/16',
-  '::1/128',
-  'fc00::/7',
-  'fe80::/10',
-];
 
 export function resolveClientIp(
   headers: Pick<Headers, 'get'>,
   remoteAddress: string | undefined,
   settings: NetworkSecuritySettings = DEFAULT_NETWORK_SECURITY_SETTINGS
 ): ClientIpResolution {
-  // Settings saved before reverse_proxy required trusted proxies: the proxy in front of such an install is nearly
-  // always on the same host or network, so forwarded headers are believed from loopback and private-network peers
-  // only, never from public ones. The settings page says so until proxies are set.
-  if (settings.reverseProxyWithoutTrustedProxies) {
-    const resolution = resolveConfiguredClientIp(headers, remoteAddress, {
-      ...settings,
-      clientIpSource: 'reverse_proxy',
-      trustedProxyCidrs: LEGACY_REVERSE_PROXY_PEERS,
-    });
-    const ignoredHeaders = resolution.source === 'remote' && resolution.warning;
-    return {
-      ...resolution,
-      warning: REVERSE_PROXY_WITHOUT_PROXIES_WARNING,
-      ...(ignoredHeaders || resolution.source === 'unknown' ? { sharedAddress: true as const } : {}),
-    };
-  }
   const resolution = resolveConfiguredClientIp(headers, remoteAddress, settings);
   // A fallback to the peer with a warning means proxy headers were present and ignored.
-  return resolution.source === 'remote' && resolution.warning ? { ...resolution, sharedAddress: true } : resolution;
+  if (resolution.source === 'remote' && resolution.warning) return { ...resolution, sharedAddress: true };
+  // Reverse proxy without trusted proxies (stored by an earlier release) believes forwarded headers from any peer, as
+  // it always did; the settings page recommends adding the proxy's ranges.
+  if (isReverseProxyWithoutTrustedProxies(settings) && !resolution.warning) {
+    return { ...resolution, warning: REVERSE_PROXY_WITHOUT_PROXIES_WARNING };
+  }
+  return resolution;
 }
 
 function resolveConfiguredClientIp(

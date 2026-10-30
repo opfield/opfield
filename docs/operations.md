@@ -612,9 +612,9 @@ A configuration export carries the bucket settings and keys, like the other stor
 
 ## Client IP Source
 
-**Settings > Network** decides which address Opfield treats as the client for rate limits, token and inference key address limits, and audit records. Changing it needs `admin:system`. **Reverse proxy** believes `X-Real-IP` / `X-Forwarded-For` only from the **Trusted proxy CIDRs** and needs at least one range; a save without one is refused.
+**Settings > Network** decides which address Opfield treats as the client for rate limits, token and inference key address limits, and audit records. Changing it needs `admin:system`. **Reverse proxy** believes `X-Real-IP` / `X-Forwarded-For` only from the **Trusted proxy CIDRs**, and a new save of it needs at least one range.
 
-Upgrade note: earlier releases accepted Reverse proxy with an empty range list and then believed forwarded headers from any peer, so any client could choose its own address. An install upgraded with that setting keeps working behind its usual proxy: forwarded headers are believed only when the proxy connects from loopback or a private, unique-local or link-local address (`127.0.0.0/8`, `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, `169.254.0.0/16`, `::1`, `fc00::/7`, `fe80::/10`), never from a public address. The setting shows as Auto with a warning until you enter the proxy's ranges and choose Reverse proxy again.
+Upgrade note: earlier releases accepted Reverse proxy with an empty range list, which believes forwarded headers from any peer, so a client that reaches Opfield without the proxy can choose its own address. An install upgraded with that setting keeps it and its meaning: saving it again unchanged, or changing only the Cloudflare option, still works. **Settings > Network** shows a warning until you enter the ranges your proxy connects from.
 
 ## Security Notes
 

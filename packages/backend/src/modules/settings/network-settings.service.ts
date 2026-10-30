@@ -12,12 +12,16 @@ export interface NetworkSecuritySettings {
   clientIpSource: ClientIpSource;
   trustedProxyCidrs: string[];
   trustCloudflareHeaders: boolean;
-  /**
-   * Never saved: the stored settings ask for reverse_proxy without trusted proxies, which trusted forwarded headers
-   * from any peer and which earlier releases accepted. They are read as auto plus this marker: forwarded headers are
-   * then believed from loopback and private-network peers only (resolveClientIp and its warning).
-   */
-  reverseProxyWithoutTrustedProxies?: true;
+}
+
+/**
+ * Reverse proxy without trusted proxy CIDRs: forwarded headers are believed from any peer. Releases before 2.13.0
+ * saved it, and a stored value keeps that meaning; only a new save of it is refused (NetworkSettingsService).
+ */
+export function isReverseProxyWithoutTrustedProxies(
+  config: Pick<NetworkSecuritySettings, 'clientIpSource' | 'trustedProxyCidrs'>
+) {
+  return config.clientIpSource === 'reverse_proxy' && config.trustedProxyCidrs.length === 0;
 }
 
 const SETTINGS_KEY = 'network:client_ip';
@@ -30,7 +34,7 @@ export const DEFAULT_NETWORK_SECURITY_SETTINGS: NetworkSecuritySettings = {
 };
 
 export const REVERSE_PROXY_WITHOUT_PROXIES_WARNING =
-  'Client IP source is set to Reverse proxy without trusted proxy CIDRs, so Opfield trusts forwarded headers only from loopback and private-network peers. Add the proxy ranges and choose Reverse proxy again.';
+  'Reverse proxy has no trusted proxy CIDRs, so Opfield believes forwarded headers from any peer: a client that reaches Opfield without the proxy can choose its own address. Add the ranges your proxy connects from to Trusted proxy CIDRs.';
 
 export class NetworkSettingsService {
   private cached: NetworkSecuritySettings | null = null;
@@ -47,7 +51,7 @@ export class NetworkSettingsService {
 
     const [row] = await this.db.select().from(settings).where(eq(settings.key, SETTINGS_KEY)).limit(1);
     const config = this.normalize(row?.value);
-    if (config.reverseProxyWithoutTrustedProxies && !this.warnedReverseProxyWithoutProxies) {
+    if (isReverseProxyWithoutTrustedProxies(config) && !this.warnedReverseProxyWithoutProxies) {
       this.warnedReverseProxyWithoutProxies = true;
       logger.warn(REVERSE_PROXY_WITHOUT_PROXIES_WARNING);
     }
@@ -58,18 +62,18 @@ export class NetworkSettingsService {
 
   async updateConfig(updates: Partial<NetworkSecuritySettings>): Promise<NetworkSecuritySettings> {
     const current = await this.getConfig();
-    // A current config read as auto carries its marker along; normalize drops it, so only a request that names
-    // reverse_proxy (or keeps it while clearing the proxies) is refused below.
     const next = this.normalize({ ...current, ...updates });
     const invalidCidr = next.trustedProxyCidrs.find((cidr) => !isValidCidr(cidr));
     if (invalidCidr) {
       throw new Error(`Invalid trusted proxy CIDR: ${invalidCidr}`);
     }
-    if (next.reverseProxyWithoutTrustedProxies) {
+    // Only a new save of reverse proxy without trusted proxies is refused. A stored one (accepted by earlier releases)
+    // stays valid, so saving it again unchanged, or changing only the Cloudflare option, keeps working.
+    if (isReverseProxyWithoutTrustedProxies(next) && !isReverseProxyWithoutTrustedProxies(current)) {
       throw new AppError(
         400,
         'TRUSTED_PROXY_REQUIRED',
-        'Reverse proxy needs at least one trusted proxy CIDR: without one any client could choose its own address'
+        'Reverse proxy needs at least one trusted proxy CIDR: enter the ranges your proxy connects from (without one, any client could choose its own address)'
       );
     }
     await this.db
@@ -98,14 +102,6 @@ export class NetworkSettingsService {
     const trustCloudflareHeaders =
       typeof record.trustCloudflareHeaders === 'boolean' ? record.trustCloudflareHeaders : false;
 
-    if (clientIpSource === 'reverse_proxy' && trustedProxyCidrs.length === 0) {
-      return {
-        clientIpSource: 'auto',
-        trustedProxyCidrs,
-        trustCloudflareHeaders,
-        reverseProxyWithoutTrustedProxies: true,
-      };
-    }
     return { clientIpSource, trustedProxyCidrs, trustCloudflareHeaders };
   }
 }

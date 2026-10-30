@@ -10,6 +10,7 @@ import {
   UserCog,
   Webhook,
 } from "lucide-react";
+import { Notice } from "@/components/common/Notice";
 import { PanelShell } from "@/components/common/PanelShell";
 import { RelativeTime } from "@/components/common/RelativeTime";
 import { useContentLoading } from "@/components/common/reveal-gate";
@@ -1457,11 +1458,20 @@ export function AuthProvisioningSection({
             </div>
           </div>
 
-          {settings.currentRequestIp.warning && (
+          {settings.networkSecurity.clientIpSource === "reverse_proxy" &&
+          settings.networkSecurity.trustedProxyCidrs.length === 0 ? (
+            <div className="px-4 py-3">
+              <Notice tone="warning" title="Add trusted proxy CIDRs">
+                Reverse proxy has no trusted proxy CIDRs, so Opfield believes forwarded client
+                headers from any peer: a client that reaches Opfield without the proxy can choose
+                its own address. Enter the ranges your proxy connects from below.
+              </Notice>
+            </div>
+          ) : settings.currentRequestIp.warning ? (
             <p className="bg-muted/60 px-4 py-3 text-xs text-muted-foreground dark:bg-muted">
               {settings.currentRequestIp.warning}
             </p>
-          )}
+          ) : null}
 
           <div className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
             <div>
