@@ -143,6 +143,8 @@ export const updateAuthSettingsRoute = appRoute({
   path: '/auth-settings',
   tags: ['Admin'],
   summary: 'Update Opfield settings',
+  description:
+    'Needs settings:opfield:edit. Changing SMTP or the email transport, the OIDC provider, the public URL, relaxing OIDC verified-email enforcement, OIDC user auto-creation or its default group, the sign-in methods, the MFA grace period, client IP trust (networkSecurity) or the outbound webhook policy also needs admin:system; resubmitting current values does not. networkSecurity: a new save of reverse_proxy without trustedProxyCidrs is refused (400 TRUSTED_PROXY_REQUIRED); one stored by an earlier release keeps working and may be saved again.',
   request: jsonBody(UpdateAuthProvisioningSettingsSchema),
   responses: okJson(UnknownDataResponseSchema),
 });
@@ -170,6 +172,8 @@ export const updateUserAuthMethodRoute = appRoute({
   path: '/users/{id}/auth-method',
   tags: ['Admin'],
   summary: "Change a user's primary sign-in method",
+  description:
+    "Needs admin:users. Ends the user's sessions and removes their password; their TOTP factor, recovery codes and passkeys stay.",
   request: { params: IdParamSchema, ...jsonBody(UpdateUserAuthMethodSchema) },
   responses: okJson(UnknownDataResponseSchema),
 });

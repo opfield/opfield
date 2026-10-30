@@ -42,10 +42,10 @@ Opfield has four token families:
 
 | Prefix | Purpose |
 |--------|---------|
-| `gw_` | API token for REST API automation. |
-| `gwo_` | OAuth access token for one OAuth resource. |
-| `gwl_` | External logging ingest token. |
-| `gwi_` | Dedicated Opfield Inference runtime token. |
+| `opf_` | API token for REST API automation. |
+| `opfo_` | OAuth access token for one OAuth resource. |
+| `opfl_` | External logging ingest token. |
+| `opfi_` | Dedicated Opfield Inference runtime token. |
 
 OAuth tokens are bound to exactly one resource:
 
@@ -54,7 +54,7 @@ OAuth tokens are bound to exactly one resource:
 | Opfield API | `/api` | REST API routes |
 | Opfield MCP | `/api/mcp` | Remote MCP endpoint |
 
-The REST API accepts browser sessions, `gw_` API tokens, and `gwo_` OAuth tokens issued for the Opfield API resource. The MCP endpoint accepts only `gwo_` OAuth tokens issued for the Opfield MCP resource; API tokens, browser cookies, logging tokens, and inference tokens are rejected. Inference data-plane routes accept only `gwi_` tokens.
+The REST API accepts browser sessions, `opf_` API tokens, and `opfo_` OAuth tokens issued for the Opfield API resource. The MCP endpoint accepts only `opfo_` OAuth tokens issued for the Opfield MCP resource; API tokens, browser cookies, logging tokens, and inference tokens are rejected. Inference data-plane routes accept only `opfi_` tokens.
 
 OAuth lifetime behavior is resource-specific:
 
@@ -398,9 +398,9 @@ Legacy global nginx management routes under `/api/monitoring/nginx/*` are no lon
 
 External Docker clients (`docker login` to the internal registry, Business+ external access) authenticate with an Opfield API token. Registry access is a property of the token, chosen when it is created or edited: none, pull, or pull and push, each for every repository or for listed repository names (exact match, `team/app` does not cover `team/app-two` or `team`). A token may carry registry access without any scope.
 
-- Pull can be given by a user who can view a Docker workload or image anywhere (`docker:containers:view`, `docker:compose:view` or `docker:images:view`, broad or limited to a node, folder or resource).
-- Push can be given by a user who can change a workload (`docker:containers:edit`, `docker:containers:manage` or `docker:compose:manage`).
-- Every token request at `/api/docker/registry/token` checks the token's access and the owner's current permissions, so a demoted owner's tokens lose push (or everything) at once.
+- Pull or push of every repository needs the owner's broad (unqualified) `docker:containers:view`, `docker:compose:view` or `docker:images:view` for pull, and `docker:containers:edit`, `docker:containers:manage` or `docker:compose:manage` for push. An owner whose grants are limited to a node, folder or workload lists the repositories instead.
+- A listed repository needs view (pull) or edit/manage (push) on a container, deployment or Compose project that is built into or runs an image of that repository, or the legacy `docker:registries:internal:pull` / `:push` scope for it. A repository that no workload uses yet is covered only by the broad scopes or the legacy scope.
+- Every token request at `/api/docker/registry/token` (each `docker login`) checks the token's access and the owner's current permissions by these rules, tokens created earlier included, so a demoted owner's tokens lose push (or everything) at once.
 - API: `registryAccess` on `POST /api/tokens` and `PATCH /api/tokens/{id}`, for example `{ "pull": "all", "push": ["team/app"] }`; an absent action is not granted and `{}` removes the access.
 
 Compatibility: tokens created before this carry `docker:registries:internal:pull` / `:push` (with or without a repository) in their scopes; Opfield reads them as the token's registry access and shows them that way. Requests that still send these names in `scopes` get the same registry access. The two scopes remain in the catalog only as legacy user grants: a holder may give tokens access to the repositories the grant covers even without workload access. Built-in groups no longer include them.
@@ -426,7 +426,7 @@ API tokens and OAuth grants (for both the Opfield API and Opfield MCP resources)
 
 Opfield MCP delegates the same scopes as API tokens, including GitLab, GitHub, generic Git, Cloudflare, hosting, and external SSH connector administration and operations. Managed DNS access uses the ordinary `domains:*` scopes.
 
-Some operations stay browser-only regardless of scopes because they are bound to the caller's identity or browser: sign-in, password, MFA, passkeys, the caller's own sessions and preferences, starting impersonation, OAuth consent, creating or editing API tokens and OAuth authorizations (a token must not mint Opfield credentials), per-user Git credentials, AI Workspace chat, UI bootstrap, and the post-setup onboarding checklist. Opfield settings, user/group administration, node config, raw nginx config, hosting, inference administration and personal `gwi_` inference keys (with `feat:ai:use` on the token), relay control, and updates accept API and OAuth tokens.
+Some operations stay browser-only regardless of scopes because they are bound to the caller's identity or browser: sign-in, password, MFA, passkeys, the caller's own sessions and preferences, starting impersonation, OAuth consent, creating or editing API tokens and OAuth authorizations (a token must not mint Opfield credentials), per-user Git credentials, AI Workspace chat, UI bootstrap, and the post-setup onboarding checklist. Opfield settings, user/group administration, node config, raw nginx config, hosting, inference administration and personal `opfi_` inference keys (with `feat:ai:use` on the token), relay control, and updates accept API and OAuth tokens.
 
 Account-level baseline scopes that gate a whole route family (for example `feat:ai:use` in front of inference administration) are evaluated against the token owner's live permissions for bearer callers; the token still needs the route's own delegated scope. Personal inference key management requires `feat:ai:use` on the token itself.
 
@@ -486,13 +486,13 @@ OAuth consent leaves high-risk scopes unchecked by default. The user must explic
 | `hosting:resources:delete` | Can destroy VMs or cancel rentals. |
 | `hosting:snapshots:restore` | Can roll a VM back to a snapshot. |
 | `logs:tokens:create` | Can mint logging ingest tokens. |
-| `feat:ai:use` | Can use Opfield Inference and mint or revoke the user's `gwi_` inference keys. |
+| `feat:ai:use` | Can use Opfield Inference and mint or revoke the user's `opfi_` inference keys. |
 | `admin:audit` | Can read audit history. |
 | `audit:siem:manage` | Can configure authenticated SIEM endpoints and replay failed audit exports. |
 | `admin:details:certificates` | Can view internal system PKI and SSL certificates. |
 | `admin:update` | Can check for and apply Opfield/daemon updates. |
-| `admin:system` | Protected system administration: deleted-user restore, MFA reset, relay control. |
+| `admin:system` | Protected system administration: deleted-user restore, MFA reset, relay control, configuration export, and changing the identity-trust settings: SMTP and the email transport, the OIDC provider, the public URL, relaxing OIDC verified-email enforcement, OIDC user auto-creation and its default group, the sign-in methods, the MFA grace period, the absolute session lifetime, client IP trust (Settings > Network) and the outbound webhook policy. Resubmitting their current values needs only `settings:opfield:edit`. |
 | `admin:users` | Can create, reconfigure, block, and delete users and revoke their sessions. |
 | `admin:groups` | Can create and change permission groups and their scopes. |
-| `settings:opfield:edit` | Can change authentication and control-plane settings. |
+| `settings:opfield:edit` | Can change authentication and control-plane settings; the identity-trust settings listed under `admin:system` also need `admin:system`. |
 | `storage:bind` | Gives a workload its own key to the managed storage cluster. |

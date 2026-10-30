@@ -151,7 +151,7 @@ Every resource-qualified Pages scope uses the Page Project ID, including Deploym
 | Scope | Description |
 |-------|-------------|
 | settings:opfield:view | View Opfield settings: public URL, sign-in, SMTP, OAuth and MCP, network, environment, and relay settings |
-| settings:opfield:edit | Edit those settings; SMTP, the OIDC provider, the public URL, and relaxing OIDC verified-email enforcement also need admin:system |
+| settings:opfield:edit | Edit those settings; SMTP and the email transport, the OIDC provider, the public URL, relaxing OIDC verified-email enforcement, OIDC user auto-creation and its default group, the sign-in methods, the MFA grace period, the absolute session lifetime, client IP trust and the outbound webhook policy also need admin:system (resubmitting current values does not) |
 
 ### Housekeeping
 | Scope | Description |
