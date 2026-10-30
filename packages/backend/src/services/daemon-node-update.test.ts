@@ -120,6 +120,29 @@ describe('daemon update after the availability handoff (rc.6 async pair)', () =>
   });
 });
 
+describe('daemon update right after Opfield restarts (O-3)', () => {
+  it('waits for a node seen a moment ago to reconnect instead of refusing it', async () => {
+    const { node, deps, sendUpdateDaemonCommand } = harness();
+    Object.assign(node, { lastSeenAt: new Date() });
+    let checks = 0;
+    const dispatch = { ...(deps.dispatch as object), isNodeConnected: () => ++checks > 2 };
+    await dispatchNodeDaemonUpdate(NODE_ID, { ...deps, dispatch: dispatch as never });
+    expect(sendUpdateDaemonCommand).toHaveBeenCalledTimes(1);
+  });
+
+  it('refuses a node that has been away for longer at once', async () => {
+    const { node, deps, sendUpdateDaemonCommand } = harness();
+    Object.assign(node, { lastSeenAt: new Date(Date.now() - 5 * 60_000) });
+    const dispatch = { ...(deps.dispatch as object), isNodeConnected: () => false };
+    const started = Date.now();
+    await expect(dispatchNodeDaemonUpdate(NODE_ID, { ...deps, dispatch: dispatch as never })).rejects.toMatchObject({
+      code: 'NODE_NOT_CONNECTED',
+    });
+    expect(Date.now() - started).toBeLessThan(400);
+    expect(sendUpdateDaemonCommand).not.toHaveBeenCalled();
+  });
+});
+
 describe('daemon update task wait', () => {
   it('sends at once when the node runs no long task', async () => {
     const { deps, node, sendUpdateDaemonCommand } = harness();

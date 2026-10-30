@@ -187,6 +187,28 @@ async function waitForNodeTasks(
   }
 }
 
+const RECONNECT_GRACE_MS = 10_000;
+const RECONNECT_RECENT_MS = 60_000;
+
+/**
+ * Right after Opfield restarts (an update) its nodes take a few seconds to reconnect: a node seen in the last minute
+ * gets that long before the update is refused as not connected. A node offline for longer is refused at once.
+ */
+async function nodeConnectedSoon(
+  nodeId: string,
+  lastSeenAt: Date | null,
+  dispatch: Pick<NodeDispatchService, 'isNodeConnected'>
+): Promise<boolean> {
+  if (dispatch.isNodeConnected(nodeId)) return true;
+  if (!lastSeenAt || Date.now() - lastSeenAt.getTime() > RECONNECT_RECENT_MS) return false;
+  const deadline = Date.now() + RECONNECT_GRACE_MS;
+  while (Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    if (dispatch.isNodeConnected(nodeId)) return true;
+  }
+  return false;
+}
+
 /**
  * Sends the latest trusted daemon release to one node. Shared by
  * POST /system/daemon-updates/:nodeId and the AI/MCP system update tool.
@@ -232,7 +254,7 @@ export async function dispatchNodeDaemonUpdate(
       return { scheduled: true, targetVersion: waiting.targetVersion, waitSkipped: true };
     }
   }
-  if (!dispatch.isNodeConnected(nodeId)) {
+  if (!(await nodeConnectedSoon(nodeId, node.lastSeenAt, dispatch))) {
     throw new AppError(409, 'NODE_NOT_CONNECTED', 'Node is not connected');
   }
   const release = await daemonUpdateService.getLatestRelease(daemonType);
