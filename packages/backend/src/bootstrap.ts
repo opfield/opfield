@@ -2167,6 +2167,7 @@ export async function initializeContainer(): Promise<void> {
       container.resolve(LocalAuthService),
       finalizeSetupService,
       mcpSettingsService,
+      container.resolve(MfaService),
       async () => {
         await opfieldIdentityRenewal.refreshGrpcIdentity();
       },

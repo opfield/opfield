@@ -5,15 +5,33 @@ export type SetupStep =
   | "public-url"
   | "network"
   | "auth-methods"
+  | "cloud-connect"
   | "oidc-config"
   | "smtp-config"
-  | "admin-auth"
   | "admin-details"
+  | "admin-2fa"
   | "logging"
   | "finish"
   | "license"
   | "ai-workspace";
-export type PrimaryMethod = "oidc" | "password" | "email_otp";
+
+/**
+ * How people sign in: the Opfield account, the customer's own OIDC provider, or a password with an authenticator
+ * app (an email code may be added next to it). Opfield account and OIDC share the one OIDC provider slot.
+ */
+export type SignInOption = "opfield_account" | "oidc" | "password_totp";
+
+export const SIGN_IN_OPTION_LABELS: Record<SignInOption, string> = {
+  opfield_account: "Opfield account",
+  oidc: "Your OIDC provider",
+  password_totp: "Password + authenticator app",
+};
+
+export interface SignInDraft {
+  option: SignInOption | null;
+  /** The email code next to the password (password with an authenticator app only). */
+  emailOtp: boolean;
+}
 export type LoggingMode = "disabled" | "local" | "external";
 
 export interface AuthMethodsDraft {
@@ -35,8 +53,23 @@ export type SetupSmtpDraft = SmtpDraft;
 export interface AdminDraft {
   name: string;
   email: string;
-  authMethod: PrimaryMethod | null;
   password: string;
+}
+
+/** The administrator the wizard created (the owner). */
+export interface SetupAdministrator {
+  email: string;
+  name: string | null;
+  authMethod: string;
+  secondFactor: boolean;
+}
+
+export interface SetupCloudConnectState {
+  connected: boolean;
+  accountEmail: string | null;
+  administrator: { email: string; name: string | null } | null;
+  signInClient: "ready" | "requested" | "none";
+  requestedAt: string | null;
 }
 
 export interface LoggingDraft {
@@ -55,6 +88,8 @@ export interface NetworkDraft {
 
 export interface SetupConfig {
   administratorCreated: boolean;
+  administrator: SetupAdministrator | null;
+  cloud: SetupCloudConnectState;
   phase: "configuration" | "ai_workspace";
   license: {
     completed: boolean;
@@ -84,37 +119,101 @@ export interface SetupConfig {
     clientId: string | null;
     redirectUri: string | null;
     scopes: string;
+    opfieldAccount: boolean;
   };
   logging: LoggingDraft & { passwordLast4: string | null };
   transport: { tlsEnabled: boolean };
 }
 
-export function getEnabledPrimaryMethods(methods: AuthMethodsDraft): PrimaryMethod[] {
-  const enabled: PrimaryMethod[] = [];
-  if (methods.oidc) enabled.push("oidc");
-  if (methods.password) enabled.push("password");
-  if (methods.emailOtp) enabled.push("email_otp");
-  return enabled;
+/** The sign-in methods a sign-in option turns on. */
+export function getSignInMethods(signIn: SignInDraft): AuthMethodsDraft {
+  switch (signIn.option) {
+    case "opfield_account":
+    case "oidc":
+      return { oidc: true, password: false, emailOtp: false };
+    case "password_totp":
+      return { oidc: false, password: true, emailOtp: signIn.emailOtp };
+    default:
+      return { oidc: false, password: false, emailOtp: false };
+  }
 }
 
-export function getSetupSteps(
-  methods: AuthMethodsDraft,
-  administratorCreated = false
-): SetupStep[] {
-  const enabledPrimaryMethods = getEnabledPrimaryMethods(methods);
+/**
+ * The options an administrator who exists already leaves open: one created with a password keeps the password with
+ * an authenticator app; one created for OIDC keeps an OIDC option. All three before an administrator exists.
+ */
+export function getAvailableSignInOptions(
+  administrator: SetupAdministrator | null
+): SignInOption[] {
+  if (administrator?.authMethod === "password") return ["password_totp"];
+  if (administrator?.authMethod === "oidc") return ["opfield_account", "oidc"];
+  return ["opfield_account", "oidc", "password_totp"];
+}
+
+/** The option a saved setup state points at: the administrator's, then the configured sign-in. */
+export function deriveSignInOption(
+  config: Pick<SetupConfig, "administrator" | "auth" | "oidc" | "cloud">
+): SignInOption | null {
+  const available = getAvailableSignInOptions(config.administrator);
+  if (available.length === 1) return available[0]!;
+  if (config.cloud.connected && config.oidc.opfieldAccount) return "opfield_account";
+  if (config.auth.methods.oidc && config.oidc.configured) return "oidc";
+  if (config.auth.methods.password && available.includes("password_totp")) return "password_totp";
+  return null;
+}
+
+export function getSetupSteps(signIn: SignInDraft, administratorCreated = false): SetupStep[] {
+  const { option } = signIn;
   return [
     "public-url",
     "network",
     "auth-methods",
-    ...(methods.oidc ? (["oidc-config"] as const) : []),
-    ...(methods.password || methods.emailOtp ? (["smtp-config"] as const) : []),
-    ...(!administratorCreated && enabledPrimaryMethods.length > 1 ? (["admin-auth"] as const) : []),
-    ...(!administratorCreated ? (["admin-details"] as const) : []),
+    ...(option === "opfield_account" ? (["cloud-connect"] as const) : []),
+    ...(option === "oidc" ? (["oidc-config"] as const) : []),
+    ...(option === "password_totp" && signIn.emailOtp ? (["smtp-config"] as const) : []),
+    // The Opfield account names the administrator: whoever connected the installation.
+    ...(option !== "opfield_account" && !administratorCreated ? (["admin-details"] as const) : []),
+    ...(option === "password_totp" ? (["admin-2fa"] as const) : []),
     "logging",
     "finish",
     "license",
     "ai-workspace",
   ];
+}
+
+/** The redirect URI of the OIDC provider at a public URL. */
+export function oidcRedirectUri(publicUrl: string): string {
+  return `${publicUrl.trim().replace(/\/$/, "")}/auth/callback`;
+}
+
+/** Where the account portal sends the browser back after Connect with Opfield account. */
+export const CLOUD_CALLBACK_PATH = "/setup/cloud-callback";
+
+export interface CloudCallback {
+  code: string | null;
+  state: string | null;
+  /** The person declined at the portal (`error=access_denied`) or the portal reported another error. */
+  error: string | null;
+}
+
+/** The portal's answer on /setup/cloud-callback; null on any other page. */
+export function readCloudCallback(
+  location: Pick<Location, "pathname" | "search">
+): CloudCallback | null {
+  if (location.pathname.replace(/\/$/, "") !== CLOUD_CALLBACK_PATH) return null;
+  const params = new URLSearchParams(location.search);
+  return {
+    code: params.get("code")?.trim() || null,
+    state: params.get("state")?.trim() || null,
+    error: params.get("error")?.trim() || null,
+  };
+}
+
+/** A connect code as account.opfield.dev shows it: CLD-XXXX-XXXX (the prefix and dashes are optional). */
+export function isCloudCodeValid(value: string): boolean {
+  let compact = value.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  if (compact.length === 11 && compact.startsWith("CLD")) compact = compact.slice(3);
+  return /^[A-HJ-NP-Z2-9]{8}$/.test(compact);
 }
 
 export function isPublicUrlValid(value: string): boolean {
@@ -255,13 +354,11 @@ export function isSmtpDraftValid(
   );
 }
 
-export function isAdminDraftValid(draft: AdminDraft): boolean {
+export function isAdminDraftValid(draft: AdminDraft, withPassword: boolean): boolean {
   return (
-    draft.authMethod !== null &&
     Boolean(draft.name.trim()) &&
     isEmail(draft.email) &&
-    (draft.authMethod !== "password" ||
-      (draft.password.length >= 12 && draft.password.length <= 72))
+    (!withPassword || (draft.password.length >= 12 && draft.password.length <= 72))
   );
 }
 

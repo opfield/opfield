@@ -1,6 +1,5 @@
 import { ArrowLeft, ArrowRight } from "lucide-react";
 import type { Dispatch, SetStateAction } from "react";
-import { PanelShell } from "@/components/common/PanelShell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -10,10 +9,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
 import { applySmtpPreset, SMTP_PRESETS, type SmtpPresetId } from "../settings/smtp-presets";
 import {
-  type AuthMethodsDraft,
   isOidcDraftValid,
   isPublicUrlValid,
   isSmtpDraftValid,
@@ -26,28 +23,6 @@ interface NavigationProps {
   onBack?: () => void;
   onContinue: () => void;
 }
-
-const AUTH_METHOD_OPTIONS: Array<{
-  key: keyof AuthMethodsDraft;
-  label: string;
-  description: string;
-}> = [
-  {
-    key: "oidc",
-    label: "OIDC",
-    description: "Use an external identity provider such as Authentik, Keycloak, or Okta.",
-  },
-  {
-    key: "password",
-    label: "Password",
-    description: "Sign in with email and password. Requires SMTP for recovery links.",
-  },
-  {
-    key: "emailOtp",
-    label: "Email code",
-    description: "Send a one-time sign-in code by email. Requires SMTP.",
-  },
-];
 
 export function PublicUrlStep({
   busy,
@@ -82,76 +57,6 @@ export function PublicUrlStep({
           <Button type="submit" pending={busy} disabled={!isPublicUrlValid(publicUrl)}>
             <ArrowRight className="h-4 w-4" />
             Continue
-          </Button>
-        </div>
-      </form>
-    </section>
-  );
-}
-
-export function AuthMethodsStep({
-  busy,
-  methods,
-  setMethods,
-  onBack,
-  onContinue,
-}: NavigationProps & {
-  methods: AuthMethodsDraft;
-  setMethods: Dispatch<SetStateAction<AuthMethodsDraft>>;
-}) {
-  const canContinue = methods.oidc || methods.password || methods.emailOtp;
-  return (
-    <section className="space-y-3">
-      <form
-        className="space-y-3"
-        onSubmit={(event) => {
-          event.preventDefault();
-          if (canContinue) onContinue();
-        }}
-      >
-        <PanelShell
-          title="Sign-in methods"
-          description="Enable one or more methods. Passkeys can be added after setup."
-          bodyClassName="divide-y divide-border"
-        >
-          {AUTH_METHOD_OPTIONS.map((option) => {
-            const checked = methods[option.key];
-            return (
-              <div
-                key={option.key}
-                className="flex items-center justify-between gap-4 px-4 py-3 text-left"
-              >
-                <div className="min-w-0">
-                  <p className="text-sm font-medium">{option.label}</p>
-                  <p className="mt-0.5 max-w-72 text-xs text-muted-foreground">
-                    {option.description}
-                  </p>
-                </div>
-                <Switch
-                  checked={checked}
-                  ariaLabel={`Enable ${option.label}`}
-                  onChange={(nextChecked) =>
-                    setMethods((value) => ({ ...value, [option.key]: nextChecked }))
-                  }
-                />
-              </div>
-            );
-          })}
-        </PanelShell>
-        <div className="flex justify-center gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            className="w-max flex-none"
-            onClick={onBack}
-            disabled={busy}
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Back
-          </Button>
-          <Button type="submit" className="w-max flex-none" pending={busy} disabled={!canContinue}>
-            Continue
-            <ArrowRight className="h-4 w-4" />
           </Button>
         </div>
       </form>

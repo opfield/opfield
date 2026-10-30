@@ -4,14 +4,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { AuthShell } from "@/components/auth/AuthShell";
 import { AnimatedHeight } from "@/components/common/AnimatedHeight";
-import { ConfirmDialog } from "@/components/common/ConfirmDialog";
+import { ConfirmDialog, confirmAction } from "@/components/common/ConfirmDialog";
 import { Badge } from "@/components/ui/badge";
 import { toastApiError } from "@/lib/api-error-toast";
 import { api } from "@/services/api";
 import { ConfigureAIWorkspaceWizard } from "./dashboard/finalize-setup/ConfigureAIWorkspaceWizard";
 import { DEFAULT_SMTP_DRAFT, getSmtpPresetId, type SmtpPresetId } from "./settings/smtp-presets";
 import {
-  AdminAuthMethodStep,
   AdminDetailsStep,
   AIWorkspaceStep,
   FinishStep,
@@ -20,26 +19,33 @@ import {
 } from "./setup-wizard/SetupFinalSteps";
 import { SetupNetworkStep } from "./setup-wizard/SetupNetworkStep";
 import { SetupRestoreFlow, SetupStartChoice } from "./setup-wizard/SetupRestoreFlow";
-import { SetupUnlockStep } from "./setup-wizard/SetupUnlockStep";
 import {
-  AuthMethodsStep,
-  OidcConfigStep,
-  PublicUrlStep,
-  SmtpConfigStep,
-} from "./setup-wizard/SetupWizardForms";
+  AdminSecondFactorStep,
+  CloudConnectStep,
+  SignInStep,
+} from "./setup-wizard/SetupSignInSteps";
+import { SetupUnlockStep } from "./setup-wizard/SetupUnlockStep";
+import { OidcConfigStep, PublicUrlStep, SmtpConfigStep } from "./setup-wizard/SetupWizardForms";
 import { SetupRequestError, setupRequest } from "./setup-wizard/setup-request";
 import {
   type AdminDraft,
-  type AuthMethodsDraft,
+  type CloudCallback,
   deriveGrpcPublicTarget,
-  getEnabledPrimaryMethods,
+  deriveSignInOption,
+  getAvailableSignInOptions,
   getSetupSteps,
+  getSignInMethods,
   type LoggingDraft,
   type NetworkDraft,
   type OidcDraft,
+  oidcRedirectUri,
+  readCloudCallback,
+  type SetupAdministrator,
+  type SetupCloudConnectState,
   type SetupConfig,
   type SetupSmtpDraft,
   type SetupStep,
+  type SignInDraft,
 } from "./setup-wizard/setup-wizard-model";
 
 interface SetupStatus {
@@ -66,6 +72,25 @@ interface SetupCompleteResult {
 
 const TLS_RESTART_REDIRECT_DELAY_MS = 20_000;
 
+const EMPTY_CLOUD: SetupCloudConnectState = {
+  connected: false,
+  accountEmail: null,
+  administrator: null,
+  signInClient: "none",
+  requestedAt: null,
+};
+
+/** Where setup sends the browser at the end: the Opfield account sign-in itself, or the sign-in page. */
+function signInTarget(signIn: SignInDraft): string {
+  return signIn.option === "opfield_account" ? "/auth/login" : "/login";
+}
+
+function cloudCallbackError(error: string): string {
+  return error === "access_denied"
+    ? "The Opfield account connection was cancelled. Connect again or choose another sign-in option."
+    : `The Opfield account did not connect this installation (${error}). Connect again or choose another sign-in option.`;
+}
+
 /** Before an administrator exists, setup can start a new installation or restore an export. */
 type SetupStartMode = "choose" | "new" | "restore";
 
@@ -73,7 +98,7 @@ interface PersistedSetupDraft {
   step: SetupStep;
   publicUrl: string;
   network: NetworkDraft;
-  methods: AuthMethodsDraft;
+  signIn: SignInDraft;
   oidc: Omit<OidcDraft, "clientSecret">;
   smtpPreset: SmtpPresetId;
   smtp: Omit<SetupSmtpDraft, "password">;
@@ -100,22 +125,35 @@ function readDraft(codeId: string | null): Partial<PersistedSetupDraft> | null {
 function restoreStepWithRequiredSecrets(
   next: SetupConfig,
   saved: Partial<PersistedSetupDraft> | null,
-  methods: AuthMethodsDraft,
+  signIn: SignInDraft,
   availableSteps: SetupStep[]
 ): SetupStep {
   if (next.phase === "ai_workspace") return next.license.completed ? "ai-workspace" : "license";
-  if (next.administratorCreated) return "logging";
+  // An administrator made outside this wizard (a managed installation, or an older wizard) goes on at logging.
+  if (next.administratorCreated && !next.administrator) return "logging";
 
   const restoredStep =
     saved?.step && availableSteps.includes(saved.step) ? saved.step : "public-url";
   const restoredIndex = availableSteps.indexOf(restoredStep);
   const requiredSecretSteps: SetupStep[] = [];
 
-  if (methods.oidc && !next.oidc.configured) requiredSecretSteps.push("oidc-config");
-  if ((methods.password || methods.emailOtp) && !next.smtp.configured) {
+  if (
+    signIn.option === "opfield_account" &&
+    !(next.cloud.connected && next.cloud.signInClient === "ready")
+  ) {
+    requiredSecretSteps.push("cloud-connect");
+  }
+  if (signIn.option === "oidc" && !(next.oidc.configured && !next.oidc.opfieldAccount)) {
+    requiredSecretSteps.push("oidc-config");
+  }
+  if (signIn.option === "password_totp" && signIn.emailOtp && !next.smtp.configured) {
     requiredSecretSteps.push("smtp-config");
   }
-  if (saved?.admin?.authMethod === "password") requiredSecretSteps.push("admin-details");
+  // The password is never kept in the draft: the administrator is created on its step.
+  if (signIn.option === "password_totp") requiredSecretSteps.push("admin-details");
+  if (signIn.option === "password_totp" && !next.administrator?.secondFactor) {
+    requiredSecretSteps.push("admin-2fa");
+  }
   if (saved?.logging?.mode === "external" && !next.logging.passwordLast4) {
     requiredSecretSteps.push("logging");
   }
@@ -152,11 +190,13 @@ export function SetupWizardPage() {
     grpcPublicTarget: "",
     grpcLocalIp: "",
   });
-  const [methods, setMethods] = useState<AuthMethodsDraft>({
-    oidc: true,
-    password: false,
-    emailOtp: false,
-  });
+  const [signIn, setSignIn] = useState<SignInDraft>({ option: null, emailOtp: false });
+  const [administrator, setAdministrator] = useState<SetupAdministrator | null>(null);
+  const [cloud, setCloud] = useState<SetupCloudConnectState>(EMPTY_CLOUD);
+  const [cloudFinishing, setCloudFinishing] = useState(false);
+  const [disconnectingCloud, setDisconnectingCloud] = useState(false);
+  // The account portal's answer on /setup/cloud-callback, taken once the setup session is known.
+  const cloudCallback = useRef<CloudCallback | null>(readCloudCallback(window.location));
   const [oidc, setOidc] = useState<OidcDraft>({
     issuer: "",
     clientId: "",
@@ -166,12 +206,7 @@ export function SetupWizardPage() {
   });
   const [smtpPreset, setSmtpPreset] = useState<SmtpPresetId>("resend");
   const [smtp, setSmtp] = useState<SetupSmtpDraft>(DEFAULT_SMTP_DRAFT);
-  const [admin, setAdmin] = useState<AdminDraft>({
-    name: "",
-    email: "",
-    authMethod: null,
-    password: "",
-  });
+  const [admin, setAdmin] = useState<AdminDraft>({ name: "", email: "", password: "" });
   const [logging, setLogging] = useState<LoggingDraft>({
     mode: "disabled",
     url: "",
@@ -189,18 +224,30 @@ export function SetupWizardPage() {
       grpcPublicTarget: next.general.grpcPublicTarget ?? "",
       grpcLocalIp: next.general.grpcLocalIp ?? next.networkSuggestions.localIps[0] ?? "",
     };
-    const nextMethods = { ...next.auth.methods, ...(saved?.methods ?? {}) };
+    const availableOptions = getAvailableSignInOptions(next.administrator);
+    const savedOption = saved?.signIn?.option;
+    const nextSignIn: SignInDraft = {
+      option:
+        savedOption && availableOptions.includes(savedOption)
+          ? savedOption
+          : deriveSignInOption(next),
+      emailOtp: saved?.signIn?.emailOtp ?? next.auth.methods.emailOtp,
+    };
+    // The Opfield account's client is not the customer's provider: the OIDC step starts empty.
+    const ownOidc = next.oidc.opfieldAccount ? null : next.oidc;
     setConfig(next);
     setDraftCodeId(codeId);
     setPublicUrl(saved?.publicUrl ?? next.general.publicUrl ?? "");
     setNetwork({ ...defaultNetwork, ...(saved?.network ?? {}) });
-    setMethods(nextMethods);
+    setSignIn(nextSignIn);
+    setAdministrator(next.administrator);
+    setCloud(next.cloud);
     setOidc({
-      issuer: next.oidc.issuer ?? "",
-      clientId: next.oidc.clientId ?? "",
+      issuer: ownOidc?.issuer ?? "",
+      clientId: ownOidc?.clientId ?? "",
       clientSecret: "",
-      redirectUri: next.oidc.redirectUri ?? "",
-      scopes: next.oidc.scopes,
+      redirectUri: ownOidc?.redirectUri ?? "",
+      scopes: ownOidc?.scopes ?? "openid email profile",
       ...(saved?.oidc ?? {}),
     });
     setSmtpPreset(
@@ -217,11 +264,9 @@ export function SetupWizardPage() {
       password: "",
     });
     setAdmin({
-      name: "",
-      email: "",
-      authMethod: null,
+      name: saved?.admin?.name ?? "",
+      email: saved?.admin?.email ?? "",
       password: "",
-      ...(saved?.admin ?? {}),
     });
     setLogging({
       mode: next.logging.mode,
@@ -235,11 +280,36 @@ export function SetupWizardPage() {
     });
     autoOidcRedirect.current = saved?.autoOidcRedirect ?? null;
     autoGrpcTarget.current = saved?.autoGrpcTarget ?? null;
-    const availableSteps = getSetupSteps(nextMethods, next.administratorCreated);
-    setStep(restoreStepWithRequiredSecrets(next, saved, nextMethods, availableSteps));
+    const availableSteps = getSetupSteps(nextSignIn, next.administratorCreated);
+    setStep(restoreStepWithRequiredSecrets(next, saved, nextSignIn, availableSteps));
     // A draft that went past the first step chose a new installation already.
     setStartMode(saved?.step && saved.step !== "public-url" ? "new" : "choose");
     setDraftReady(true);
+  }, []);
+
+  // Back from the account portal: enrol with its code (or say why there is none) on the Opfield account step.
+  const takeCloudCallback = useCallback((csrf: string) => {
+    const callback = cloudCallback.current;
+    if (!callback) return;
+    cloudCallback.current = null;
+    window.history.replaceState(null, "", "/");
+    setStartMode("new");
+    setSignIn((value) => ({ ...value, option: "opfield_account" }));
+    setStep("cloud-connect");
+    if (callback.error || !callback.code || !callback.state) {
+      toast.error(cloudCallbackError(callback.error ?? "no code"));
+      return;
+    }
+    setCloudFinishing(true);
+    void setupRequest<SetupCloudConnectState>(
+      "/wizard/cloud-connect/finish",
+      "POST",
+      { code: callback.code, state: callback.state },
+      csrf
+    )
+      .then(setCloud)
+      .catch((error) => toastApiError(error, "Could not connect to the Opfield account"))
+      .finally(() => setCloudFinishing(false));
   }, []);
 
   useEffect(() => {
@@ -259,6 +329,7 @@ export function SetupWizardPage() {
           setCsrfToken(csrf.csrfToken);
           hydrate(next, codeId);
           setUnlocked(true);
+          takeCloudCallback(csrf.csrfToken);
         } else {
           setSetupInProgress(status.setupInProgress);
         }
@@ -272,16 +343,16 @@ export function SetupWizardPage() {
     return () => {
       active = false;
     };
-  }, [hydrate]);
+  }, [hydrate, takeCloudCallback]);
 
   useEffect(() => {
     if (!restartPending) return;
     const timer = window.setTimeout(
-      () => window.location.assign("/login"),
+      () => window.location.assign(signInTarget(signIn)),
       TLS_RESTART_REDIRECT_DELAY_MS
     );
     return () => window.clearTimeout(timer);
-  }, [restartPending]);
+  }, [restartPending, signIn]);
 
   useEffect(() => {
     if (!draftReady || !draftCodeId || !unlocked) return;
@@ -289,7 +360,7 @@ export function SetupWizardPage() {
       step,
       publicUrl,
       network,
-      methods,
+      signIn,
       oidc: {
         issuer: oidc.issuer,
         clientId: oidc.clientId,
@@ -305,7 +376,7 @@ export function SetupWizardPage() {
         senderName: smtp.senderName,
         senderEmail: smtp.senderEmail,
       },
-      admin: { name: admin.name, email: admin.email, authMethod: admin.authMethod },
+      admin: { name: admin.name, email: admin.email },
       logging: {
         mode: logging.mode,
         url: logging.url,
@@ -322,10 +393,10 @@ export function SetupWizardPage() {
     draftCodeId,
     draftReady,
     logging,
-    methods,
     network,
     oidc,
     publicUrl,
+    signIn,
     smtp,
     smtpPreset,
     step,
@@ -351,11 +422,16 @@ export function SetupWizardPage() {
       .catch(() => {});
   }, [canRestore, startMode]);
 
-  const enabledPrimaryMethods = useMemo(() => getEnabledPrimaryMethods(methods), [methods]);
-  const steps = useMemo(
-    () => getSetupSteps(methods, Boolean(config?.administratorCreated)),
-    [config?.administratorCreated, methods]
+  const administratorCreated = Boolean(config?.administratorCreated || administrator);
+  const availableSignInOptions = useMemo(
+    () => getAvailableSignInOptions(administrator),
+    [administrator]
   );
+  const steps = useMemo(
+    () => getSetupSteps(signIn, administratorCreated),
+    [administratorCreated, signIn]
+  );
+  const oidcAlreadyConfigured = Boolean(config?.oidc.configured && !config.oidc.opfieldAccount);
   const stepIndex = Math.max(0, steps.indexOf(step));
   const nextStep = () => setStep(steps[Math.min(stepIndex + 1, steps.length - 1)]!);
   const previousStep = () => setStep(steps[Math.max(stepIndex - 1, 0)]!);
@@ -371,9 +447,46 @@ export function SetupWizardPage() {
     }
   };
 
+  // Another option after connecting the Opfield account: confirm, then the cloud link and its admin go.
+  const continueFromSignIn = async () => {
+    if (!cloud.connected || signIn.option === "opfield_account") {
+      nextStep();
+      return;
+    }
+    const disconnected = await confirmAction(
+      {
+        title: "Disconnect the Opfield account",
+        description: `This installation is connected to ${cloud.accountEmail ?? "an Opfield account"}. Choosing another sign-in option disconnects it, removes the Opfield account sign-in it set up, and ${cloud.administrator?.email ?? "the person who connected it"} no longer becomes the first administrator.`,
+        confirmLabel: "Disconnect",
+      },
+      async () => {
+        setDisconnectingCloud(true);
+        try {
+          setCloud(
+            await setupRequest<SetupCloudConnectState>(
+              "/wizard/cloud-connect/disconnect",
+              "POST",
+              undefined,
+              csrfToken
+            )
+          );
+          setConfig(await setupRequest<SetupConfig>("/wizard/config"));
+          return true;
+        } catch (error) {
+          toastApiError(error, "Could not disconnect the Opfield account");
+          return false;
+        } finally {
+          setDisconnectingCloud(false);
+        }
+      }
+    );
+    if (disconnected) nextStep();
+  };
+
   const getAuthPayload = () => ({
-    methods,
-    ...(methods.oidc
+    option: signIn.option,
+    methods: getSignInMethods(signIn),
+    ...(signIn.option === "oidc"
       ? {
           oidc: {
             ...oidc,
@@ -381,7 +494,7 @@ export function SetupWizardPage() {
           },
         }
       : {}),
-    ...(methods.password || methods.emailOtp
+    ...(signIn.option === "password_totp" && signIn.emailOtp
       ? {
           smtp: {
             ...smtp,
@@ -405,7 +518,7 @@ export function SetupWizardPage() {
     if (draftCodeId) sessionStorage.removeItem(draftStorageKey(draftCodeId));
     setAIWorkspaceWizardOpen(false);
     if (result.restartRequired) setRestartPending(true);
-    else window.location.assign("/login");
+    else window.location.assign(signInTarget(signIn));
   };
 
   const openAIWorkspaceSetup = () =>
@@ -469,6 +582,7 @@ export function SetupWizardPage() {
                 onSubmit={() =>
                   void run(async () => {
                     let unlockedCodeId = draftCodeId;
+                    let unlockedCsrfToken = "";
                     try {
                       const result = await setupRequest<SetupUnlockResult>("/unlock", "POST", {
                         code: code.trim(),
@@ -476,6 +590,7 @@ export function SetupWizardPage() {
                       setCsrfToken(result.csrfToken);
                       setDraftCodeId(result.codeId);
                       unlockedCodeId = result.codeId;
+                      unlockedCsrfToken = result.csrfToken;
                     } catch (error) {
                       if (
                         error instanceof SetupRequestError &&
@@ -489,6 +604,7 @@ export function SetupWizardPage() {
                     const next = await setupRequest<SetupConfig>("/wizard/config");
                     hydrate(next, unlockedCodeId);
                     setUnlocked(true);
+                    takeCloudCallback(unlockedCsrfToken);
                   })
                 }
               />
@@ -512,7 +628,7 @@ export function SetupWizardPage() {
                 publicUrl={publicUrl}
                 setPublicUrl={setPublicUrl}
                 onContinue={() => {
-                  const nextRedirectUri = `${publicUrl.replace(/\/$/, "")}/auth/callback`;
+                  const nextRedirectUri = oidcRedirectUri(publicUrl);
                   if (!oidc.redirectUri || oidc.redirectUri === autoOidcRedirect.current) {
                     setOidc((value) => ({
                       ...value,
@@ -543,29 +659,31 @@ export function SetupWizardPage() {
               />
             )}
             {unlocked && mode === "new" && step === "auth-methods" && (
-              <AuthMethodsStep
+              <SignInStep
+                available={availableSignInOptions}
                 busy={busy}
-                methods={methods}
-                setMethods={setMethods}
+                pending={disconnectingCloud}
+                signIn={signIn}
+                setSignIn={setSignIn}
                 onBack={previousStep}
-                onContinue={() => {
-                  setAdmin((value) => ({
-                    ...value,
-                    authMethod:
-                      enabledPrimaryMethods.length === 1
-                        ? enabledPrimaryMethods[0]!
-                        : value.authMethod !== null &&
-                            enabledPrimaryMethods.includes(value.authMethod)
-                          ? value.authMethod
-                          : null,
-                  }));
-                  nextStep();
-                }}
+                onContinue={() => void continueFromSignIn()}
+              />
+            )}
+            {unlocked && mode === "new" && step === "cloud-connect" && (
+              <CloudConnectStep
+                busy={busy}
+                cloud={cloud}
+                csrfToken={csrfToken}
+                finishing={cloudFinishing}
+                publicUrl={publicUrl}
+                setCloud={setCloud}
+                onBack={previousStep}
+                onContinue={nextStep}
               />
             )}
             {unlocked && mode === "new" && step === "oidc-config" && (
               <OidcConfigStep
-                alreadyConfigured={Boolean(config?.oidc.configured)}
+                alreadyConfigured={oidcAlreadyConfigured}
                 busy={busy}
                 oidc={oidc}
                 setOidc={setOidc}
@@ -585,23 +703,49 @@ export function SetupWizardPage() {
                 onContinue={nextStep}
               />
             )}
-            {unlocked && mode === "new" && step === "admin-auth" && (
-              <AdminAuthMethodStep
-                admin={admin}
-                busy={busy}
-                enabledMethods={enabledPrimaryMethods}
-                setAdmin={setAdmin}
-                onBack={previousStep}
-                onContinue={nextStep}
-              />
-            )}
             {unlocked && mode === "new" && step === "admin-details" && (
               <AdminDetailsStep
                 admin={admin}
                 busy={busy}
+                withPassword={signIn.option === "password_totp"}
                 setAdmin={setAdmin}
                 onBack={previousStep}
-                onContinue={nextStep}
+                onContinue={() => {
+                  if (signIn.option !== "password_totp") {
+                    nextStep();
+                    return;
+                  }
+                  void run(async () => {
+                    const created = await setupRequest<SetupAdministrator>(
+                      "/wizard/administrator",
+                      "POST",
+                      {
+                        auth: getAuthPayload(),
+                        administrator: {
+                          name: admin.name,
+                          email: admin.email,
+                          password: admin.password,
+                        },
+                      },
+                      csrfToken
+                    );
+                    setAdministrator(created);
+                    setAdmin((value) => ({ ...value, password: "" }));
+                    setStep("admin-2fa");
+                  });
+                }}
+              />
+            )}
+            {unlocked && mode === "new" && step === "admin-2fa" && (
+              <AdminSecondFactorStep
+                administrator={administrator}
+                busy={busy}
+                csrfToken={csrfToken}
+                onConfigured={() =>
+                  setAdministrator((value) => (value ? { ...value, secondFactor: true } : value))
+                }
+                onBack={previousStep}
+                onContinue={() => setStep("logging")}
               />
             )}
             {unlocked && mode === "new" && step === "logging" && (
@@ -617,14 +761,18 @@ export function SetupWizardPage() {
             )}
             {unlocked && mode === "new" && step === "finish" && (
               <FinishStep
-                administrator={admin}
-                administratorCreated={Boolean(config?.administratorCreated)}
+                administratorEmail={
+                  signIn.option === "opfield_account" && !administratorCreated
+                    ? (cloud.administrator?.email ?? "")
+                    : (administrator?.email ??
+                      (administratorCreated ? "Already created" : admin.email))
+                }
                 busy={busy || restartPending}
-                enabledMethods={enabledPrimaryMethods}
                 logging={logging}
                 network={network}
                 oidc={oidc}
                 publicUrl={publicUrl}
+                signIn={signIn}
                 smtp={smtp}
                 onBack={previousStep}
                 onContinue={() =>
@@ -639,14 +787,15 @@ export function SetupWizardPage() {
                           grpcLocalIp: network.grpcLocalIp,
                         },
                         auth: getAuthPayload(),
-                        ...(config?.administratorCreated
-                          ? {}
-                          : {
+                        ...(signIn.option === "oidc" && !administratorCreated
+                          ? {
                               administrator: {
-                                ...admin,
-                                ...(admin.authMethod === "password" ? {} : { password: undefined }),
+                                name: admin.name,
+                                email: admin.email,
+                                authMethod: "oidc",
                               },
-                            }),
+                            }
+                          : {}),
                         logging:
                           logging.mode === "external"
                             ? {
@@ -708,7 +857,11 @@ export function SetupWizardPage() {
       <ConfigureAIWorkspaceWizard
         open={aiWorkspaceWizardOpen}
         canManageInferenceCore
-        completionActionLabel="Continue to sign in"
+        completionActionLabel={
+          signIn.option === "opfield_account"
+            ? "Sign in with Opfield account"
+            : "Continue to sign in"
+        }
         onBack={() => setAIWorkspaceWizardOpen(false)}
         onConfigured={(configuredVia) =>
           run(() => finishSetup({ status: "configured", configuredVia }))

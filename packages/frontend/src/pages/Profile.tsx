@@ -793,6 +793,12 @@ function LocalAccountSecurityPanel() {
     void load();
   }, [load]);
   useContentLoading(!statusLoaded);
+  // A recovery sign-in lands on /profile#security to fix the second factor.
+  useEffect(() => {
+    if (statusLoaded && window.location.hash === "#security") {
+      document.getElementById("security")?.scrollIntoView({ block: "start" });
+    }
+  }, [statusLoaded]);
 
   useEffect(
     () => () => {
@@ -996,6 +1002,7 @@ function LocalAccountSecurityPanel() {
 
   return (
     <PanelShell
+      id="security"
       title="Account security"
       description="Configure Opfield MFA and local sign-in credentials"
       icon={<ShieldCheck className="h-4 w-4" />}

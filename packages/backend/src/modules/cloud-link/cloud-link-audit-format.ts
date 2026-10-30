@@ -48,6 +48,7 @@ const CONNECT_SOURCES: Record<string, string> = {
   settings: 'with a code',
   'connect-code': 'with a connect code',
   'enroll-file': 'from the enrolment file',
+  setup: 'from the setup wizard',
 };
 
 function text(details: Details, key: string): string | null {

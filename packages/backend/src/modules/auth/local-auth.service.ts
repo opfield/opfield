@@ -83,7 +83,7 @@ end
 return {0, ''}
 `;
 
-type ChallengePurpose = 'email_otp' | 'password_setup' | 'password_reset';
+type ChallengePurpose = 'email_otp' | 'password_setup' | 'password_reset' | 'admin_recovery';
 
 export interface PasswordLinkProfile {
   name: string;
@@ -149,6 +149,20 @@ export async function issuePasswordSetupLink(
   const secret = nanoid(32);
   const challengeId = await storeAuthChallenge(cache, userId, 'password_setup', secret, ttlSeconds);
   return new URL(`/reset-password?token=${encodeURIComponent(`${challengeId}.${secret}`)}`, baseUrl).toString();
+}
+
+/**
+ * A one-time recovery sign-in token of a system administrator (see admin-recovery-link): `<id>.<secret>`, only the
+ * secret's hash is kept, used once by {@link LocalAuthService.consumeAdminRecoveryToken}.
+ */
+export async function issueAdminRecoveryToken(
+  cache: Pick<CacheService, 'set'>,
+  userId: string,
+  ttlSeconds: number
+): Promise<string> {
+  const secret = nanoid(32);
+  const challengeId = await storeAuthChallenge(cache, userId, 'admin_recovery', secret, ttlSeconds);
+  return `${challengeId}.${secret}`;
 }
 
 function hashSecret(value: string): string {
@@ -357,6 +371,13 @@ export class LocalAuthService {
       resourceId: challenge,
       details: {},
     });
+  }
+
+  /** The user a recovery sign-in token belongs to, taking the token (it works once); null when invalid or used. */
+  async consumeAdminRecoveryToken(token: string): Promise<string | null> {
+    const separator = token.indexOf('.');
+    if (separator <= 0) return null;
+    return this.consumeChallenge(token.slice(0, separator), 'admin_recovery', token.slice(separator + 1));
   }
 
   async setInitialPasswordForSetup(userId: string, password: string): Promise<void> {

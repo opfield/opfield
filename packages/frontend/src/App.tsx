@@ -88,6 +88,7 @@ import { Profile } from "@/pages/Profile";
 import { ProxyHostDetail } from "@/pages/ProxyHostDetail";
 import { PageProjectDetail } from "@/pages/pages/PageProjectDetail";
 import { Pages } from "@/pages/pages/Pages";
+import { RecoverySignIn } from "@/pages/RecoverySignIn";
 import { Settings } from "@/pages/Settings";
 import { SetupWizardPage } from "@/pages/SetupWizard";
 import { StatusPage } from "@/pages/StatusPage";
@@ -1532,6 +1533,7 @@ function OpfieldApp() {
             <Route path="/callback" element={<AuthDocumentRoute />} />
             <Route path="/oauth/consent" element={<OAuthConsent />} />
             <Route path="/access-sign-in/confirm" element={<AccessSignInConfirm />} />
+            <Route path="/recovery-sign-in" element={<RecoverySignIn />} />
             <Route path="/oauth/error" element={<OAuthError />} />
             <Route path="/blocked" element={<BlockedPage />} />
             <Route

@@ -20,6 +20,16 @@
  * issuer + sub, and marks setup complete, all or nothing. Without them the setup link flow stays as it is.
  */
 
+/**
+ * Connect from the setup wizard (see modules/setup/setup-cloud-connect): the browser opens
+ * `<portal>/connect-installation?return_uri=<browser origin>/setup/cloud-callback&state=…&code_challenge=<S256>&code_challenge_method=S256&name=<installation name>`;
+ * the portal sends it back to `return_uri?code=CLD-…&state=…` (or `?error=access_denied&state=…`). The installation
+ * then calls `POST /api/cloud/enroll` as for any code, with `codeVerifier` added (RFC 7636; a portal that does not
+ * check it ignores it; a code entered by hand comes without one). The enrol answer may carry `issuerEmail` and
+ * `issuerName`: the portal user who created or confirmed the code. Setup makes them the first administrator (falling
+ * back to `accountEmail` when absent).
+ */
+
 /** Opfield's OIDC callback, relative to the public URL. The portal registers `<publicUrl><OIDC_CALLBACK_PATH>`. */
 export const OIDC_CALLBACK_PATH = '/auth/callback';
 

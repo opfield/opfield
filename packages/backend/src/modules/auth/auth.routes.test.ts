@@ -848,3 +848,75 @@ describe('session cookies follow the request protocol, not the public URL (AUTH-
     expect(original).toMatch(/; Secure/);
   });
 });
+
+describe('admin recovery sign-in', () => {
+  function registerRecovery(consumed: string | null, systemAdmin: boolean) {
+    const { auditLog } = registerDependencies();
+    const adminRows = systemAdmin ? [{ id: USER.id }] : [];
+    const chain = {
+      from: () => chain,
+      innerJoin: () => chain,
+      where: () => chain,
+      limit: async () => adminRows,
+    };
+    container.registerInstance(TOKENS.DrizzleClient, { select: () => chain } as unknown as DrizzleClient);
+    const consumeAdminRecoveryToken = vi.fn().mockResolvedValue(consumed);
+    container.registerInstance(LocalAuthService, { consumeAdminRecoveryToken } as unknown as LocalAuthService);
+    const localUser = { ...USER, authMethod: 'password' as const };
+    container.registerInstance(AuthService, {
+      getUserById: vi.fn().mockResolvedValue(localUser),
+      recordSuccessfulSignIn: vi.fn().mockResolvedValue(undefined),
+    } as unknown as AuthService);
+    const createSession = vi.fn().mockResolvedValue({ sessionId: 'recovery-session-id' });
+    container.registerInstance(SessionService, { createSession } as unknown as SessionService);
+    const grantStepUp = vi.fn().mockResolvedValue(undefined);
+    container.registerInstance(MfaService, { grantStepUp } as unknown as MfaService);
+    container.registerInstance(NetworkSettingsService, {
+      getConfig: vi.fn().mockResolvedValue({
+        clientIpSource: 'reverse_proxy',
+        trustedProxyCidrs: [],
+        trustCloudflareHeaders: false,
+      }),
+    } as unknown as NetworkSettingsService);
+    const app = new Hono<AppEnv>();
+    app.onError(errorHandler);
+    app.route('/auth', authRoutes);
+    const request = () =>
+      app.request('/auth/recovery/sign-in', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: 'challenge-id.secret' }),
+      });
+    return { auditLog, consumeAdminRecoveryToken, createSession, grantStepUp, request };
+  }
+
+  it('signs the administrator in past their second factor, audited, and opens Profile security', async () => {
+    const { auditLog, consumeAdminRecoveryToken, createSession, grantStepUp, request } = registerRecovery(
+      USER.id,
+      true
+    );
+    const response = await request();
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ ok: true, redirectTo: '/profile#security' });
+    expect(consumeAdminRecoveryToken).toHaveBeenCalledWith('challenge-id.secret');
+    expect(createSession).toHaveBeenCalledWith(
+      expect.objectContaining({ id: USER.id }),
+      expect.objectContaining({ authMethod: 'password', mfaSatisfiedAt: expect.any(Number) })
+    );
+    expect(grantStepUp).toHaveBeenCalledWith(USER.id, 'recovery-session-id', 30 * 60);
+    expect(auditLog).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'auth.recovery_sign_in', userId: USER.id, resourceType: 'session' })
+    );
+    expect(response.headers.get('set-cookie')).toContain('recovery-session-id');
+  });
+
+  it('refuses a used link and an account that is no longer a system administrator', async () => {
+    const used = registerRecovery(null, true);
+    expect((await used.request()).status).toBe(400);
+    expect(used.createSession).not.toHaveBeenCalled();
+    container.reset();
+    const demoted = registerRecovery(USER.id, false);
+    expect((await demoted.request()).status).toBe(400);
+    expect(demoted.createSession).not.toHaveBeenCalled();
+  });
+});

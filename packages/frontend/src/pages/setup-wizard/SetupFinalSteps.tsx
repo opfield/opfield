@@ -5,10 +5,7 @@ import {
   Check,
   Database,
   KeyRound,
-  type LucideIcon,
-  Mail,
   MoreHorizontal,
-  ShieldCheck,
 } from "lucide-react";
 import { type Dispatch, type SetStateAction, useState } from "react";
 import { PanelShell } from "@/components/common/PanelShell";
@@ -23,8 +20,9 @@ import {
   type LoggingDraft,
   type NetworkDraft,
   type OidcDraft,
-  type PrimaryMethod,
   type SetupSmtpDraft,
+  SIGN_IN_OPTION_LABELS,
+  type SignInDraft,
 } from "./setup-wizard-model";
 
 interface NavigationProps {
@@ -140,89 +138,17 @@ export function AIWorkspaceStep({
   );
 }
 
-const ADMIN_AUTH_METHODS: Record<PrimaryMethod, { label: string; icon: LucideIcon }> = {
-  oidc: { label: "OIDC", icon: ShieldCheck },
-  password: { label: "Password", icon: KeyRound },
-  email_otp: { label: "Email code", icon: Mail },
-};
-
-export function AdminAuthMethodStep({
-  admin,
-  busy,
-  enabledMethods,
-  setAdmin,
-  onBack,
-  onContinue,
-}: NavigationProps & {
-  admin: AdminDraft;
-  enabledMethods: PrimaryMethod[];
-  setAdmin: Dispatch<SetStateAction<AdminDraft>>;
-}) {
-  const canContinue = admin.authMethod !== null && enabledMethods.includes(admin.authMethod);
-  return (
-    <section className="mx-auto max-w-xs space-y-3">
-      <div className="text-center">
-        <h2 className="text-lg font-semibold">Administrator sign-in</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Choose exactly one sign-in method for the first administrator.
-        </p>
-      </div>
-      <form
-        className="space-y-3"
-        onSubmit={(event) => {
-          event.preventDefault();
-          if (canContinue) onContinue();
-        }}
-      >
-        <div className="space-y-3">
-          {enabledMethods.map((method) => {
-            const option = ADMIN_AUTH_METHODS[method];
-            const Icon = option.icon;
-            return (
-              <Button
-                key={method}
-                type="button"
-                className="w-full"
-                variant={admin.authMethod === method ? "default" : "outline"}
-                aria-pressed={admin.authMethod === method}
-                disabled={busy}
-                onClick={() => setAdmin((value) => ({ ...value, authMethod: method }))}
-              >
-                <Icon className="h-4 w-4" />
-                {option.label}
-              </Button>
-            );
-          })}
-        </div>
-        <div className="flex justify-center gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            className="w-max flex-none"
-            onClick={onBack}
-            disabled={busy}
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Back
-          </Button>
-          <Button type="submit" className="w-max flex-none" disabled={busy || !canContinue}>
-            Continue
-            <ArrowRight className="h-4 w-4" />
-          </Button>
-        </div>
-      </form>
-    </section>
-  );
-}
-
 export function AdminDetailsStep({
   admin,
   busy,
+  withPassword,
   setAdmin,
   onBack,
   onContinue,
 }: NavigationProps & {
   admin: AdminDraft;
+  /** Password + authenticator app: the account is created on Continue, with this password. */
+  withPassword: boolean;
   setAdmin: Dispatch<SetStateAction<AdminDraft>>;
 }) {
   return (
@@ -230,7 +156,9 @@ export function AdminDetailsStep({
       <div className="text-center">
         <h2 className="text-lg font-semibold">Administrator details</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Create the first system administrator account.
+          {withPassword
+            ? "Create the first system administrator. The authenticator app comes next."
+            : "Create the first system administrator. They sign in through your OIDC provider with this email."}
         </p>
       </div>
       <form
@@ -253,7 +181,7 @@ export function AdminDetailsStep({
           value={admin.email}
           onChange={(event) => setAdmin((value) => ({ ...value, email: event.target.value }))}
         />
-        {admin.authMethod === "password" && (
+        {withPassword && (
           <Input
             required
             minLength={12}
@@ -280,9 +208,9 @@ export function AdminDetailsStep({
             type="submit"
             className="w-max flex-none"
             pending={busy}
-            disabled={!isAdminDraftValid(admin)}
+            disabled={!isAdminDraftValid(admin, withPassword)}
           >
-            Continue
+            {withPassword ? "Create administrator" : "Continue"}
             <ArrowRight className="h-4 w-4" />
           </Button>
         </div>
@@ -438,28 +366,29 @@ export function LoggingStep({
 }
 
 export function FinishStep({
-  administrator,
-  administratorCreated,
+  administratorEmail,
   busy,
-  enabledMethods,
   logging,
   network,
   oidc,
   publicUrl,
+  signIn,
   smtp,
   onBack,
   onContinue,
 }: NavigationProps & {
-  administrator: AdminDraft;
-  administratorCreated: boolean;
-  enabledMethods: PrimaryMethod[];
+  /** Who becomes (or already is) the first administrator. */
+  administratorEmail: string;
   logging: LoggingDraft;
   network: NetworkDraft;
   oidc: OidcDraft;
   publicUrl: string;
+  signIn: SignInDraft;
   smtp: SetupSmtpDraft;
 }) {
-  const signInMethods = enabledMethods.map((method) => ADMIN_AUTH_METHODS[method].label).join(", ");
+  const signInMethods = signIn.option
+    ? `${SIGN_IN_OPTION_LABELS[signIn.option]}${signIn.option === "password_totp" && signIn.emailOtp ? ", email code" : ""}`
+    : "";
   return (
     <section className="space-y-3">
       <PanelShell
@@ -482,7 +411,7 @@ export function FinishStep({
         <SettingsControlRow title="Sign-in methods" controlsClassName="sm:min-w-0 sm:max-w-64">
           <span className="text-right text-sm text-muted-foreground">{signInMethods}</span>
         </SettingsControlRow>
-        {enabledMethods.includes("oidc") && (
+        {signIn.option === "oidc" && (
           <>
             <SettingsControlRow title="OIDC issuer" controlsClassName="sm:min-w-0 sm:max-w-64">
               <span className="break-all text-right text-sm text-muted-foreground">
@@ -504,7 +433,7 @@ export function FinishStep({
             </SettingsControlRow>
           </>
         )}
-        {(enabledMethods.includes("password") || enabledMethods.includes("email_otp")) && (
+        {signIn.option === "password_totp" && signIn.emailOtp && (
           <>
             <SettingsControlRow title="SMTP relay" controlsClassName="sm:min-w-0 sm:max-w-64">
               <span className="break-all text-right text-sm text-muted-foreground">
@@ -520,7 +449,7 @@ export function FinishStep({
         )}
         <SettingsControlRow title="Administrator" controlsClassName="sm:min-w-0 sm:max-w-64">
           <span className="break-all text-right text-sm text-muted-foreground">
-            {administratorCreated ? "Already created" : administrator.email}
+            {administratorEmail}
           </span>
         </SettingsControlRow>
         <SettingsControlRow title="Structured logs" controlsClassName="sm:min-w-0 sm:max-w-64">

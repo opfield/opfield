@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { and, desc, eq, inArray } from 'drizzle-orm';
 import type { Env } from '@/config/env.js';
 import type { DrizzleClient } from '@/db/client.js';
@@ -68,6 +69,17 @@ export function cloudManagedLinkError(): CloudLinkRequestError {
 
 type Fetcher = typeof fetch;
 
+export interface CloudConnectOptions {
+  /** Portal to enrol with instead of the configured one (the enrolment file names it). */
+  portalUrl?: string;
+  /** Where the code came from, for the audit entry. */
+  source?: 'settings' | 'enroll-file' | 'setup';
+  /** Whether a failure the portal may accept later is audited (the enrolment file retries quietly). */
+  auditRetryableFailure?: boolean;
+  /** PKCE verifier of a code the portal issued for a code challenge (the setup wizard's connect flow). */
+  codeVerifier?: string;
+}
+
 export class CloudLinkRequestError extends Error {
   constructor(
     readonly status: number,
@@ -117,6 +129,22 @@ interface EnrollResponse {
   secret: string;
   accountEmail: string;
   portalUrl?: string;
+  /** The portal user who created or confirmed the code; absent from portals that do not send it. */
+  issuerEmail?: string;
+  issuerName?: string;
+}
+
+/** The person the account portal names as the one who connected the installation (setup makes them its admin). */
+export interface CloudEnrollIssuer {
+  email: string;
+  name: string | null;
+}
+
+function enrollIssuer(enrolled: EnrollResponse): CloudEnrollIssuer | null {
+  const email = (enrolled.issuerEmail || enrolled.accountEmail).trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+$/.test(email)) return null;
+  const name = enrolled.issuerName?.trim() || null;
+  return { email, name };
 }
 
 function readEnrollResponse(body: unknown): EnrollResponse | null {
@@ -125,7 +153,7 @@ function readEnrollResponse(body: unknown): EnrollResponse | null {
     string,
     unknown
   >;
-  const { agentId, secret, accountEmail, portalUrl } = value;
+  const { agentId, secret, accountEmail, portalUrl, issuerEmail, issuerName } = value;
   if (typeof agentId !== 'string' || !/^[A-Za-z0-9-]{8,64}$/.test(agentId)) return null;
   if (typeof secret !== 'string' || !/^[A-Za-z0-9_-]{16,256}$/.test(secret)) return null;
   return {
@@ -133,7 +161,17 @@ function readEnrollResponse(body: unknown): EnrollResponse | null {
     secret,
     accountEmail: typeof accountEmail === 'string' ? accountEmail.slice(0, 320) : '',
     ...(typeof portalUrl === 'string' ? { portalUrl } : {}),
+    ...(typeof issuerEmail === 'string' && issuerEmail.trim() ? { issuerEmail: issuerEmail.slice(0, 320) } : {}),
+    ...(typeof issuerName === 'string' && issuerName.trim() ? { issuerName: issuerName.slice(0, 255) } : {}),
   };
+}
+
+/** The enrolment answer as the installation reads it (exported for tests). */
+export const readCloudEnrollResponse = readEnrollResponse;
+
+/** S256 code challenge of a PKCE code verifier (RFC 7636), as the portal checks it on enrol. */
+export function cloudPkceChallenge(codeVerifier: string): string {
+  return createHash('sha256').update(codeVerifier).digest('base64url');
 }
 
 /**
@@ -371,15 +409,21 @@ export class CloudLinkService {
   async connect(
     code: string,
     actor: { userId: string | null } = { userId: null },
-    options: {
-      /** Portal to enrol with instead of the configured one (the enrolment file names it). */
-      portalUrl?: string;
-      /** Where the code came from, for the audit entry. */
-      source?: 'settings' | 'enroll-file';
-      /** Whether a failure the portal may accept later is audited (the enrolment file retries quietly). */
-      auditRetryableFailure?: boolean;
-    } = {}
+    options: CloudConnectOptions = {}
   ): Promise<CloudLinkStatusView> {
+    return (await this.connectWithIssuer(code, actor, options)).status;
+  }
+
+  /**
+   * {@link connect}, also returning who the portal says connected the installation (the setup wizard makes them the
+   * first administrator); null when the answer names nobody usable.
+   */
+  async connectWithIssuer(
+    code: string,
+    actor: { userId: string | null } = { userId: null },
+    options: CloudConnectOptions = {}
+  ): Promise<{ status: CloudLinkStatusView; issuer: CloudEnrollIssuer | null }> {
+    let issuer: CloudEnrollIssuer | null = null;
     const portalUrl = options.portalUrl
       ? this.acceptedPortalUrl(options.portalUrl, this.configuredPortalUrl)
       : this.configuredPortalUrl;
@@ -398,11 +442,18 @@ export class CloudLinkService {
       }
       // A managed installation stays on its account; only its own enrolment file enrols it.
       if (source !== 'enroll-file' && (await this.managedByCloud())) throw cloudManagedLinkError();
-      await this.enroll(normalized, portalUrl, source === 'enroll-file', (enrolled, previous) => {
-        agentId = enrolled.agentId;
-        accountEmail = enrolled.accountEmail || null;
-        replaced = previous;
-      });
+      await this.enroll(
+        normalized,
+        portalUrl,
+        source === 'enroll-file',
+        options.codeVerifier,
+        (enrolled, previous, answer) => {
+          agentId = enrolled.agentId;
+          accountEmail = enrolled.accountEmail || null;
+          replaced = previous;
+          issuer = enrollIssuer(answer);
+        }
+      );
     } catch (error) {
       const retryable = error instanceof CloudLinkRequestError && error.retryable;
       if (!retryable || options.auditRetryableFailure !== false) {
@@ -429,14 +480,19 @@ export class CloudLinkService {
     // Switch account: the Opfield account client and the provider on it belong to the previous account.
     if (switchedAccount) await this.detachSignIn('account_switched');
     this.notify();
-    return this.getStatus();
+    return { status: await this.getStatus(), issuer: issuer as CloudEnrollIssuer | null };
   }
 
   private async enroll(
     normalized: string,
     portalUrl: string,
     managed: boolean,
-    onEnrolled: (enrollment: StoredCloudEnrollment, previous: StoredCloudEnrollment | null) => void
+    codeVerifier: string | undefined,
+    onEnrolled: (
+      enrollment: StoredCloudEnrollment,
+      previous: StoredCloudEnrollment | null,
+      answer: EnrollResponse
+    ) => void
   ): Promise<void> {
     await this.serialized(async () => {
       const hello = await this.identity();
@@ -445,22 +501,27 @@ export class CloudLinkService {
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ code: normalized, ...hello }),
+          // A portal that does not check PKCE ignores codeVerifier.
+          body: JSON.stringify({ code: normalized, ...hello, ...(codeVerifier ? { codeVerifier } : {}) }),
         },
         CLOUD_ENROLL_TIMEOUT_MS
       );
       if (status < 200 || status >= 300) throw this.enrollError(status, body);
+      const enrolled = readEnrollResponse(body);
+      if (!enrolled) {
+        throw new CloudLinkRequestError(502, 'CLOUD_PORTAL_ERROR', 'Your cloud account returned an unreadable answer');
+      }
       const previous = (await this.readStored()).enrollment;
-      onEnrolled(await this.storeEnrollment(body, portalUrl, managed), previous);
+      onEnrolled(await this.storeEnrollment(enrolled, portalUrl, managed), previous, enrolled);
     });
   }
 
   /** Stores an enrolment answer (`/api/cloud/enroll`): agent id, secret encrypted. */
-  private async storeEnrollment(body: unknown, portalUrl: string, managed: boolean): Promise<StoredCloudEnrollment> {
-    const enrolled = readEnrollResponse(body);
-    if (!enrolled) {
-      throw new CloudLinkRequestError(502, 'CLOUD_PORTAL_ERROR', 'Your cloud account returned an unreadable answer');
-    }
+  private async storeEnrollment(
+    enrolled: EnrollResponse,
+    portalUrl: string,
+    managed: boolean
+  ): Promise<StoredCloudEnrollment> {
     const enrollment: StoredCloudEnrollment = {
       agentId: enrolled.agentId,
       secret: this.cryptoService.encryptString(enrolled.secret),

@@ -9,7 +9,7 @@ Opfield is a privileged infrastructure control plane, so its security model is b
 Opfield defaults to security controls that reduce the most common privately operated control-plane risks:
 
 - First-run access is protected by a one-time, 24-hour setup code. Opfield stores only its identifier, expiry, and SHA-256 hash.
-- OIDC, password, and email one-time-code sign-in are explicit administrator choices. Password hashes use the local credential store; SMTP and OIDC secrets are envelope-encrypted with `PKI_MASTER_KEY`.
+- OIDC (including the Opfield account), password with an authenticator app, and email one-time-code sign-in are explicit administrator choices. Password hashes use the local credential store; SMTP and OIDC secrets are envelope-encrypted with `PKI_MASTER_KEY`.
 - No inbound management ports on managed nodes. Daemons initiate outbound connections to Opfield.
 - No long-lived daemon shared secret. First enrollment uses a one-time token plus a pinned Opfield gRPC TLS leaf fingerprint, then replaces the token with an mTLS client certificate.
 - No global trust for programmatic tokens. API/OAuth scopes are bounded by the owning user's current effective permissions.
@@ -46,9 +46,13 @@ The supported production control is host isolation: install Opfield in its own V
 
 ## Identity And Login
 
-Opfield can enable OIDC, password, and email one-time-code sign-in independently. Email-based methods require a verified SMTP configuration. Users may add passkeys after setup; passkeys are not a first-run primary method.
+Opfield can enable OIDC, password, and email one-time-code sign-in independently. Email-code sign-in requires a verified SMTP configuration. Users may add passkeys after setup; passkeys are not a first-run primary method.
 
-The browser wizard creates exactly one deliberate first administrator in the built-in `system-admin` group. No arbitrary first OIDC login is promoted. Later OIDC users follow the configured auto-provisioning and default-group policy.
+The browser wizard offers three sign-in options: the Opfield account, the customer's own OIDC provider, or a password with an authenticator app (optionally with an email code next to it). A password without a second factor is not offered in setup; with the password option the administrator enrols an authenticator app before setup can be applied and the `system-admin` group requires a second factor.
+
+The browser wizard creates exactly one deliberate first administrator in the built-in `system-admin` group. No arbitrary first OIDC login is promoted. With the Opfield account option the administrator is the portal user who created or confirmed the connect code (`issuerEmail` in the enrolment answer, else the account email); the portal connect uses a one-time `state` and PKCE (S256), and the verifier stays on the installation, bound to the setup session for 10 minutes. That administrator is claimed like any pre-created OIDC account: by their first Opfield account sign-in with that email, verified when **Require verified OIDC email** is on. Later OIDC users follow the configured auto-provisioning and default-group policy.
+
+The admin recovery command (`node dist/cli/admin-recovery-link.js`) runs on the Opfield host only and prints a one-time link that signs a system administrator in without their provider or second factor. The link is valid for 30 minutes and works once; Opfield keeps only the SHA-256 hash of its secret in Redis. The sign-in is audited as `auth.recovery_sign_in`, counts as satisfying MFA for that session and allows second-factor changes for 30 minutes without a step-up, so the administrator can fix their sign-in in Profile. Anyone with shell access to the host can run it, which matches the existing trust boundary: host access already means control of Opfield.
 
 The installer prints a random one-time setup code and never writes its plaintext to `.env` or the database. A successful code exchange creates an HTTP-only setup session bounded by the same 24-hour expiry. Product APIs stay locked until the wizard has an explicit public URL, at least one sign-in method, and the first administrator. Completing setup removes the code and setup sessions. The printed reset command reopens setup, invalidates browser/setup sessions, and issues a new code.
 

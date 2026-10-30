@@ -359,6 +359,8 @@ export async function updateOpfieldSettings(
   }
   try {
     const previousWebTransport = await webTransportSettingsService.getConfig();
+    // Read only when sign-in methods change: whether password sign-in was already on decides the SMTP requirement.
+    const previousMethods = input.methods ? (await authSettingsService.getConfig()).methods : null;
     if (input.smtp) {
       await authMailService.saveConfig(input.smtp);
       if (input.smtp.testRecipient)
@@ -443,7 +445,10 @@ export async function updateOpfieldSettings(
     } else if (input.oidcProviderAction === 'cancel_opfield_account') {
       await container.resolve(CloudLinkService).cancelSsoClientRequest({ userId: actor.user.id });
     }
-    if (input.methods && (input.methods.password === true || input.methods.emailOtp === true)) {
+    // Turning password or email-code sign-in on needs SMTP. Password sign-in that is on already stays saveable without
+    // it: setup offers a password with an authenticator app without SMTP (the admin recovery command replaces a reset email).
+    const passwordAlreadyOn = input.methods?.password === true && previousMethods?.password === true;
+    if (input.methods && ((input.methods.password === true && !passwordAlreadyOn) || input.methods.emailOtp === true)) {
       const smtp = await authMailService.getPublicConfig();
       if (!smtp.verifiedAt) {
         throw new AppError(

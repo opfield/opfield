@@ -33,6 +33,9 @@ const FALLBACK_AUDIT_SKIP_ROUTES: Array<{ method: string; pattern: RegExp }> = [
   { method: 'POST', pattern: /^\/api\/finalize-setup\/mfa-reminder\/hide$/ },
   { method: 'PUT', pattern: /^\/api\/finalize-setup\/steps\/[^/]+$/ },
   { method: 'POST', pattern: /^\/api\/setup\/(?:unlock|wizard\/session)$/ },
+  // Only short-lived state: the connect itself (cloud.connect) and the confirmed authenticator app are audited.
+  { method: 'POST', pattern: /^\/api\/setup\/wizard\/cloud-connect\/start$/ },
+  { method: 'POST', pattern: /^\/api\/setup\/wizard\/administrator\/totp\/setup$/ },
   { method: 'POST', pattern: /^\/api\/logging\/ingest$/ },
   { method: 'POST', pattern: /^\/api\/logging\/ingest\/batch$/ },
   { method: 'POST', pattern: /^\/api\/logging\/environments\/[^/]+\/search$/ },
@@ -261,6 +264,24 @@ const NAMED_ROUTE_AUDIT_TARGETS: Array<{
     method: 'POST',
     pattern: /^\/api\/setup\/wizard\/apply$/,
     action: 'setup.wizard.apply',
+    resourceType: 'system-setup',
+  },
+  {
+    method: 'POST',
+    pattern: /^\/api\/setup\/wizard\/administrator$/,
+    action: 'setup.administrator.create',
+    resourceType: 'system-setup',
+  },
+  {
+    method: 'POST',
+    pattern: /^\/api\/setup\/wizard\/administrator\/totp\/confirm$/,
+    action: 'setup.administrator.totp',
+    resourceType: 'system-setup',
+  },
+  {
+    method: 'POST',
+    pattern: /^\/api\/setup\/wizard\/cloud-connect\/client$/,
+    action: 'setup.cloud_connect.client',
     resourceType: 'system-setup',
   },
   {

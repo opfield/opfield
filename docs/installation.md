@@ -74,15 +74,24 @@ Open Opfield and enter the code. The wizard then configures:
 
 1. An explicit canonical public URL. Opfield never uses the browser origin as its default.
 2. Opfield network endpoints: the public gRPC target embedded in node enrollment commands and an optional local gRPC IP for private-network nodes. Detected addresses are suggestions and can be replaced.
-3. One or more sign-in methods: OIDC, password, and email one-time code.
-4. OIDC when selected, and verified SMTP when an email-based method is selected.
-5. Exactly one first administrator and exactly one primary sign-in method for that account.
-6. Structured logging as disabled, Opfield-managed local ClickHouse, or external ClickHouse.
-7. Optional AI Workspace setup. AI Workspace is the recommended intent-driven interface, while the Operations Console remains complete without it. Opfield Inference configuration is nested inside this step.
+3. How people sign in, one of three options (details below): **Opfield account**, **Your OIDC provider**, or **Password + authenticator app**.
+4. The first administrator: the person who connects the Opfield account, or the name and email you enter for your OIDC provider or for the password.
+5. Structured logging as disabled, Opfield-managed local ClickHouse, or external ClickHouse.
+6. Optional AI Workspace setup. AI Workspace is the recommended intent-driven interface, while the Operations Console remains complete without it. Opfield Inference configuration is nested inside this step.
 
 When the UI/API is behind Cloudflare or another web proxy, choose a direct host or IP as the public gRPC target. Generated enrollment commands contain the selected endpoint, so normal node setup does not require editing `--opfield` by hand.
 
 Finish the wizard before using Opfield. The setup session and one-time code are invalidated at completion.
+
+### Sign-in options
+
+The wizard offers three ways to sign in. Opfield account and your OIDC provider are exclusive: Opfield has one OIDC provider and the Opfield account takes it. A password without a second factor is not offered in setup. Existing installations keep their sign-in as it is; everything here can be changed later in **Settings > Authentication**.
+
+- **Opfield account.** **Connect with Opfield account** sends the browser to the account portal (`<portal>/connect-installation`, with a one-time `state` and a PKCE S256 code challenge). Sign in there and confirm the installation; the portal sends the browser back to `/setup/cloud-callback` on the address the wizard is open on (a LAN IP works too; sign-in later happens on the public URL) with a connect code. Opfield enrols with that code and the PKCE verifier only it holds (the verifier is bound to the setup session and expires after 10 minutes), then asks the account for the Opfield account sign-in client, exactly as **Settings > Authentication > Use Opfield account for sign-in** does. The step waits until the client arrives (a few seconds) and offers **Retry** after a minute. **Enter a code instead** takes a code made in account.opfield.dev → Installations → Add. The person who created or confirmed the code becomes the first administrator, so the wizard asks for no administrator details: their first Opfield account sign-in with that verified email binds the account as owner and system administrator. This option needs outbound HTTPS from the Opfield host to the account portal; when it cannot reach it, the wizard says so and the other options stay available. Choosing another option after connecting asks for confirmation, then disconnects the installation from the account and drops its sign-in client and administrator.
+- **Your OIDC provider.** Enter the issuer, client ID and secret, redirect URI (`<public URL>/auth/callback`) and scopes, then the administrator's name and email. Their first sign-in through the provider with that email claims the account.
+- **Password + authenticator app.** The administrator step creates the administrator with their password at once; the next step enrols an authenticator app (QR code and setup key, confirmed with a 6-digit code) and shows the recovery codes once, to copy or download. Setup cannot be applied before that, and the administrators' group (`system-admin`) requires a second factor from then on. SMTP is not needed for this option; turn on **Also allow an email code** to offer a one-time email code next to the password, which adds the SMTP step. Passkeys can be added after setup in Profile.
+
+An administrator locked out of their sign-in (a lost authenticator app, a broken OIDC provider, the Opfield account no longer reachable) signs in with the [admin recovery command](operations.md#admin-recovery-sign-in) on the host.
 
 ## Managed Cloud Installations
 

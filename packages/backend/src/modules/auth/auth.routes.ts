@@ -19,6 +19,7 @@ import { GeneralSettingsService } from '@/modules/settings/general-settings.serv
 import { SessionService } from '@/services/session.service.js';
 import type { AppEnv, AuthMethod } from '@/types.js';
 import type { SignInClient } from './account-sign-in-throttle.js';
+import { ADMIN_RECOVERY_LANDING, ADMIN_RECOVERY_LINK_TTL_SECONDS, isActiveSystemAdmin } from './admin-recovery-link.js';
 import {
   beginCurrentUserTotpSetupRoute,
   confirmCurrentUserTotpSetupRoute,
@@ -97,8 +98,14 @@ authRoutes.use('/password/*', standardOnlyPublicAuthRoute);
 authRoutes.use('/email/*', standardOnlyPublicAuthRoute);
 authRoutes.use('/email-otp/*', standardOnlyPublicAuthRoute);
 authRoutes.use('/passkeys/*', standardOnlyPublicAuthRoute);
+authRoutes.use('/recovery/*', standardOnlyPublicAuthRoute);
 
-async function setLocalSession(c: any, user: import('@/types.js').User, authMethod: AuthMethod, mfaSatisfied = false) {
+async function setLocalSession(
+  c: any,
+  user: import('@/types.js').User,
+  authMethod: AuthMethod,
+  mfaSatisfied = false
+): Promise<string> {
   setAuditSubjectUser(user.id);
   const sessionService = container.resolve(SessionService);
   const { sessionId } = await sessionService.createSession(user, {
@@ -112,6 +119,7 @@ async function setLocalSession(c: any, user: import('@/types.js').User, authMeth
     withPlainLoopbackCookie: true,
   });
   await issueKnownDeviceCookie(c, user.id);
+  return sessionId;
 }
 
 /** Who a sign-in check comes from, for the per-account throttle (see AccountSignInThrottle). */
@@ -586,6 +594,35 @@ authRoutes.post('/password/reset/complete', async (c) => {
   const input = PasswordCompleteSchema.parse(await c.req.json());
   await container.resolve(LocalAuthService).completePasswordLink(input.token, input.password);
   return c.json({ ok: true });
+});
+
+// Recovery sign-in: a one-time link from the admin recovery command (cli/admin-recovery-link, run on the host) signs a
+// system administrator in without their usual provider or second factor, so they can fix their sign-in in Profile >
+// Security (second-factor changes need no step-up for the link's lifetime).
+authRoutes.post('/recovery/sign-in', async (c) => {
+  const { token } = PasswordResetTokenSchema.parse(await c.req.json());
+  const invalid = () =>
+    new AppError(
+      400,
+      'INVALID_RECOVERY_LINK',
+      'This recovery link is invalid, expired or used already. Run the admin recovery command again for a new link.'
+    );
+  const userId = await container.resolve(LocalAuthService).consumeAdminRecoveryToken(token);
+  if (!userId) throw invalid();
+  const db = container.resolve<DrizzleClient>(TOKENS.DrizzleClient);
+  const user = (await isActiveSystemAdmin(db, userId))
+    ? await container.resolve(AuthService).getUserById(userId)
+    : null;
+  if (!user || user.isBlocked) throw invalid();
+  const sessionId = await setLocalSession(c, user, user.authMethod ?? 'oidc', true);
+  await container.resolve(MfaService).grantStepUp(user.id, sessionId, ADMIN_RECOVERY_LINK_TTL_SECONDS);
+  await container.resolve(AuditService).log({
+    userId: user.id,
+    action: 'auth.recovery_sign_in',
+    resourceType: 'session',
+    details: { method: 'admin_recovery_link', accountAuthMethod: user.authMethod ?? null },
+  });
+  return c.json({ ok: true, redirectTo: ADMIN_RECOVERY_LANDING });
 });
 
 // CSRF token for cookie-authenticated browser mutations

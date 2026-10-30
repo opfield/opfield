@@ -40,10 +40,8 @@ After the stack becomes healthy, the installer prints the Opfield URL, System CA
 
 The wizard requires:
 1. An explicit canonical public URL.
-2. One or more sign-in methods: OIDC, password, and/or email one-time code.
-3. OIDC settings when selected, and verified SMTP for an email-based method.
-4. Exactly one first administrator and one primary sign-in method for that account.
-5. Structured logging mode: disabled, Opfield-managed local ClickHouse, or external ClickHouse.
+2. One sign-in option: Opfield account (Connect with Opfield account at the account portal, or a CLD code from account.opfield.dev > Installations > Add; the person who connects it becomes the first administrator and the installation needs outbound HTTPS to the portal), your own OIDC provider (provider settings plus the administrator's name and email), or a password with an authenticator app (the administrator is created with the password and enrols the app before setup can finish; the system-admin group then requires a second factor; an email code may be added next to it, which needs verified SMTP). A password without a second factor is not offered in setup.
+3. Structured logging mode: disabled, Opfield-managed local ClickHouse, or external ClickHouse.
 
 ## HTTPS And Reverse Proxy
 Native HTTP and HTTPS both listen on port 3000. Native HTTPS uses an Opfield System CA leaf certificate. A reverse proxy may connect over either protocol; when it verifies the HTTPS upstream, configure it to trust the Opfield System CA. Public certificates, DNS, Cloudflare, and ACME are configured after setup, not by the installer or wizard.
@@ -54,10 +52,13 @@ Never ask a user to paste a setup code, password, API token, private key, or SMT
   authentication: `# Authentication And User Access
 
 ## Sign-In Methods
-Opfield can enable OIDC, password, and email one-time-code sign-in independently. Email-based sign-in requires verified SMTP. Passkeys can be added by an already signed-in user and are not a first-run primary method.
+Opfield can enable OIDC, password, and email one-time-code sign-in independently. Email-code sign-in requires verified SMTP; setup offers a password only with an authenticator app. Passkeys can be added by an already signed-in user and are not a first-run primary method.
 
 ## First Administrator
-The browser setup wizard creates exactly one explicit first administrator in the built-in system-admin group. Opfield does not promote an arbitrary first OIDC user. The setup code is one-time and expires after 24 hours; it must not be shared or stored in chat.
+The browser setup wizard creates exactly one explicit first administrator in the built-in system-admin group. Opfield does not promote an arbitrary first OIDC user; with the Opfield account option it is the portal user who connected the installation, bound on their first Opfield account sign-in with that email. The setup code is one-time and expires after 24 hours; it must not be shared or stored in chat.
+
+## Admin Recovery
+A system administrator locked out of their sign-in runs \`docker compose exec app node dist/cli/admin-recovery-link.js [--email <admin email>]\` on the Opfield host (default: the owner). It prints one JSON line with a one-time link (30 minutes, single use) that signs them in without their provider or second factor and opens Profile > Account security; the sign-in is audited as auth.recovery_sign_in. Never ask for the link in chat.
 
 ## OIDC
 Configure issuer URL, client ID, client secret, requested scopes, optional automatic user creation, default group, and optional verified-email enforcement in Opfield settings. OIDC users are bound to their provider subject after the first login. When verified-email enforcement is enabled, Opfield requires the provider's verified-email assertion for future auto-provisioning and matching flows. The OIDC provider panel can also remove the provider (OIDC sign-in turns off) and, on an installation connected to Opfield Cloud (managed or self-hosted), set up the "Opfield account" provider with **Use Opfield account**: at once when the cloud already gave a client, otherwise after the Opfield account answers the request (the panel shows Waiting for your Opfield account and a Cancel request button). Managed installations follow the same sign-in rules as self-hosted ones; any change after which no administrator could sign in is refused.

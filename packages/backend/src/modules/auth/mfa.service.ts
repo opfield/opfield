@@ -317,9 +317,9 @@ export class MfaService {
    * second factor. Second-factor changes accept the proof for a short window
    * so a reset-and-reconfigure or passkey ceremony needs only one prompt.
    */
-  async grantStepUp(userId: string, sessionId: string): Promise<void> {
+  async grantStepUp(userId: string, sessionId: string, ttlSeconds: number = STEP_UP_TTL_SECONDS): Promise<void> {
     await this.cacheService.delete(stepUpFailuresKey(userId));
-    await this.cacheService.set<PendingStepUp>(stepUpKey(sessionId), { userId }, STEP_UP_TTL_SECONDS);
+    await this.cacheService.set<PendingStepUp>(stepUpKey(sessionId), { userId }, ttlSeconds);
   }
 
   /** Verify a TOTP or recovery code as a step-up proof for the current session. */

@@ -711,7 +711,12 @@ describe('admin Opfield settings route permissions', () => {
   it('returns a human-readable conflict when OIDC is enabled before it is configured', async () => {
     registerSession(['settings:opfield:edit', 'admin:system']);
     const updateConfig = vi.fn();
-    container.registerInstance(AuthSettingsService, { updateConfig } as unknown as AuthSettingsService);
+    container.registerInstance(AuthSettingsService, {
+      getConfig: vi
+        .fn()
+        .mockResolvedValue({ methods: { oidc: false, password: false, emailOtp: false, passkeyLogin: false } }),
+      updateConfig,
+    } as unknown as AuthSettingsService);
     container.registerInstance(McpSettingsService, {} as McpSettingsService);
     container.registerInstance(GeneralSettingsService, {} as GeneralSettingsService);
     container.registerInstance(NetworkSettingsService, {} as NetworkSettingsService);
@@ -736,7 +741,12 @@ describe('admin Opfield settings route permissions', () => {
   it('returns a human-readable conflict when email sign-in is enabled before SMTP is verified', async () => {
     registerSession(['settings:opfield:edit', 'admin:system']);
     const updateConfig = vi.fn();
-    container.registerInstance(AuthSettingsService, { updateConfig } as unknown as AuthSettingsService);
+    container.registerInstance(AuthSettingsService, {
+      getConfig: vi
+        .fn()
+        .mockResolvedValue({ methods: { oidc: false, password: false, emailOtp: false, passkeyLogin: false } }),
+      updateConfig,
+    } as unknown as AuthSettingsService);
     container.registerInstance(McpSettingsService, {} as McpSettingsService);
     container.registerInstance(GeneralSettingsService, {} as GeneralSettingsService);
     container.registerInstance(NetworkSettingsService, {} as NetworkSettingsService);

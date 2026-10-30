@@ -1773,6 +1773,7 @@ if [[ -n "$RESTORE_FILE" ]]; then
       warn "The owner password link could not be issued. Check ${LOG_FILE} for details."
     fi
     guide "${GRAY}New link:${NC}   cd ${INSTALL_DIR} && docker compose exec app node dist/cli/owner-password-link.js"
+    guide "${GRAY}Locked out:${NC} cd ${INSTALL_DIR} && docker compose exec app node dist/cli/admin-recovery-link.js [--email <admin email>]"
     guide "${GRAY}Other accounts that signed in with the Opfield account need a new sign-in method.${NC}"
     guide "${GRAY}The licence stayed with the cloud installation; activate your own key in Settings > License.${NC}"
   else
@@ -1796,6 +1797,7 @@ elif [[ "$FRESH" == 1 ]]; then
   guide "${GRAY}Reset:${NC}      cd ${INSTALL_DIR} && docker compose exec app node dist/cli/reset-setup.js"
   guide_blank
   guide "${GRAY}The setup code is shown once. Finish configuration in the browser.${NC}"
+  guide "${GRAY}An administrator locked out later: docker compose exec app node dist/cli/admin-recovery-link.js${NC}"
   rm -f "$INSTALL_PENDING_MARKER"
 else
   guide "${GRAY}Existing installation updated; persisted Opfield settings were preserved.${NC}"

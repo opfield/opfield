@@ -770,6 +770,7 @@ export function createApp(): OpfieldAppRuntime {
     app.use('/auth/demo/verify', authLoginRateLimitMiddleware);
   }
   app.use('/auth/password/reset/complete', authLoginRateLimitMiddleware);
+  app.use('/auth/recovery/sign-in', authLoginRateLimitMiddleware);
   app.use('/auth/mfa/*', authLoginRateLimitMiddleware);
   app.use('/auth/passkeys/*', authLoginRateLimitMiddleware);
   app.use('/auth/callback', authCallbackRateLimitMiddleware);

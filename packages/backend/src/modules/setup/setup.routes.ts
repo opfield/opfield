@@ -1,7 +1,8 @@
 import { OpenAPIHono, z } from '@hono/zod-openapi';
 import type { Context, MiddlewareHandler } from 'hono';
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
-import { container } from '@/container.js';
+import { container, TOKENS } from '@/container.js';
+import type { DrizzleClient } from '@/db/client.js';
 import { createChildLogger } from '@/lib/logger.js';
 import { openApiValidationHook } from '@/lib/openapi.js';
 import { getClientIpForContext } from '@/lib/request-ip.js';
@@ -11,6 +12,7 @@ import { AuthSettingsService } from '@/modules/auth/auth.settings.service.js';
 import { AuthMailService } from '@/modules/auth/auth-mail.service.js';
 import { OidcSettingsService } from '@/modules/auth/oidc-settings.service.js';
 import { clearSessionCookies, setSessionCookie } from '@/modules/auth/session-cookie.js';
+import { CloudLinkService } from '@/modules/cloud-link/cloud-link.service.js';
 import { claimRestoredOwnerLink } from '@/modules/configuration-transfer/owner-password-link.js';
 import { SetupRestoreService } from '@/modules/configuration-transfer/setup-restore.service.js';
 import { toLicenseAppError } from '@/modules/license/license.errors.js';
@@ -28,6 +30,7 @@ import { SessionService } from '@/services/session.service.js';
 import { WebTransportSettingsService } from '@/services/web-transport-settings.service.js';
 import type { AppEnv } from '@/types.js';
 import { SetupAccessService, SetupAlreadyInProgressError, SetupApplyInProgressError } from './setup-access.service.js';
+import { SetupCloudConnect } from './setup-cloud-connect.js';
 import { getSetupNetworkSuggestions } from './setup-network-suggestions.js';
 import { SetupTokenPolicyService } from './setup-token-policy.js';
 import { SetupWizardService } from './setup-wizard.service.js';
@@ -141,6 +144,7 @@ export const requireSetupSession: MiddlewareHandler<AppEnv> = async (c, next) =>
 };
 
 const SetupAuthSchema = z.object({
+  option: z.enum(['opfield_account', 'oidc', 'password_totp']),
   methods: z.object({ oidc: z.boolean(), password: z.boolean(), emailOtp: z.boolean() }),
   oidc: z
     .object({
@@ -177,7 +181,7 @@ const SetupAuthSchema = z.object({
 const SetupAdminSchema = z.object({
   name: z.string().trim().min(1).max(255),
   email: z.string().email().max(255),
-  authMethod: z.enum(['oidc', 'password', 'email_otp']),
+  authMethod: z.enum(['oidc', 'password']),
   password: z.string().min(1).max(72).optional(),
 });
 
@@ -234,17 +238,20 @@ setupRoutes.use('/wizard/*', async (c, next) => {
 });
 
 setupRoutes.get('/wizard/config', async (c) => {
-  const [general, auth, smtp, oidc, logging, transport, administratorCreated, phase, license] = await Promise.all([
-    container.resolve(GeneralSettingsService).getConfig(),
-    container.resolve(AuthSettingsService).getConfig(),
-    container.resolve(AuthMailService).getPublicConfig(),
-    container.resolve(OidcSettingsService).getPublicConfig(),
-    container.resolve(LoggingSettingsService).getPublicConfig(),
-    container.resolve(WebTransportSettingsService).getConfig(),
-    container.resolve(SetupTokenPolicyService).isOpfieldConfigured(),
-    container.resolve(SetupWizardService).getPhase(),
-    container.resolve(LicenseService).getOnboardingState(),
-  ]);
+  const [general, auth, smtp, oidc, logging, transport, administratorCreated, phase, license, administrator, cloud] =
+    await Promise.all([
+      container.resolve(GeneralSettingsService).getConfig(),
+      container.resolve(AuthSettingsService).getConfig(),
+      container.resolve(AuthMailService).getPublicConfig(),
+      container.resolve(OidcSettingsService).getPublicConfig(),
+      container.resolve(LoggingSettingsService).getPublicConfig(),
+      container.resolve(WebTransportSettingsService).getConfig(),
+      container.resolve(SetupTokenPolicyService).isOpfieldConfigured(),
+      container.resolve(SetupWizardService).getPhase(),
+      container.resolve(LicenseService).getOnboardingState(),
+      container.resolve(SetupWizardService).administratorView(),
+      setupCloudConnect().view(),
+    ]);
   return c.json({
     data: {
       general,
@@ -254,10 +261,114 @@ setupRoutes.get('/wizard/config', async (c) => {
       logging,
       transport,
       administratorCreated,
+      administrator,
+      cloud,
       phase,
       license,
       networkSuggestions: getSetupNetworkSuggestions(),
     },
+  });
+});
+
+// ── Opfield account ─────────────────────────────────────────────────
+// The browser connects the installation at the account portal (state + PKCE) and comes back to /setup/cloud-callback;
+// the installation enrols with the code and asks the account for its sign-in client (see SetupCloudConnect).
+
+function setupCloudConnect(): SetupCloudConnect {
+  return new SetupCloudConnect({
+    db: container.resolve<DrizzleClient>(TOKENS.DrizzleClient),
+    cache: container.resolve(CacheService),
+    cloud: container.resolve(CloudLinkService),
+    oidcSettings: container.resolve(OidcSettingsService),
+    authSettings: container.resolve(AuthSettingsService),
+    installationName: () => container.resolve(LicenseService).getInstallationName(),
+  });
+}
+
+const SetupPublicUrlSchema = z.object({ publicUrl: z.string().trim().min(1).max(2048) });
+const SetupCloudStartSchema = SetupPublicUrlSchema.extend({
+  /** The origin the browser is on (window.location.origin): where the portal sends it back. */
+  returnOrigin: z.string().trim().min(1).max(2048).optional(),
+});
+const SetupCloudFinishSchema = z.object({
+  code: z.string().trim().min(1).max(64),
+  state: z.string().trim().min(16).max(256).optional(),
+  publicUrl: z.string().trim().min(1).max(2048).optional(),
+});
+
+setupRoutes.post('/wizard/cloud-connect/start', async (c) => {
+  const { publicUrl, returnOrigin } = SetupCloudStartSchema.parse(await c.req.json());
+  return c.json({
+    data: await setupCloudConnect().start(getCookie(c, SETUP_SESSION_COOKIE)!, publicUrl, returnOrigin),
+  });
+});
+
+setupRoutes.post('/wizard/cloud-connect/finish', async (c) => {
+  const input = SetupCloudFinishSchema.parse(await c.req.json());
+  return c.json({ data: await setupCloudConnect().finish(getCookie(c, SETUP_SESSION_COOKIE)!, input) });
+});
+
+setupRoutes.get('/wizard/cloud-connect', async (c) => c.json({ data: await setupCloudConnect().view() }));
+
+// Another sign-in option after connecting: the cloud link goes (with the Opfield account provider it gave).
+setupRoutes.post('/wizard/cloud-connect/disconnect', async (c) => {
+  if (await container.resolve(SetupTokenPolicyService).isOpfieldConfigured()) {
+    throw new AppError(
+      409,
+      'SETUP_ADMINISTRATOR_EXISTS',
+      'The administrator was already created; disconnect the Opfield account in Settings after setup'
+    );
+  }
+  return c.json({ data: await setupCloudConnect().disconnect() });
+});
+
+setupRoutes.post('/wizard/cloud-connect/client', async (c) => {
+  const { publicUrl } = SetupPublicUrlSchema.parse(await c.req.json());
+  return c.json({ data: await setupCloudConnect().requestClient(publicUrl) });
+});
+
+// ── Password with an authenticator app ──────────────────────────────
+// The administrator is created with their password before the wizard goes on, then enrols the authenticator app.
+
+const SetupPasswordAdministratorSchema = z.object({
+  auth: SetupAuthSchema,
+  administrator: z.object({
+    name: z.string().trim().min(1).max(255),
+    email: z.string().email().max(255),
+    password: z.string().min(1).max(72),
+  }),
+});
+const SetupTotpConfirmSchema = z.object({
+  code: z
+    .string()
+    .trim()
+    .regex(/^\d{6}$/),
+});
+
+setupRoutes.post('/wizard/administrator', async (c) => {
+  const input = SetupPasswordAdministratorSchema.parse(await c.req.json());
+  const access = container.resolve(SetupAccessService);
+  try {
+    const data = await access.withApplyLock(getCookie(c, SETUP_SESSION_COOKIE), () =>
+      container.resolve(SetupWizardService).createPasswordAdministrator(input.auth, input.administrator)
+    );
+    return c.json({ data });
+  } catch (error) {
+    if (error instanceof SetupApplyInProgressError) {
+      throw new AppError(409, 'SETUP_APPLY_IN_PROGRESS', 'Opfield setup is already being applied');
+    }
+    throw error;
+  }
+});
+
+setupRoutes.post('/wizard/administrator/totp/setup', async (c) =>
+  c.json({ data: await container.resolve(SetupWizardService).beginAdministratorTotp() })
+);
+
+setupRoutes.post('/wizard/administrator/totp/confirm', async (c) => {
+  const { code } = SetupTotpConfirmSchema.parse(await c.req.json());
+  return c.json({
+    data: { recoveryCodes: await container.resolve(SetupWizardService).confirmAdministratorTotp(code) },
   });
 });
 

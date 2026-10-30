@@ -1,9 +1,10 @@
+import { createHash } from 'node:crypto';
 import { describe, expect, it, vi } from 'vitest';
 import { AppError } from '@/middleware/error-handler.js';
 import { redactArgsForAudit } from '@/modules/ai/ai.service.tool-helpers.js';
 import { AI_TOOLS } from '@/modules/ai/ai.tools.js';
 import { classifyAIToolForApproval } from '@/modules/ai/ai-approval-policy.js';
-import { CloudLinkService, normalizeCloudCode } from './cloud-link.service.js';
+import { CloudLinkService, cloudPkceChallenge, normalizeCloudCode } from './cloud-link.service.js';
 import type { CloudLinkAccess, CloudLinkProbe, CloudRequest } from './cloud-link.types.js';
 import { CloudLinkAgent, cloudAgentSocketUrl, cloudBackoffDelay, cloudRequestAudit } from './cloud-link-agent.js';
 import { answerCloudRequest, parseCloudRequest } from './cloud-link-requests.js';
@@ -152,6 +153,68 @@ describe('cloud link', () => {
       details: expect.objectContaining({ success: false, errorCode: 'CLOUD_CODE_INVALID' }),
     });
     expect(JSON.stringify(log.mock.calls)).not.toContain('not-a-code');
+  });
+
+  it('enrols with the PKCE verifier and reads who connected the installation', async () => {
+    const stored = new Map<string, unknown>();
+    const chain = (rows: () => unknown[]) => {
+      const result = Promise.resolve().then(rows);
+      return Object.assign(result, { limit: async () => rows() });
+    };
+    const db = {
+      select: () => ({
+        from: () => ({
+          where: () => chain(() => [...stored].map(([key, value]) => ({ key, value }))),
+        }),
+      }),
+      insert: () => ({
+        values: (row: { key: string; value: unknown }) => ({
+          onConflictDoUpdate: async () => {
+            stored.set(row.key, row.value);
+          },
+        }),
+      }),
+      delete: () => ({ where: async () => undefined }),
+    };
+    const bodies: unknown[] = [];
+    const answer = (extra: Record<string, unknown>) =>
+      vi.fn(async (_url: string, init?: RequestInit) => {
+        bodies.push(JSON.parse(String(init?.body)));
+        return new Response(
+          JSON.stringify({
+            data: { agentId: 'agent-1234', secret: 's'.repeat(32), accountEmail: 'Team@Example.com', ...extra },
+          }),
+          { status: 200 }
+        );
+      });
+    const service = (fetcher: typeof fetch) =>
+      new CloudLinkService(
+        db as never,
+        { encryptString: (value: string) => ({ encrypted: value }) } as never,
+        { CLOUD_PORTAL_URL: 'https://account.example.test', APP_VERSION: 'v2.13.1' },
+        { getInstallationId: async () => 'installation', getInstallationName: () => 'gw' },
+        null,
+        fetcher
+      );
+
+    const withIssuer = service(answer({ issuerEmail: 'Ada@Example.com', issuerName: ' Ada ' }) as never);
+    await expect(
+      withIssuer.connectWithIssuer('CLD-7K3M-Q9TX', { userId: null }, { source: 'setup', codeVerifier: 'v'.repeat(64) })
+    ).resolves.toMatchObject({ issuer: { email: 'ada@example.com', name: 'Ada' } });
+    expect(bodies[0]).toMatchObject({
+      code: 'CLD-7K3M-Q9TX',
+      installationId: 'installation',
+      codeVerifier: 'v'.repeat(64),
+    });
+
+    // A portal without issuer fields: the account's email; a connect without a verifier sends none.
+    stored.clear();
+    const withoutIssuer = service(answer({}) as never);
+    await expect(withoutIssuer.connectWithIssuer('CLD-7K3M-Q9TX')).resolves.toMatchObject({
+      issuer: { email: 'team@example.com', name: null },
+    });
+    expect(bodies[1]).not.toHaveProperty('codeVerifier');
+    expect(cloudPkceChallenge('v'.repeat(64))).toBe(createHash('sha256').update('v'.repeat(64)).digest('base64url'));
   });
 
   it('answers the setup-link, node-token, update-status and update requests', async () => {

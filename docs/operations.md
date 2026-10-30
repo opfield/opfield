@@ -195,11 +195,24 @@ The shared OAuth App currently requests `repo`, `workflow`, `read:org`, and `rea
 
 ## Local authentication operations
 
-Email/password and email-OTP sign-in require a verified SMTP configuration in **Settings > Advanced**. Do not enable either method until a test message succeeds. With verified SMTP, an account invitation email with a sign-in link can be sent from the user dialog, or automatically for every created account (**Settings > Authentication > Identity provisioning**, off by default). Opfield encrypts SMTP credentials using `PKI_MASTER_KEY`; losing or rotating that key without re-entering the SMTP password prevents delivery.
+Email-OTP sign-in requires a verified SMTP configuration in **Settings > Advanced**, and so does turning password sign-in on in Settings. Do not enable either method until a test message succeeds. An installation set up with **Password + authenticator app** runs password sign-in without SMTP; its administrators recover with the admin recovery command instead of a reset email. With verified SMTP, an account invitation email with a sign-in link can be sent from the user dialog, or automatically for every created account (**Settings > Authentication > Identity provisioning**, off by default). Opfield encrypts SMTP credentials using `PKI_MASTER_KEY`; losing or rotating that key without re-entering the SMTP password prevents delivery.
 
 A managed installation sends sign-in emails through Opfield Cloud email without any SMTP setup: the Opfield account sends them from `<name>@mail.opfield.cloud` within the plan's monthly, daily and hourly limits, and email sign-in can be turned on right away. An email over a limit fails at once (no retries) and shows in the logs; an invitation or password link an administrator sends reports that failure instead of "sent". **Use my own SMTP** in the SMTP panel shows the SMTP form; saving it switches sign-in emails to your SMTP (while password or email-code sign-in is on, send a test first). Turning the switch off goes back to the cloud email.
 
 For local accounts, group MFA policy is enforced after the primary credential. TOTP recovery codes are one-use. If an account loses all MFA factors, a system administrator must reset MFA from the user administration screen; that action also revokes its browser sessions. Users and administrators can independently view and revoke browser sessions, but session cookies themselves are never exposed.
+
+### Admin recovery sign-in
+
+An administrator who cannot sign in (a lost authenticator app and recovery codes, a broken OIDC provider, an Opfield account the installation cannot reach) gets a one-time recovery link on the host:
+
+```bash
+cd /opt/opfield && docker compose exec app node dist/cli/admin-recovery-link.js
+cd /opt/opfield && docker compose exec app node dist/cli/admin-recovery-link.js --email admin@example.com
+```
+
+Without `--email` the link is for the owner (the first administrator); `--email` names another system administrator. The command prints one JSON line, `{"email":"…","url":"https://…/recovery-sign-in?token=…","expiresAt":"…"}`. The link works once and for 30 minutes; only the hash of its secret is stored. Opening it and choosing **Sign in** signs that administrator in without their usual provider or second factor and opens **Profile** at **Account security**, where they can replace the authenticator app, regenerate recovery codes or add a passkey without a step-up for 30 minutes. An OIDC administrator fixes the provider in **Settings > Authentication**. The sign-in is in the audit log as **Signed in with a recovery link** (`auth.recovery_sign_in`). Run the command again for a new link.
+
+`node dist/cli/owner-password-link.js`, which the installer runs after restoring an export of a managed cloud installation, still prints a 24-hour link that sets the owner's password.
 
 ## Update Signing Operations
 
