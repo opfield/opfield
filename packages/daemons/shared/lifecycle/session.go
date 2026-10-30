@@ -146,6 +146,7 @@ func (d *DaemonBase) buildRegistration() *pb.RegisterMessage {
 	regMsg.Capabilities = append(regMsg.Capabilities, launcher.Capabilities()...)
 	regMsg.Capabilities = uniqueCapabilities(regMsg.Capabilities)
 	regMsg.LauncherVersion = launcher.Version
+	regMsg.ProcessInstanceId = processInstanceID
 	return regMsg
 }
 

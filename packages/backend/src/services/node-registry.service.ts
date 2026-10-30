@@ -74,6 +74,8 @@ export interface ConnectedNode {
   lastTrafficStats: Record<string, unknown> | null;
   configVersionHash: string;
   capabilities: ReadonlySet<string>;
+  /** The daemon process this stream belongs to; absent for a daemon that predates reporting it. */
+  processInstanceId?: string;
   pendingCommands: Map<
     string,
     {
@@ -136,6 +138,8 @@ export class NodeRegistryService {
   private readonly awaitingLocalRelay = new Set<string>();
   /** Commands in flight on a stream that ended, kept while the node may reconnect (see COMMAND_RESULTS_RESENT_CAPABILITY). */
   private readonly carriedCommands = new Map<string, PendingCommands>();
+  /** The daemon process the carried commands of a node were sent to. */
+  private readonly carriedFrom = new Map<string, string>();
 
   constructor(
     private db: DrizzleClient,
@@ -365,7 +369,7 @@ export class NodeRegistryService {
     hostname: string,
     configVersionHash: string,
     commandStream: ServerDuplexStream<DaemonMessage, OpfieldCommand>,
-    options: { isCurrentRegistration?: () => boolean; capabilities?: string[] } = {}
+    options: { isCurrentRegistration?: () => boolean; capabilities?: string[]; processInstanceId?: string } = {}
   ): Promise<void> {
     const connectionId = randomUUID();
 
@@ -400,7 +404,7 @@ export class NodeRegistryService {
       closeStream(existing.logStream as any);
       closeStream(existing.commandStream as any);
     }
-    const pendingCommands = this.takeCarriedCommands(nodeId, options.capabilities ?? []);
+    const pendingCommands = this.takeCarriedCommands(nodeId, options.capabilities ?? [], options.processInstanceId);
 
     this.clearTrafficStatsState(nodeId);
 
@@ -419,6 +423,7 @@ export class NodeRegistryService {
       lastTrafficStats: null,
       configVersionHash,
       capabilities: new Set(options.capabilities ?? []),
+      ...(options.processInstanceId ? { processInstanceId: options.processInstanceId } : {}),
       pendingCommands,
     });
 
@@ -1095,6 +1100,8 @@ export class NodeRegistryService {
       return;
     }
     if (pending.size === 0) return;
+    if (node.processInstanceId) this.carriedFrom.set(nodeId, node.processInstanceId);
+    else this.carriedFrom.delete(nodeId);
     const carried = this.carriedCommands.get(nodeId);
     if (!carried) {
       this.carriedCommands.set(nodeId, pending);
@@ -1106,13 +1113,27 @@ export class NodeRegistryService {
 
   /**
    * The commands the node's next stream takes over: all that are still pending when the daemon resends the results of
-   * commands it ran across a reconnect; none otherwise (they fail as the stream ended).
+   * commands it ran across a reconnect; none otherwise (they fail as the stream ended). A daemon that restarted lost
+   * the commands sent to its earlier process with its memory: they fail at once instead of at their timeout.
    */
-  private takeCarriedCommands(nodeId: string, capabilities: readonly string[]): PendingCommands {
+  private takeCarriedCommands(
+    nodeId: string,
+    capabilities: readonly string[],
+    processInstanceId: string | undefined
+  ): PendingCommands {
     const carried = this.carriedCommands.get(nodeId);
+    const carriedFrom = this.carriedFrom.get(nodeId);
     this.carriedCommands.delete(nodeId);
+    this.carriedFrom.delete(nodeId);
     if (!carried) return new Map();
-    if (capabilities.includes(COMMAND_RESULTS_RESENT_CAPABILITY)) return carried;
+    const sameProcess = !carriedFrom || !processInstanceId || carriedFrom === processInstanceId;
+    if (capabilities.includes(COMMAND_RESULTS_RESENT_CAPABILITY) && sameProcess) return carried;
+    if (!sameProcess && carried.size > 0) {
+      logger.info('Node daemon restarted: the commands sent to its earlier process fail now', {
+        nodeId,
+        commands: carried.size,
+      });
+    }
     rejectPendingCommands(carried);
     return new Map();
   }
@@ -1121,6 +1142,7 @@ export class NodeRegistryService {
     const carried = this.carriedCommands.get(nodeId);
     if (!carried) return;
     this.carriedCommands.delete(nodeId);
+    this.carriedFrom.delete(nodeId);
     rejectPendingCommands(carried);
   }
 }

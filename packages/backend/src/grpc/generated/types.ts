@@ -120,6 +120,8 @@ export interface RegisterMessage {
   relayInstanceId: string;
   /** Empty for a launcher that predates reporting it. */
   launcherVersion?: string;
+  /** Random per daemon process start; empty for a daemon that predates reporting it. */
+  processInstanceId?: string;
 }
 
 export interface RelayRuntimeStatus {

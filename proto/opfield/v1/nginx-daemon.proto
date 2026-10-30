@@ -131,6 +131,11 @@ message RegisterMessage {
   // launcher that predates reporting it. Its features are capabilities
   // (launcher_listener_keep_v1, launcher_self_update_v1).
   string launcher_version = 18;
+  // Random per daemon process start. The results the daemon resends across a
+  // reconnect live in its memory: commands sent to an earlier process of the
+  // node never answer, and Opfield fails them at once instead of at their
+  // timeout. Empty for a daemon that predates reporting it.
+  string process_instance_id = 19;
 }
 
 message CommandResult {

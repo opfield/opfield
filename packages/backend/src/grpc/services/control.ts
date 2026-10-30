@@ -693,6 +693,7 @@ export function createControlHandlers(deps: GrpcServerDeps) {
                   isCurrentRegistration: () =>
                     pendingCommandRegistrations.get(claimedNodeId)?.token === registrationToken,
                   capabilities: msg.register.capabilities ?? [],
+                  processInstanceId: msg.register.processInstanceId || undefined,
                 }
               );
             } catch (err) {

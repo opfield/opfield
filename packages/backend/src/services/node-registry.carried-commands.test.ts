@@ -57,6 +57,27 @@ describe('commands in flight across a control reconnect', () => {
     await expect(result).rejects.toThrow('Node disconnected');
   });
 
+  it('resolve across a reconnect of the same daemon process', async () => {
+    const nodes = registry();
+    const first = stream();
+    await nodes.register(NODE, 'docker', 'app-1', 'hash', first, { ...resends, processInstanceId: 'p-1' });
+    const result = nodes.sendCommand(NODE, { commandId: 'cmd-5' } as never);
+    await nodes.deregister(NODE, first);
+    await nodes.register(NODE, 'docker', 'app-1', 'hash', stream(), { ...resends, processInstanceId: 'p-1' });
+    nodes.handleCommandResult(NODE, { commandId: 'cmd-5', success: true } as never);
+    await expect(result).resolves.toMatchObject({ success: true });
+  });
+
+  it('fail at once when the daemon came back as a new process, which lost them', async () => {
+    const nodes = registry();
+    const first = stream();
+    await nodes.register(NODE, 'docker', 'app-1', 'hash', first, { ...resends, processInstanceId: 'p-1' });
+    const result = nodes.sendCommand(NODE, { commandId: 'cmd-6' } as never);
+    await nodes.deregister(NODE, first);
+    await nodes.register(NODE, 'docker', 'app-1', 'hash', stream(), { ...resends, processInstanceId: 'p-2' });
+    await expect(result).rejects.toThrow('Node disconnected');
+  });
+
   it('fail when the node does not come back within its offline grace', async () => {
     const nodes = registry(20);
     const first = stream();

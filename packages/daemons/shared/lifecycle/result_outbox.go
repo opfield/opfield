@@ -1,6 +1,8 @@
 package lifecycle
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"sync"
 	"time"
 
@@ -12,6 +14,17 @@ import (
 // session (resultOutbox), so it keeps those commands pending across the
 // reconnect instead of failing them.
 const CommandResultsResentCapability = "command_results_resent_v1"
+
+// processInstanceID names this daemon process in its registrations: the outbox above lives only as long as it does.
+var processInstanceID = newProcessInstanceID()
+
+func newProcessInstanceID() string {
+	var b [16]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		return ""
+	}
+	return hex.EncodeToString(b[:])
+}
 
 const (
 	// outboxLimit bounds the results kept between sessions (the oldest go).

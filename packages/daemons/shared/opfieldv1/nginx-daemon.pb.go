@@ -890,8 +890,13 @@ type RegisterMessage struct {
 	// launcher that predates reporting it. Its features are capabilities
 	// (launcher_listener_keep_v1, launcher_self_update_v1).
 	LauncherVersion string `protobuf:"bytes,18,opt,name=launcher_version,json=launcherVersion,proto3" json:"launcher_version,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	// Random per daemon process start. The results the daemon resends across a
+	// reconnect live in its memory: commands sent to an earlier process of the
+	// node never answer, and Opfield fails them at once instead of at their
+	// timeout. Empty for a daemon that predates reporting it.
+	ProcessInstanceId string `protobuf:"bytes,19,opt,name=process_instance_id,json=processInstanceId,proto3" json:"process_instance_id,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *RegisterMessage) Reset() {
@@ -1039,6 +1044,13 @@ func (x *RegisterMessage) GetRelayInstanceId() string {
 func (x *RegisterMessage) GetLauncherVersion() string {
 	if x != nil {
 		return x.LauncherVersion
+	}
+	return ""
+}
+
+func (x *RegisterMessage) GetProcessInstanceId() string {
+	if x != nil {
+		return x.ProcessInstanceId
 	}
 	return ""
 }
@@ -16403,7 +16415,7 @@ const file_opfield_v1_nginx_daemon_proto_rawDesc = "" +
 	"\x06fields\x18\x05 \x03(\v2&.opfield.v1.DaemonLogEntry.FieldsEntryR\x06fields\x1a9\n" +
 	"\vFieldsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xbf\x05\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xef\x05\n" +
 	"\x0fRegisterMessage\x12\x17\n" +
 	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x12\x1a\n" +
 	"\bhostname\x18\x02 \x01(\tR\bhostname\x12#\n" +
@@ -16423,7 +16435,8 @@ const file_opfield_v1_nginx_daemon_proto_rawDesc = "" +
 	"\x15docker_runtime_status\x18\x0e \x01(\v2\x1f.opfield.v1.DockerRuntimeStatusR\x13dockerRuntimeStatus\x12(\n" +
 	"\x10host_identity_id\x18\x0f \x01(\tR\x0ehostIdentityId\x12*\n" +
 	"\x11relay_instance_id\x18\x10 \x01(\tR\x0frelayInstanceId\x12)\n" +
-	"\x10launcher_version\x18\x12 \x01(\tR\x0flauncherVersionJ\x04\b\x11\x10\x12\"\x8a\x01\n" +
+	"\x10launcher_version\x18\x12 \x01(\tR\x0flauncherVersion\x12.\n" +
+	"\x13process_instance_id\x18\x13 \x01(\tR\x11processInstanceIdJ\x04\b\x11\x10\x12\"\x8a\x01\n" +
 	"\rCommandResult\x12\x1d\n" +
 	"\n" +
 	"command_id\x18\x01 \x01(\tR\tcommandId\x12\x18\n" +
