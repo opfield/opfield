@@ -70,7 +70,6 @@ type composeOperationResult struct {
 
 type composeSidecar interface {
 	run(context.Context, composeRequest) error
-	cancelAll()
 }
 
 type composeExecutor struct {
@@ -273,15 +272,6 @@ func (e *composeExecutor) cancel(request composeRequest) error {
 	e.mu.Unlock()
 	<-done
 	return nil
-}
-
-func (e *composeExecutor) cancelAll() {
-	e.mu.Lock()
-	for _, operation := range e.active {
-		operation.cancel()
-	}
-	e.mu.Unlock()
-	e.sidecar.cancelAll()
 }
 
 func validateComposeCommand(cmd *pb.DockerComposeCommand) (composeRequest, error) {
@@ -664,8 +654,6 @@ func (s *dockerComposeSidecar) deleteVolumes(ctx context.Context, projectName st
 	}
 	return nil
 }
-
-func (s *dockerComposeSidecar) cancelAll() {}
 
 // composeSidecarEnvironment lists the project variables and secrets, then the
 // sidecar's own settings last: Docker keeps the last value of a repeated name,

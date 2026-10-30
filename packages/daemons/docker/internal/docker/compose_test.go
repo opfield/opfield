@@ -44,8 +44,6 @@ func (f *fakeComposeSidecar) run(ctx context.Context, _ composeRequest) error {
 	return nil
 }
 
-func (f *fakeComposeSidecar) cancelAll() {}
-
 func (f *fakeComposeSidecar) callCount() int {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -121,6 +119,24 @@ func TestComposeExecutorCancelTargetsMatchingOperation(t *testing.T) {
 	}
 	if _, err := executor.handle(validComposeCommand("cancel", "operation-1")); err == nil || !strings.Contains(err.Error(), "no active") {
 		t.Fatalf("cancel of a finished operation error = %v", err)
+	}
+}
+
+// After an update the daemon renews its control session while an Apply runs; the Apply finishes and its result is
+// delivered on the next session (O-2).
+func TestComposeOperationSurvivesTheEndOfItsSession(t *testing.T) {
+	sidecar := &fakeComposeSidecar{started: make(chan struct{}, 1), release: make(chan struct{})}
+	plugin := &DockerPlugin{composeExecutor: newTestComposeExecutor(sidecar)}
+	done := make(chan error, 1)
+	go func() {
+		_, err := plugin.composeExecutor.handle(validComposeCommand("apply", "operation-1"))
+		done <- err
+	}()
+	<-sidecar.started
+	plugin.OnSessionEnd()
+	close(sidecar.release)
+	if err := <-done; err != nil {
+		t.Fatalf("apply across the session end: %v", err)
 	}
 }
 

@@ -121,9 +121,8 @@ func (p *DockerPlugin) OnSessionEnd() {
 		delete(p.logStreamCancel, containerID)
 	}
 	p.logStreamMu.Unlock()
-	if p.composeExecutor != nil {
-		p.composeExecutor.cancelAll()
-	}
+	// A Compose operation keeps running across a reconnect: its result is delivered on the next session. Cancelling
+	// it here failed an Apply whenever the daemon renewed its session after an update, half applied.
 	p.buildEventMu.Lock()
 	p.buildEventWriter = nil
 	p.buildEventMu.Unlock()
