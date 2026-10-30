@@ -198,6 +198,9 @@ type egressHandoverPair struct {
 	forwarder *egressForwarder
 	stateDir  string
 	bundle    *pb.SyncRelayGrantsCommand
+	// beforeRelays, when set, runs in update after the next process restored its Secure Links and before it reaches
+	// the relays, so nothing it carries resumes yet.
+	beforeRelays func(next *DockerPlugin)
 }
 
 func newEgressHandoverPair(t *testing.T) *egressHandoverPair {
@@ -278,6 +281,9 @@ func (pair *egressHandoverPair) update(fromVersion string) {
 	if err := next.initProxySecureLinks(); err != nil {
 		t.Errorf("secure links of the next process: %v", err)
 	}
+	if pair.beforeRelays != nil {
+		pair.beforeRelays(next)
+	}
 	for id := range pair.relays {
 		pair.connect(next, id)
 	}
@@ -350,6 +356,22 @@ func TestLiveHandoverReportsLocalConnectionsItLost(t *testing.T) {
 		t.Fatalf("echoed %q", got)
 	}
 	pair.forwarder.dropAll.Store(true)
+	// The local end of stream reaches the next process before its stream resumes, however slow the machine: it sends
+	// the end on once it reads it, and it cannot resume before it reaches a relay.
+	pair.beforeRelays = func(next *DockerPlugin) {
+		waitFor(t, "the next process to read the local end of stream", func() bool {
+			sides := next.relayStreamsIfAny()
+			if sides == nil {
+				return false
+			}
+			for _, session := range sides.sources.Sessions() {
+				if session.FinQueued() {
+					return true
+				}
+			}
+			return false
+		})
+	}
 	pair.update(lifecycle.Version)
 	_ = app.SetReadDeadline(time.Now().Add(10 * time.Second))
 	if n, err := app.Read(make([]byte, 1)); err == nil {
