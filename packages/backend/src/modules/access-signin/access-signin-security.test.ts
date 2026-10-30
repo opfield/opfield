@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { container } from '@/container.js';
 import { errorHandler } from '@/middleware/error-handler.js';
 import type { AppEnv } from '@/types.js';
+import { AccessIdentityProviderService } from './access-identity-providers.service.js';
 import { accessSignInApiRoutes } from './access-signin.public-routes.js';
 import { MemorySessionStore, MemorySigningKeyStore, testCrypto } from './access-signin.test-support.js';
 import { type AccessListRow, domainServesHost } from './access-signin-directory.js';
@@ -184,11 +185,51 @@ describe('Opfield account sign-in on a route', () => {
 });
 
 describe('identity provider emails', () => {
-  it('uses an email only when the provider marks it verified', () => {
+  it('uses an email only when the provider marks it verified, for a provider whose email is not trusted', () => {
     expect(verifiedEmail({ email: 'Lena@ACME.dev', email_verified: true })).toBe('lena@acme.dev');
     expect(verifiedEmail({ email: 'lena@acme.dev', email_verified: false })).toBeUndefined();
     expect(verifiedEmail({ email: 'lena@acme.dev' })).toBeUndefined();
     expect(verifiedEmail({ email: 'lena@acme.dev', email_verified: 'true' })).toBeUndefined();
+  });
+
+  it('counts an email without an email_verified claim when the provider is trusted, never email_verified false', () => {
+    expect(verifiedEmail({ email: 'Lena@ACME.dev' }, true)).toBe('lena@acme.dev');
+    expect(verifiedEmail({ email: 'lena@acme.dev', email_verified: true }, true)).toBe('lena@acme.dev');
+    expect(verifiedEmail({ email: 'lena@acme.dev', email_verified: false }, true)).toBeUndefined();
+  });
+
+  it("trusts the provider's email by default when a provider is added, and keeps the stored choice on update", async () => {
+    const writes: Array<Record<string, unknown>> = [];
+    const row = (values: Record<string, unknown>) => ({ id: 'provider-1', kind: 'oidc', ...values });
+    const db = {
+      insert: () => ({
+        values: (values: Record<string, unknown>) => {
+          writes.push(values);
+          return { returning: async () => [row(values)] };
+        },
+      }),
+      select: () => ({ from: () => ({ where: () => ({ limit: async () => [row({ trustEmail: true })] }) }) }),
+      update: () => ({
+        set: (values: Record<string, unknown>) => {
+          writes.push(values);
+          return { where: () => ({ returning: async () => [row(values)] }) };
+        },
+      }),
+    };
+    const crypto = { encryptString: () => ({ encryptedKey: 'k', encryptedDek: 'd' }), decryptString: () => 's' };
+    const service = new AccessIdentityProviderService(db as never, crypto);
+
+    const created = await service.create(
+      { kind: 'oidc', name: 'Entra', issuer: 'https://login.example.com', clientId: 'c', clientSecret: 's' },
+      null
+    );
+    expect(writes[0]).toMatchObject({ trustEmail: true });
+    expect(created.trustEmail).toBe(true);
+
+    await service.update('provider-1', { name: 'Entra ID' }, null);
+    expect(writes[1]).not.toHaveProperty('trustEmail');
+    await service.update('provider-1', { trustEmail: false }, null);
+    expect(writes[2]).toMatchObject({ trustEmail: false });
   });
 });
 

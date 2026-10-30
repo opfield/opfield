@@ -87,6 +87,8 @@ export interface AccessIdentityProvider {
   clientId: string;
   /** Claim the SSO group rules read; null: no groups. */
   groupsClaim: string | null;
+  /** A missing email_verified claim counts as verified; email_verified false never does. */
+  trustEmail: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -99,6 +101,7 @@ export interface AccessIdentityProviderRequest {
   /** Write-only: blank keeps the stored secret. */
   clientSecret?: string;
   groupsClaim?: string | null;
+  trustEmail?: boolean;
 }
 
 export interface AccessServiceToken {

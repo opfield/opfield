@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm';
 import {
   type AnyPgColumn,
+  boolean,
   index,
   integer,
   jsonb,
@@ -101,6 +102,8 @@ export const accessIdentityProviders = pgTable('access_identity_providers', {
   scopes: text('scopes').notNull().default('openid email profile'),
   // Claim the sso_group rules read; null: no groups.
   groupsClaim: varchar('groups_claim', { length: 128 }),
+  // Trust the provider's email address: a missing email_verified claim counts as verified; email_verified false never.
+  trustEmail: boolean('trust_email').notNull().default(true),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });

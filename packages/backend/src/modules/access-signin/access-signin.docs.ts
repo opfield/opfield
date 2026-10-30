@@ -54,7 +54,7 @@ export const createAccessIdentityProviderRoute = appRoute({
   tags: TAG,
   summary: 'Add an identity provider',
   description:
-    'The response carries redirectUri, the pattern of the URIs to register at the provider: https://<route host>/_opfield/access/provider-callback for every route whose access list offers it.',
+    'The response carries redirectUri, the pattern of the URIs to register at the provider: https://<route host>/_opfield/access/provider-callback for every route whose access list offers it. trustEmail (default true): an email the provider sends without an email_verified claim counts as verified for email rules; email_verified false never does.',
   request: jsonBody(CreateAccessIdentityProviderSchema),
   responses: createdJson(UnknownDataResponseSchema),
 });
@@ -64,7 +64,7 @@ export const updateAccessIdentityProviderRoute = appRoute({
   path: '/{id}',
   tags: TAG,
   summary: 'Update an identity provider',
-  description: 'clientSecret omitted keeps the stored secret.',
+  description: 'clientSecret omitted keeps the stored secret; trustEmail omitted keeps the stored choice.',
   request: { params: IdParamSchema, ...jsonBody(UpdateAccessIdentityProviderSchema) },
   responses: okJson(UnknownDataResponseSchema),
 });

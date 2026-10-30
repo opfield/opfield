@@ -1989,6 +1989,13 @@
       "when": 1794850258000,
       "tag": "0283_docker_webhook_token_encrypted",
       "breakpoints": true
+    },
+    {
+      "idx": 284,
+      "version": "7",
+      "when": 1794850259000,
+      "tag": "0284_access_identity_provider_trust_email",
+      "breakpoints": true
     }
   ]
 }

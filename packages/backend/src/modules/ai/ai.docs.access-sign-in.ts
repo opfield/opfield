@@ -10,8 +10,8 @@ Access lists with sign-in methods sign visitors of a protected route or Pages pr
 \`opfield\` (an account of this Opfield; the visitor confirms through the console session and returns to the route), \`password\` (the list's users on the sign-in page), \`basic\` (HTTP basic authentication on the host itself), \`shared\` (one password), \`idp:<providerId>\`.
 
 ## Identity providers (admin:system; reads also acl:view)
-- \`identity_providers.list|get|create|update|delete\` (/api/access-identity-providers): \`kind\` google or oidc, \`name\` (the button), \`issuer\` (oidc; Google is https://accounts.google.com), \`clientId\`, \`clientSecret\` (stored encrypted, never returned; omitted on update keeps it), \`groupsClaim\` (claim sso_group rules read).
-- Only an email the provider marks verified (\`email_verified: true\`) is used: \`email\` and \`email_domain\` rules need a provider that verifies emails (Google does); \`sso_group\` rules work either way.
+- \`identity_providers.list|get|create|update|delete\` (/api/access-identity-providers): \`kind\` google or oidc, \`name\` (the button), \`issuer\` (oidc; Google is https://accounts.google.com), \`clientId\`, \`clientSecret\` (stored encrypted, never returned; omitted on update keeps it), \`groupsClaim\` (claim sso_group rules read), \`trustEmail\` (Trust the provider's email address, default true).
+- The provider's email is used when it marks it verified (\`email_verified: true\`) or, with **Trust the provider's email address** (\`trustEmail\`, on by default), when it sends no \`email_verified\` claim (Microsoft Entra ID and some Keycloak or ADFS setups do not); \`email_verified: false\` is never used. \`email\` and \`email_domain\` rules need such an email; \`sso_group\` rules work either way. Turn the option off for a provider that lets users set an unverified email without saying so.
 - Register \`https://<route host>/_opfield/access/provider-callback\` (\`redirectUri\` in every response) at the provider for every route whose list offers it. Delete is refused (409) while a list offers the provider.
 
 ## Service tokens (acl:edit; reads also acl:view)

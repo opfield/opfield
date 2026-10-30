@@ -62,6 +62,7 @@ export class AccessIdentityProviderService {
         encryptedClientSecret: this.encryptSecret(input.clientSecret),
         scopes: input.scopes ?? 'openid email profile',
         groupsClaim: input.groupsClaim?.trim() || null,
+        trustEmail: input.trustEmail ?? true,
       })
       .returning();
     await this.audit(userId, 'access_identity_provider.create', row);
@@ -79,6 +80,7 @@ export class AccessIdentityProviderService {
         ...(input.clientSecret === undefined ? {} : { encryptedClientSecret: this.encryptSecret(input.clientSecret) }),
         ...(input.scopes === undefined ? {} : { scopes: input.scopes }),
         ...(input.groupsClaim === undefined ? {} : { groupsClaim: input.groupsClaim?.trim() || null }),
+        ...(input.trustEmail === undefined ? {} : { trustEmail: input.trustEmail }),
         updatedAt: new Date(),
       })
       .where(eq(accessIdentityProviders.id, id))
@@ -137,6 +139,7 @@ export class AccessIdentityProviderService {
       clientId: row.clientId,
       scopes: row.scopes,
       groupsClaim: row.groupsClaim,
+      trustEmail: row.trustEmail,
       // Register this at the provider, with the host of every route whose list offers it.
       redirectUri: IDENTITY_PROVIDER_REDIRECT_URI_PATTERN,
       createdAt: row.createdAt,

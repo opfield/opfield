@@ -32,6 +32,8 @@ export const CreateAccessIdentityProviderSchema = z
     clientSecret: z.string().min(1).max(2048),
     scopes: z.string().trim().min(1).max(512).optional(),
     groupsClaim: GroupsClaimSchema,
+    /** A missing email_verified claim counts as verified (default); email_verified false never does. */
+    trustEmail: z.boolean().optional(),
   })
   .refine((value) => value.kind === 'google' || !!value.issuer, {
     message: 'An OIDC provider needs an issuer URL',
@@ -51,6 +53,7 @@ export const UpdateAccessIdentityProviderSchema = z.object({
     .transform((value) => value || undefined),
   scopes: z.string().trim().min(1).max(512).optional(),
   groupsClaim: GroupsClaimSchema,
+  trustEmail: z.boolean().optional(),
 });
 export type UpdateAccessIdentityProviderInput = z.infer<typeof UpdateAccessIdentityProviderSchema>;
 

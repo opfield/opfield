@@ -4,6 +4,7 @@ import { type ReactNode, useEffect, useId, useState } from "react";
 import { toast } from "sonner";
 import { AnimatedSwitch, CONTENT_SWITCH_ANIMATION } from "@/components/common/AnimatedSwitch";
 import { confirm } from "@/components/common/ConfirmDialog";
+import { SwitchCard } from "@/components/common/SwitchCard";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -80,6 +81,7 @@ export function IdentityProviderDialog({
   const [clientId, setClientId] = useState("");
   const [clientSecret, setClientSecret] = useState("");
   const [groupsClaim, setGroupsClaim] = useState("");
+  const [trustEmail, setTrustEmail] = useState(true);
   const [saving, setSaving] = useState(false);
   const [removing, setRemoving] = useState(false);
 
@@ -91,6 +93,7 @@ export function IdentityProviderDialog({
     setClientId(provider?.clientId ?? "");
     setClientSecret("");
     setGroupsClaim(provider ? (provider.groupsClaim ?? "") : "groups");
+    setTrustEmail(provider?.trustEmail ?? true);
   }, [open, provider]);
 
   const isEdit = current !== null;
@@ -108,6 +111,7 @@ export function IdentityProviderDialog({
       clientId: clientId.trim(),
       ...(clientSecret ? { clientSecret } : {}),
       groupsClaim: kind === "oidc" ? groupsClaim.trim() || null : null,
+      trustEmail,
     };
     setSaving(true);
     try {
@@ -223,6 +227,12 @@ export function IdentityProviderDialog({
               ) : null}
             </motion.div>
           </AnimatedSwitch>
+          <SwitchCard
+            label="Trust the provider's email address"
+            description="Email rules also match an email the provider sends without saying whether it is verified, as Microsoft Entra ID does. An email the provider marks unverified never matches."
+            checked={trustEmail}
+            onCheckedChange={setTrustEmail}
+          />
           <Field label="Redirect URI">
             <p className="text-xs text-muted-foreground">
               Register{" "}
