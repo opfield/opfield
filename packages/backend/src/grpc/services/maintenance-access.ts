@@ -8,7 +8,8 @@ import { extractDaemonCertificateIdentity } from '../interceptors/auth.js';
 import { matchEnrolledNodeCertificate } from '../node-certificate.js';
 import type { GrpcServerDeps } from '../server.js';
 
-async function nginxNodeId(call: grpc.ServerUnaryCall<any, any>, deps: GrpcServerDeps): Promise<string | null> {
+/** The enrolled nginx node behind a call's client certificate, else null. */
+export async function nginxNodeId(call: grpc.ServerUnaryCall<any, any>, deps: GrpcServerDeps): Promise<string | null> {
   const identity = extractDaemonCertificateIdentity(call);
   if (!identity) return null;
   const [node] = await deps.db

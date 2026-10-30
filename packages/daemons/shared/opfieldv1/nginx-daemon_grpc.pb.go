@@ -369,6 +369,230 @@ var MaintenanceAccess_ServiceDesc = grpc.ServiceDesc{
 }
 
 const (
+	AccessSignIn_Context_FullMethodName        = "/opfield.v1.AccessSignIn/Context"
+	AccessSignIn_Password_FullMethodName       = "/opfield.v1.AccessSignIn/Password"
+	AccessSignIn_StartProvider_FullMethodName  = "/opfield.v1.AccessSignIn/StartProvider"
+	AccessSignIn_FinishProvider_FullMethodName = "/opfield.v1.AccessSignIn/FinishProvider"
+)
+
+// AccessSignInClient is the client API for AccessSignIn service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+//
+// Internal request path used only by an enrolled nginx daemon: the sign-in page it serves on a protected route
+// (/_opfield/access/ of that route) asks Opfield to check credentials and to run provider sign-ins. The visitor
+// never reaches Opfield; Opfield answers only for a list and host the calling node serves.
+type AccessSignInClient interface {
+	Context(ctx context.Context, in *AccessSignInContextRequest, opts ...grpc.CallOption) (*AccessSignInContextReply, error)
+	Password(ctx context.Context, in *AccessSignInPasswordRequest, opts ...grpc.CallOption) (*AccessSignInReply, error)
+	StartProvider(ctx context.Context, in *AccessSignInStartRequest, opts ...grpc.CallOption) (*AccessSignInStartReply, error)
+	FinishProvider(ctx context.Context, in *AccessSignInFinishRequest, opts ...grpc.CallOption) (*AccessSignInReply, error)
+}
+
+type accessSignInClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewAccessSignInClient(cc grpc.ClientConnInterface) AccessSignInClient {
+	return &accessSignInClient{cc}
+}
+
+func (c *accessSignInClient) Context(ctx context.Context, in *AccessSignInContextRequest, opts ...grpc.CallOption) (*AccessSignInContextReply, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AccessSignInContextReply)
+	err := c.cc.Invoke(ctx, AccessSignIn_Context_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *accessSignInClient) Password(ctx context.Context, in *AccessSignInPasswordRequest, opts ...grpc.CallOption) (*AccessSignInReply, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AccessSignInReply)
+	err := c.cc.Invoke(ctx, AccessSignIn_Password_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *accessSignInClient) StartProvider(ctx context.Context, in *AccessSignInStartRequest, opts ...grpc.CallOption) (*AccessSignInStartReply, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AccessSignInStartReply)
+	err := c.cc.Invoke(ctx, AccessSignIn_StartProvider_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *accessSignInClient) FinishProvider(ctx context.Context, in *AccessSignInFinishRequest, opts ...grpc.CallOption) (*AccessSignInReply, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AccessSignInReply)
+	err := c.cc.Invoke(ctx, AccessSignIn_FinishProvider_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// AccessSignInServer is the server API for AccessSignIn service.
+// All implementations must embed UnimplementedAccessSignInServer
+// for forward compatibility.
+//
+// Internal request path used only by an enrolled nginx daemon: the sign-in page it serves on a protected route
+// (/_opfield/access/ of that route) asks Opfield to check credentials and to run provider sign-ins. The visitor
+// never reaches Opfield; Opfield answers only for a list and host the calling node serves.
+type AccessSignInServer interface {
+	Context(context.Context, *AccessSignInContextRequest) (*AccessSignInContextReply, error)
+	Password(context.Context, *AccessSignInPasswordRequest) (*AccessSignInReply, error)
+	StartProvider(context.Context, *AccessSignInStartRequest) (*AccessSignInStartReply, error)
+	FinishProvider(context.Context, *AccessSignInFinishRequest) (*AccessSignInReply, error)
+	mustEmbedUnimplementedAccessSignInServer()
+}
+
+// UnimplementedAccessSignInServer must be embedded to have
+// forward compatible implementations.
+//
+// NOTE: this should be embedded by value instead of pointer to avoid a nil
+// pointer dereference when methods are called.
+type UnimplementedAccessSignInServer struct{}
+
+func (UnimplementedAccessSignInServer) Context(context.Context, *AccessSignInContextRequest) (*AccessSignInContextReply, error) {
+	return nil, status.Error(codes.Unimplemented, "method Context not implemented")
+}
+func (UnimplementedAccessSignInServer) Password(context.Context, *AccessSignInPasswordRequest) (*AccessSignInReply, error) {
+	return nil, status.Error(codes.Unimplemented, "method Password not implemented")
+}
+func (UnimplementedAccessSignInServer) StartProvider(context.Context, *AccessSignInStartRequest) (*AccessSignInStartReply, error) {
+	return nil, status.Error(codes.Unimplemented, "method StartProvider not implemented")
+}
+func (UnimplementedAccessSignInServer) FinishProvider(context.Context, *AccessSignInFinishRequest) (*AccessSignInReply, error) {
+	return nil, status.Error(codes.Unimplemented, "method FinishProvider not implemented")
+}
+func (UnimplementedAccessSignInServer) mustEmbedUnimplementedAccessSignInServer() {}
+func (UnimplementedAccessSignInServer) testEmbeddedByValue()                      {}
+
+// UnsafeAccessSignInServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to AccessSignInServer will
+// result in compilation errors.
+type UnsafeAccessSignInServer interface {
+	mustEmbedUnimplementedAccessSignInServer()
+}
+
+func RegisterAccessSignInServer(s grpc.ServiceRegistrar, srv AccessSignInServer) {
+	// If the following call panics, it indicates UnimplementedAccessSignInServer was
+	// embedded by pointer and is nil.  This will cause panics if an
+	// unimplemented method is ever invoked, so we test this at initialization
+	// time to prevent it from happening at runtime later due to I/O.
+	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
+		t.testEmbeddedByValue()
+	}
+	s.RegisterService(&AccessSignIn_ServiceDesc, srv)
+}
+
+func _AccessSignIn_Context_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AccessSignInContextRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AccessSignInServer).Context(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AccessSignIn_Context_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AccessSignInServer).Context(ctx, req.(*AccessSignInContextRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AccessSignIn_Password_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AccessSignInPasswordRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AccessSignInServer).Password(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AccessSignIn_Password_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AccessSignInServer).Password(ctx, req.(*AccessSignInPasswordRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AccessSignIn_StartProvider_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AccessSignInStartRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AccessSignInServer).StartProvider(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AccessSignIn_StartProvider_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AccessSignInServer).StartProvider(ctx, req.(*AccessSignInStartRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AccessSignIn_FinishProvider_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AccessSignInFinishRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AccessSignInServer).FinishProvider(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AccessSignIn_FinishProvider_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AccessSignInServer).FinishProvider(ctx, req.(*AccessSignInFinishRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// AccessSignIn_ServiceDesc is the grpc.ServiceDesc for AccessSignIn service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var AccessSignIn_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "opfield.v1.AccessSignIn",
+	HandlerType: (*AccessSignInServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "Context",
+			Handler:    _AccessSignIn_Context_Handler,
+		},
+		{
+			MethodName: "Password",
+			Handler:    _AccessSignIn_Password_Handler,
+		},
+		{
+			MethodName: "StartProvider",
+			Handler:    _AccessSignIn_StartProvider_Handler,
+		},
+		{
+			MethodName: "FinishProvider",
+			Handler:    _AccessSignIn_FinishProvider_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "opfield/v1/nginx-daemon.proto",
+}
+
+const (
 	MigrationTransfer_Transfer_FullMethodName = "/opfield.v1.MigrationTransfer/Transfer"
 )
 

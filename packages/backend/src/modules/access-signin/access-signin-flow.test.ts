@@ -1,25 +1,22 @@
 import 'reflect-metadata';
 import bcrypt from 'bcryptjs';
-import { Hono } from 'hono';
-import { afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { container, TOKENS } from '@/container.js';
-import { errorHandler } from '@/middleware/error-handler.js';
-import {
-  DEFAULT_ENVIRONMENT_SETTINGS,
-  EnvironmentSettingsService,
-} from '@/modules/settings/environment-settings.service.js';
-import type { AppEnv } from '@/types.js';
+import { beforeAll, describe, expect, it } from 'vitest';
 import type { AccessDecide } from './access-decision.js';
-import { accessSignInApiRoutes } from './access-signin.public-routes.js';
 import { MemorySessionStore, MemorySigningKeyStore, testCrypto } from './access-signin.test-support.js';
 import type { AccessListRow, AccessSignInDirectory } from './access-signin-directory.js';
-import { ACCESS_SESSION_COOKIE, AccessSignInFlowService } from './access-signin-flow.service.js';
-import { AccessSignInSettingsService } from './access-signin-settings.service.js';
+import { AccessSignInFlowService, type AccessSignInTarget } from './access-signin-flow.service.js';
 import { AccessSigningKeyService } from './access-signing-key.service.js';
 
 const LIST_ID = '11111111-1111-4111-8111-111111111111';
-const NONCE = 'n'.repeat(43);
-const target = (host: string) => ({ list: LIST_ID, host, n: NONCE, r: '/reports?x=1' });
+const NODE_ID = '33333333-3333-4333-8333-333333333333';
+const OTHER_NODE_ID = '44444444-4444-4444-8444-444444444444';
+const target = (host: string, nodeId = NODE_ID): AccessSignInTarget => ({
+  listId: LIST_ID,
+  host,
+  nodeId,
+  clientIp: '203.0.113.9',
+  userAgent: 'test',
+});
 
 let list: AccessListRow;
 
@@ -28,7 +25,7 @@ beforeAll(async () => {
     id: LIST_ID,
     name: 'Support',
     description: null,
-    signInMethods: ['password', 'opfield'],
+    signInMethods: ['password', 'opfield', 'basic'],
     users: [{ username: 'lena.novak', passwordHash: await bcrypt.hash('correct horse', 4) }],
     sharedPasswordHash: null,
     skipIpRanges: [],
@@ -44,171 +41,73 @@ beforeAll(async () => {
   };
 });
 
-function setup() {
+function setup(decide: AccessDecide = (_list, _request, identity) => (identity ? 'allow' : 'redirect')) {
   const directory: AccessSignInDirectory = {
     getList: async (id) => (id === LIST_ID ? list : null),
-    // Only app.example.com is a route protected by the list.
-    hostOfList: async (listId, host) => (listId === LIST_ID && host === 'app.example.com' ? { secure: true } : null),
+    // Only app.example.com on NODE_ID is a route protected by the list.
+    hostOfList: async (listId, host, nodeId) =>
+      listId === LIST_ID && host === 'app.example.com' && nodeId === NODE_ID ? { secure: true } : null,
     getOpfieldUser: async () => null,
     providerNames: async () => new Map(),
   };
   const sessions = new MemorySessionStore();
   const keys = new AccessSigningKeyService(new MemorySigningKeyStore(), testCrypto);
-  const settings = {
-    getConfig: async () => ({
-      domain: 'access.example.com',
-      defaultSessionTtlSeconds: 86_400,
-      nodeId: null,
-      ingressGroupId: null,
-      sslCertificateId: null,
-    }),
-    signInOrigin: async () => 'https://access.example.com',
-  };
-  // The shared evaluator's answer for an identity the list's include rule (everyone) admits.
-  const decide: AccessDecide = (_list, _request, identity) => (identity ? 'allow' : 'redirect');
+  const settings = { getConfig: async () => ({ defaultSessionTtlSeconds: 86_400 }) };
   const flow = new AccessSignInFlowService({ directory, sessions, keys, settings, decide });
-  return { flow, keys, sessions, settings };
+  return { flow, keys, sessions };
 }
 
-describe('access sign-in host tokens', () => {
-  it('sends a signed-in visitor back with a token valid only for that host', async () => {
-    const { flow, keys } = setup();
-    const signed = await flow.signInWithPassword(target('APP.example.com'), 'lena.novak', 'correct horse', {
-      clientIp: '203.0.113.9',
-      userAgent: 'test',
-    });
-    const redirect = new URL(signed.redirect);
-    expect(`${redirect.origin}${redirect.pathname}`).toBe('https://app.example.com/_opfield/access/callback');
-    expect(redirect.searchParams.get('r')).toBe('/reports?x=1');
-    const token = redirect.searchParams.get('t')!;
-    const payload = await keys.verify(token, 'app.example.com');
-    expect(payload).toMatchObject({
-      aud: 'app.example.com',
-      non: NONCE,
-      idn: { m: 'password', sub: 'lena.novak', lst: LIST_ID },
-    });
+describe('access sign-in on the route', () => {
+  it('issues a host token valid only for the route host the asking node serves', async () => {
+    const { flow, keys, sessions } = setup();
+    const signed = await flow.signInWithPassword(target('APP.example.com'), ' lena.novak ', 'correct horse');
+    const payload = await keys.verify(signed.token, 'app.example.com');
+    expect(payload).toMatchObject({ aud: 'app.example.com', idn: { m: 'password', sub: 'lena.novak', lst: LIST_ID } });
+    expect(payload!.non).toBeUndefined();
     expect(payload!.exp - payload!.iat).toBe(3600);
-    expect(await keys.verify(token, 'evil.example.com')).toBeNull();
-    // The central session cookie is for the sign-in host.
-    expect(await keys.verify(signed.cookie, 'access.example.com')).not.toBeNull();
+    expect(await keys.verify(signed.token, 'evil.example.com')).toBeNull();
+    // The session is recorded with the visitor the daemon saw.
+    const [session] = [...sessions.rows.values()];
+    expect(session).toMatchObject({ method: 'password', accessListId: LIST_ID, clientIp: '203.0.113.9' });
   });
 
-  it('refuses hosts that no route or Pages project of the list serves', async () => {
+  it('refuses hosts, lists and nodes that do not serve the route, without creating a session', async () => {
     const { flow, sessions } = setup();
-    await expect(
-      flow.signInWithPassword(target('evil.example.com'), 'lena.novak', 'correct horse', {
-        clientIp: '203.0.113.9',
-        userAgent: null,
-      })
-    ).rejects.toMatchObject({ statusCode: 400, code: 'ACCESS_HOST_NOT_PROTECTED' });
-    await expect(
-      flow.context(target('evil.example.com'), undefined, { clientIp: '', userAgent: null })
-    ).rejects.toMatchObject({ code: 'ACCESS_HOST_NOT_PROTECTED' });
+    for (const bad of [
+      target('evil.example.com'),
+      target('app.example.com', OTHER_NODE_ID),
+      { ...target('app.example.com'), listId: '55555555-5555-4555-8555-555555555555' },
+      target('app.example.com:8443'),
+    ]) {
+      await expect(flow.signInWithPassword(bad, 'lena.novak', 'correct horse')).rejects.toMatchObject({
+        statusCode: 403,
+        code: 'ACCESS_DENIED',
+      });
+      await expect(flow.methods(bad)).rejects.toMatchObject({ code: 'ACCESS_DENIED' });
+    }
     expect(sessions.rows.size).toBe(0);
   });
 
-  it('redirects a visitor whose central session already gets in, and shows methods otherwise', async () => {
+  it('rejects a wrong password and offers only sign-in page methods', async () => {
     const { flow } = setup();
-    const meta = { clientIp: '203.0.113.9', userAgent: null };
-    expect(await flow.context(target('app.example.com'), undefined, meta)).toEqual({
-      host: 'app.example.com',
-      methods: [
-        { key: 'password', label: 'Username', kind: 'password' },
-        { key: 'opfield', label: 'Opfield account', kind: 'opfield' },
-      ],
-      state: 'methods',
+    await expect(flow.signInWithPassword(target('app.example.com'), 'lena.novak', 'wrong')).rejects.toMatchObject({
+      statusCode: 401,
+      code: 'ACCESS_SIGN_IN_FAILED',
     });
-    const signed = await flow.signInWithPassword(target('app.example.com'), 'lena.novak', 'correct horse', meta);
-    const again = await flow.context(target('app.example.com'), signed.cookie, meta);
-    expect('redirect' in again && again.redirect).toMatch(
-      /^https:\/\/app\.example\.com\/_opfield\/access\/callback\?t=v1\./
-    );
-    // The sign-in page's own redirect check: nothing to look up without a cookie.
-    expect(await flow.sessionRedirect(target('app.example.com'), undefined, meta)).toBeNull();
-    expect(await flow.sessionRedirect(target('app.example.com'), signed.cookie, meta)).toMatch(
-      /^https:\/\/app\.example\.com\/_opfield\/access\/callback\?t=v1\./
-    );
-    // Signed out: the session is revoked and the cookie no longer gets in.
-    expect(await flow.signOut(signed.cookie)).toBe(true);
-    expect(await flow.sessionRedirect(target('app.example.com'), signed.cookie, meta)).toBeNull();
-    expect(await flow.context(target('app.example.com'), signed.cookie, meta)).toMatchObject({ state: 'methods' });
+    await expect(flow.signInWithSharedPassword(target('app.example.com'), 'x')).rejects.toMatchObject({
+      code: 'ACCESS_METHOD_NOT_OFFERED',
+    });
+    expect(await flow.methods(target('app.example.com'))).toEqual([
+      { key: 'password', label: 'Username', kind: 'password' },
+      { key: 'opfield', label: 'Opfield', kind: 'opfield' },
+    ]);
+  });
+
+  it('signs in nobody the list turns away', async () => {
+    const { flow, sessions } = setup(() => 'deny');
+    await expect(
+      flow.signInWithPassword(target('app.example.com'), 'lena.novak', 'correct horse')
+    ).rejects.toMatchObject({ statusCode: 403, code: 'ACCESS_DENIED' });
+    expect(sessions.rows.size).toBe(0);
   });
 });
-
-describe('password sign-in API', () => {
-  afterEach(() => {
-    container.clearInstances();
-  });
-
-  it('signs in with the right password, rejects a wrong one and rate-limits attempts', async () => {
-    const { flow, keys, settings } = setup();
-    container.registerInstance(AccessSignInFlowService, flow);
-    container.registerInstance(AccessSigningKeyService, keys);
-    container.registerInstance(AccessSignInSettingsService, settings as unknown as AccessSignInSettingsService);
-    container.registerInstance(TOKENS.RedisClient, new MemoryRedis());
-    const defaults = DEFAULT_ENVIRONMENT_SETTINGS;
-    container.registerInstance(EnvironmentSettingsService, {
-      getSnapshot: () => ({ ...defaults, rateLimits: { ...defaults.rateLimits, authLoginMaxRequests: 3 } }),
-    } as unknown as EnvironmentSettingsService);
-    const app = new Hono<AppEnv>();
-    app.onError(errorHandler);
-    app.route('/api/access-sign-in', accessSignInApiRoutes);
-    const post = (password: string) =>
-      app.request('/api/access-sign-in/password', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ ...target('app.example.com'), username: 'lena.novak', password }),
-      });
-
-    const ok = await post('correct horse');
-    expect(ok.status).toBe(200);
-    expect(((await ok.json()) as { redirect: string }).redirect).toMatch(
-      /^https:\/\/app\.example\.com\/_opfield\/access\/callback\?/
-    );
-    const cookie = ok.headers.get('set-cookie') ?? '';
-    expect(cookie).toContain(`${ACCESS_SESSION_COOKIE}=v1.`);
-    expect(cookie).toMatch(/HttpOnly/i);
-    expect(cookie).toMatch(/Secure/i);
-
-    const wrong = await post('wrong');
-    expect(wrong.status).toBe(401);
-    expect((await post('wrong')).status).toBe(401);
-    // Third attempt in the window was the last one allowed.
-    expect((await post('correct horse')).status).toBe(429);
-  });
-});
-
-class MemoryRedis {
-  private readonly sets = new Map<string, number[]>();
-
-  pipeline() {
-    const ops: Array<() => number> = [];
-    const pipeline = {
-      zremrangebyscore: (key: string, _min: number, max: number) => {
-        ops.push(() => {
-          const kept = (this.sets.get(key) ?? []).filter((score) => score > max);
-          this.sets.set(key, kept);
-          return 0;
-        });
-        return pipeline;
-      },
-      zcard: (key: string) => {
-        ops.push(() => this.sets.get(key)?.length ?? 0);
-        return pipeline;
-      },
-      zadd: (key: string, score: number) => {
-        ops.push(() => {
-          this.sets.set(key, [...(this.sets.get(key) ?? []), score]);
-          return 1;
-        });
-        return pipeline;
-      },
-      expire: () => {
-        ops.push(() => 1);
-        return pipeline;
-      },
-      exec: async () => ops.map((op) => [null, op()] as [null, number]),
-    };
-    return pipeline;
-  }
-}

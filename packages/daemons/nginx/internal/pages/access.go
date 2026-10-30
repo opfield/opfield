@@ -52,6 +52,8 @@ const (
 	accessCheckPath         = "/_opfield/access/check"
 	accessCallbackPath      = "/_opfield/access/callback"
 	accessChallengeLocation = "@opfield_access_challenge"
+	// accessSignInPrefix is the preview's own sign-in page, served by the access socket under /ui/.
+	accessSignInPrefix = "/_opfield/access/"
 )
 
 // SetHtpasswdDir points basic-auth previews at the daemon's htpasswd directory.
@@ -154,8 +156,9 @@ func (r *Runtime) previewAccessDirectives(access *PreviewAccess) []string {
 
 // previewAccessCheckDirectives has nginx ask the access socket about every request (the server-level auth_request
 // covers the runtime config script and assets too). A visitor who must sign in or authenticate gets the socket's
-// challenge; the sign-in page returns them through the callback location. A preview serves files, so there is no
-// upstream to hand the identity to.
+// challenge, which sends them to the preview's own sign-in page (accessSignInPrefix, served by the access socket);
+// the callback location stays for sign-ins started on a sign-in domain of older releases. A preview serves files, so
+// there is no upstream to hand the identity to.
 func previewAccessCheckDirectives(accessListID string) []string {
 	requestHeaders := []string{
 		"        proxy_pass_request_body off;",
@@ -190,7 +193,19 @@ func previewAccessCheckDirectives(accessListID string) []string {
 		"        proxy_pass "+accessSocket+";",
 	)
 	lines = append(lines, requestHeaders...)
-	return append(lines, "    }")
+	return append(lines, "    }",
+		"    location ^~ "+accessSignInPrefix+" {",
+		// Sign-in forms and provider callbacks carry credentials and codes: never in the access log.
+		"        access_log off;",
+		"        auth_request off;",
+		"        proxy_pass "+accessSocket+":/ui/;",
+		"        proxy_set_header X-Opfield-Access-List \""+accessListID+"\";",
+		"        proxy_set_header X-Opfield-Access-Host $host;",
+		"        proxy_set_header X-Opfield-Access-Client-Ip $remote_addr;",
+		"        proxy_set_header X-Opfield-Access-Scheme $scheme;",
+		"        proxy_set_header X-Opfield-Access-Secure $https;",
+		"    }",
+	)
 }
 
 // UsesAccessList reports whether a materialized preview references the access

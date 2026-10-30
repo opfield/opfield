@@ -8,7 +8,6 @@ import { NGINX_ACCESS_AUTH_CAPABILITY } from '@/modules/proxy/nginx-access-list.
 import type { NodeDispatchService } from '@/services/node-dispatch.service.js';
 import type { NodeRegistryService } from '@/services/node-registry.service.js';
 import { buildAccessPolicyCommand } from './access-policy-builder.js';
-import type { AccessSignInSettingsService } from './access-signin-settings.service.js';
 import type { AccessSigningKeyService } from './access-signing-key.service.js';
 
 const logger = createChildLogger('AccessPolicySync');
@@ -20,7 +19,6 @@ const DEBOUNCE_MS = 250;
 export interface AccessPolicySyncRuntime {
   db: DrizzleClient;
   keys: Pick<AccessSigningKeyService, 'verificationKeys'>;
-  settings: Pick<AccessSignInSettingsService, 'signInOrigin'>;
   registry: Pick<NodeRegistryService, 'getNodesByType'>;
   dispatch: Pick<NodeDispatchService, 'sendAccessPolicy'>;
 }
@@ -151,9 +149,8 @@ async function nextRevision(db: DrizzleClient): Promise<number> {
 /** The full current policy; its revision is allocated when it is sent. */
 export async function collectAccessPolicy(current: AccessPolicySyncRuntime): Promise<SyncAccessPolicyCommand> {
   const now = new Date();
-  const [keys, signInOrigin, lists, revokedSessions, serviceTokens] = await Promise.all([
+  const [keys, lists, revokedSessions, serviceTokens] = await Promise.all([
     current.keys.verificationKeys(),
-    current.settings.signInOrigin(),
     current.db
       .select({
         id: accessLists.id,
@@ -179,5 +176,5 @@ export async function collectAccessPolicy(current: AccessPolicySyncRuntime): Pro
       .from(accessServiceTokens)
       .where(or(isNull(accessServiceTokens.expiresAt), gt(accessServiceTokens.expiresAt, now))),
   ]);
-  return buildAccessPolicyCommand({ revision: 0, signInOrigin, keys, lists, revokedSessions, serviceTokens, now });
+  return buildAccessPolicyCommand({ revision: 0, keys, lists, revokedSessions, serviceTokens, now });
 }

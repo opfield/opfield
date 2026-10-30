@@ -3,12 +3,12 @@ package access
 import (
 	"crypto/rand"
 	"crypto/subtle"
-	"encoding/base64"
 	"io"
 	"net/http"
 	"net/netip"
 	"net/url"
 	"strings"
+	"sync/atomic"
 	"time"
 )
 
@@ -19,6 +19,8 @@ const (
 	ClientIPHeader = "X-Opfield-Access-Client-Ip"
 	URIHeader      = "X-Opfield-Access-Uri"
 	SecureHeader   = "X-Opfield-Access-Secure"
+	// SchemeHeader is the scheme of the visitor's request ($scheme), sent with the sign-in page's requests.
+	SchemeHeader = "X-Opfield-Access-Scheme"
 )
 
 // The headers /check answers an allowed request with; nginx hands them to the upstream.
@@ -31,6 +33,8 @@ const (
 // The cookies of the sign-in flow.
 const (
 	TokenCookie = "opfield_access"
+	// StateCookie is the state of a provider sign-in the sign-in page started (<state>|<return path>, on the
+	// sign-in page's path), and the nonce of a sign-in on a sign-in domain of older releases (on /).
 	StateCookie = "opfield_access_state"
 	// stateMaxAge is how long a sign-in may take.
 	stateMaxAge = 600
@@ -42,19 +46,31 @@ type Server struct {
 	basic *basicVerifier
 	now   func() time.Time
 	rand  io.Reader
+	// signIn asks Opfield about the sign-in page's sign-ins; nil while the daemon has no control session.
+	signIn atomic.Pointer[signInClient]
+	warn   func(string, ...any)
 }
 
 // NewServer answers from the store's policy.
 func NewServer(store *Store) *Server {
-	return &Server{store: store, basic: newBasicVerifier(), now: time.Now, rand: rand.Reader}
+	return &Server{store: store, basic: newBasicVerifier(), now: time.Now, rand: rand.Reader, warn: func(string, ...any) {}}
 }
 
-// Handler serves GET /check, /challenge and /callback.
+// SetLogger reports sign-ins Opfield could not be asked about.
+func (s *Server) SetLogger(logger interface{ Warn(string, ...any) }) {
+	if logger != nil {
+		s.warn = logger.Warn
+	}
+}
+
+// Handler serves GET /check, /challenge and /callback for nginx, and the route's sign-in page under /ui/ (nginx
+// proxies /_opfield/access/ of a protected route there).
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/check", s.serveCheck)
 	mux.HandleFunc("/challenge", s.serveChallenge)
 	mux.HandleFunc("/callback", s.serveCallback)
+	mux.HandleFunc("/ui/", s.serveSignInUI)
 	return mux
 }
 
@@ -174,7 +190,7 @@ func headerValue(value string) string {
 	}, value)
 }
 
-// serveChallenge is the visitor's answer after a 401 from /check: the sign-in redirect with the state cookie, or the
+// serveChallenge is the visitor's answer after a 401 from /check: the redirect to the route's sign-in page, or the
 // basic authentication challenge.
 func (s *Server) serveChallenge(w http.ResponseWriter, r *http.Request) {
 	req := s.evaluate(r)
@@ -197,30 +213,13 @@ func (s *Server) serveChallenge(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// redirectToSignIn sends the visitor to the route's own sign-in page, on the same host, with the page they asked for.
 func (s *Server) redirectToSignIn(w http.ResponseWriter, r *http.Request, req *request) {
-	if req.policy.SignInOrigin == "" || req.host == "" {
+	if req.host == "" {
 		w.WriteHeader(http.StatusServiceUnavailable)
 		return
 	}
-	nonce := make([]byte, 32)
-	if _, err := io.ReadFull(s.rand, nonce); err != nil {
-		w.WriteHeader(http.StatusServiceUnavailable)
-		return
-	}
-	state := base64.RawURLEncoding.EncodeToString(nonce)
-	http.SetCookie(w, &http.Cookie{
-		Name:     StateCookie,
-		Value:    state,
-		Path:     "/",
-		MaxAge:   stateMaxAge,
-		HttpOnly: true,
-		Secure:   secureRequest(r),
-		SameSite: http.SameSiteLaxMode,
-	})
-	location := req.policy.SignInOrigin + "/access/sign-in?list=" + url.QueryEscape(req.list.ID) +
-		"&host=" + url.QueryEscape(req.host) + "&n=" + url.QueryEscape(state) +
-		"&r=" + url.QueryEscape(safeReturnPath(r.Header.Get(URIHeader)))
-	w.Header().Set("Location", location)
+	w.Header().Set("Location", signInPagePath+"?r="+url.QueryEscape(signInReturnPath(r.Header.Get(URIHeader))))
 	w.WriteHeader(http.StatusFound)
 }
 
@@ -243,8 +242,7 @@ func (s *Server) serveCallback(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "The sign-in link is not valid. Open the page again to sign in.", http.StatusBadRequest)
 		return
 	}
-	state, err := r.Cookie(StateCookie)
-	if err != nil || claims.Nonce == "" || subtle.ConstantTimeCompare([]byte(state.Value), []byte(claims.Nonce)) != 1 {
+	if claims.Nonce == "" || !hasCookieValue(r, StateCookie, claims.Nonce) {
 		http.Error(w, "The sign-in link is not for this browser. Open the page again to sign in.", http.StatusBadRequest)
 		return
 	}
@@ -263,8 +261,19 @@ func (s *Server) serveCallback(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusFound)
 }
 
+// hasCookieValue reports whether the request carries the cookie with this value (a browser sends a cookie of each
+// path it was set for).
+func hasCookieValue(r *http.Request, name, value string) bool {
+	for _, cookie := range r.Cookies() {
+		if cookie.Name == name && subtle.ConstantTimeCompare([]byte(cookie.Value), []byte(value)) == 1 {
+			return true
+		}
+	}
+	return false
+}
+
 func secureRequest(r *http.Request) bool {
-	return r.Header.Get(SecureHeader) == "on"
+	return r.Header.Get(SecureHeader) == "on" || strings.EqualFold(r.Header.Get(SchemeHeader), "https")
 }
 
 // maxReturnPathLength bounds the page a visitor returns to, as the sign-in page does.

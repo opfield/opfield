@@ -50,13 +50,7 @@ import {
   accessSessionRoutes,
   accessSettingsRoutes,
 } from '@/modules/access-signin/access-signin.admin-routes.js';
-import {
-  accessJwksRoutes,
-  accessSignInApiRoutes,
-  accessSignInBrowserRoutes,
-  isAccessSignInDomainPath,
-} from '@/modules/access-signin/access-signin.public-routes.js';
-import { AccessSignInSettingsService } from '@/modules/access-signin/access-signin-settings.service.js';
+import { accessJwksRoutes, accessSignInApiRoutes } from '@/modules/access-signin/access-signin.public-routes.js';
 import { adminRoutes } from '@/modules/admin/admin.routes.js';
 import { DOCKER_ARCHIVE_LINK_PATH } from '@/modules/ai/ai.docker-archive-link.js';
 import { dockerArchiveLinkRoutes } from '@/modules/ai/ai.docker-archive-link.routes.js';
@@ -370,16 +364,6 @@ async function isStatusHostRequest(hostHeader: string | undefined): Promise<bool
   }
 }
 
-/** The dedicated access sign-in domain (setting access.signIn), not the console host. */
-async function isAccessSignInHostRequest(hostHeader: string | undefined): Promise<boolean> {
-  if (!container.isRegistered(AccessSignInSettingsService)) return false;
-  try {
-    return await container.resolve(AccessSignInSettingsService).isSignInDomainHost(hostHeader);
-  } catch {
-    return false;
-  }
-}
-
 async function getCanonicalPublicUrl(): Promise<string | null> {
   try {
     return await container.resolve(GeneralSettingsService).getPublicUrl();
@@ -565,11 +549,6 @@ export function createApp(): OpfieldAppRuntime {
     }
 
     if (requestHost && (await isStatusHostRequest(requestHost))) {
-      await next();
-      return;
-    }
-
-    if (requestHost && (await isAccessSignInHostRequest(requestHost))) {
       await next();
       return;
     }
@@ -866,19 +845,6 @@ export function createApp(): OpfieldAppRuntime {
     await next();
   });
 
-  // The access sign-in domain serves the sign-in page, its API and the token keys; nothing else of Opfield.
-  app.use('*', async (c, next) => {
-    if (!(await isAccessSignInHostRequest(c.req.header('host')))) {
-      await next();
-      return;
-    }
-    if (isAccessSignInDomainPath(new URL(c.req.url).pathname)) {
-      await next();
-      return;
-    }
-    return c.notFound();
-  });
-
   // Public PKI endpoints (no auth) — CRL, OCSP, CA cert download
 
   // Auth routes
@@ -938,9 +904,9 @@ export function createApp(): OpfieldAppRuntime {
   app.route('/api/access-identity-providers', accessIdentityProviderRoutes);
   app.route('/api/access-service-tokens', accessServiceTokenRoutes);
   app.route('/api/access-sessions', accessSessionRoutes);
-  // Public: visitors of routes protected by access lists sign in here (sign-in domain, or the console host).
+  // Visitors of protected routes sign in on the route itself (its nginx daemon asks over gRPC). The console only
+  // confirms an Opfield account sign-in for its signed-in user and publishes the token keys.
   app.route('/api/access-sign-in', accessSignInApiRoutes);
-  app.route('/access', accessSignInBrowserRoutes);
   app.route('/.well-known/opfield-access', accessJwksRoutes);
   app.route('/api/monitoring', monitoringRoutes);
   app.route('/api/setup', setupRoutes);
@@ -1311,8 +1277,6 @@ export function createApp(): OpfieldAppRuntime {
       app.get('/login', serveLoginPage);
       app.get('/reset-password', serveLoginPage);
       app.get('/callback', serveLoginPage);
-      // The access sign-in page lives in the login entry (after the redirect check of the access routes).
-      app.get('/access/sign-in', serveLoginPage);
     }
 
     // index.html is served from memory so its share image tags carry the absolute public URL link previews need.

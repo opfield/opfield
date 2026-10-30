@@ -76,18 +76,8 @@ export const HOST_MCP_REST_COVERAGE: McpRestCoverageMap = {
   // /api/access-settings
   'GET /api/access-settings': mcp('manage_access_sign_in:get'),
   'PUT /api/access-settings': mcp('manage_access_sign_in:update'),
-  // /api/access-sign-in: visitors of protected routes sign in (the sign-in page and its API)
-  'GET /api/access-sign-in/context': ACCESS_VISITOR_SIGN_IN,
-  'POST /api/access-sign-in/password': ACCESS_VISITOR_SIGN_IN,
-  'POST /api/access-sign-in/shared': ACCESS_VISITOR_SIGN_IN,
-  'POST /api/access-sign-in/sign-out': ACCESS_VISITOR_SIGN_IN,
+  // /api/access-sign-in: the console confirms an Opfield account sign-in on a protected route for its own user
   'GET /api/access-sign-in/opfield/authorize': ACCESS_VISITOR_SIGN_IN,
-  // /access
-  'GET /access/sign-in': ACCESS_VISITOR_SIGN_IN,
-  'GET /access/idp/{providerId}/start': ACCESS_VISITOR_SIGN_IN,
-  'GET /access/idp/{providerId}/callback': ACCESS_VISITOR_SIGN_IN,
-  'GET /access/opfield/start': ACCESS_VISITOR_SIGN_IN,
-  'GET /access/opfield/callback': ACCESS_VISITOR_SIGN_IN,
   // /api/admin
   'GET /api/admin/auth-settings': mcp('get_opfield_settings'),
   'PUT /api/admin/auth-settings': mcp('update_opfield_settings'),

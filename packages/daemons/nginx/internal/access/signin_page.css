@@ -1,0 +1,229 @@
+:root {
+  color-scheme: light dark;
+  --background: #f3f2ef;
+  --foreground: #141414;
+  --muted-foreground: #64635f;
+  --border: #dddbd5;
+  --input: #d0cec7;
+  --ring: #141414;
+  --primary: #141414;
+  --primary-foreground: #f3f2ef;
+  --accent: color-mix(in srgb, #e6e4de 70%, transparent);
+  --accent-foreground: #141414;
+  /* Toasts are graphite in both themes (Opfield's sonner toaster runs with theme="dark"). */
+  --toast: #232322;
+  --toast-border: #3d3d3a;
+  --toast-foreground: #f3f2ef;
+  --toast-muted: #a9a8a3;
+  --toast-hover: #2b2b29;
+  --toast-hover-border: #4a4945;
+  --font-sans: "Onest Variable", ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #141414;
+    --foreground: #f3f2ef;
+    --muted-foreground: #8f8e89;
+    --border: #2b2b29;
+    --input: #3a3a37;
+    --ring: #f3f2ef;
+    --primary: #f3f2ef;
+    --primary-foreground: #141414;
+    --accent: color-mix(in srgb, #2c2c2a 70%, transparent);
+    --accent-foreground: #f3f2ef;
+  }
+}
+*, *::before, *::after { box-sizing: border-box; border: 0 solid var(--border); margin: 0; padding: 0; }
+html, body { overscroll-behavior: none; }
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 1.5;
+  letter-spacing: -0.01em;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-tap-highlight-color: transparent;
+}
+[hidden] { display: none !important; }
+.shell { display: flex; min-height: 100vh; align-items: center; justify-content: center; padding: 2rem 1rem; }
+.column { width: 100%; max-width: 24rem; text-align: center; }
+/* AuthShell's space-y-6 (margin below every child but the last) with AnimatedHeight's -my-2 px-2 py-2. */
+.head { margin-bottom: 1.5rem; display: flex; flex-direction: column; align-items: center; gap: 0.75rem; }
+.head h1 {
+  max-width: 100%;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  font-size: 1.875rem;
+  line-height: 1.2;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  color: var(--foreground);
+}
+.subtitle, .text { font-size: 0.875rem; line-height: 1.4286; color: var(--muted-foreground); }
+.strong { color: var(--foreground); }
+/* AnimatedHeight's -mx-2 -my-2 px-2 py-2; the space-y-6 gap below it stays whole before the footer's pt-3. */
+.height { margin: -0.5rem -0.5rem 1rem; padding: 0.5rem; overflow: hidden; transition: height 250ms cubic-bezier(0.25, 0.1, 0.25, 1); }
+.steps { position: relative; }
+.step { text-align: left; }
+.stack { display: flex; flex-direction: column; gap: 0.75rem; }
+.form { display: flex; flex-direction: column; gap: 0.75rem; }
+.row { display: flex; gap: 0.5rem; }
+.center { display: flex; justify-content: center; }
+.text { text-align: center; }
+.btn {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  height: 2.25rem;
+  padding: 0.5rem 1rem;
+  white-space: nowrap;
+  font: inherit;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  font-weight: 500;
+  letter-spacing: inherit;
+  text-decoration: none;
+  cursor: pointer;
+  background: transparent;
+  color: inherit;
+  transition: color 150ms cubic-bezier(0.4, 0, 0.2, 1), background-color 150ms cubic-bezier(0.4, 0, 0.2, 1), border-color 150ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+.btn.wide { width: 100%; }
+.btn > span { overflow: hidden; text-overflow: ellipsis; }
+.btn svg {
+  width: 1rem;
+  height: 1rem;
+  flex-shrink: 0;
+  pointer-events: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.btn:focus { outline: none; }
+.btn:focus-visible { box-shadow: 0 0 0 1px var(--ring); }
+.btn-primary { background-color: var(--primary); color: var(--primary-foreground); }
+.btn-primary:hover { background-color: color-mix(in srgb, var(--primary) 90%, transparent); }
+.btn-outline { border-width: 1px; border-color: var(--border); background-color: var(--background); color: var(--foreground); }
+.btn-outline:hover { background-color: var(--accent); color: var(--accent-foreground); }
+.btn:disabled, .btn.is-disabled, .btn.is-pending { pointer-events: none; opacity: 0.5; }
+.btn svg.mark { fill: currentColor; stroke: none; }
+.btn.is-pending > .spinner + svg { display: none; }
+.spinner { animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.input {
+  display: flex;
+  height: 2.25rem;
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--input);
+  border-radius: 0;
+  background-color: var(--background);
+  color: var(--foreground);
+  padding: 0.25rem 0.75rem;
+  font: inherit;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  letter-spacing: inherit;
+  text-align: left;
+  transition: color 150ms cubic-bezier(0.4, 0, 0.2, 1), border-color 150ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+.input::placeholder { color: var(--muted-foreground); opacity: 1; }
+.input:focus { outline: none; }
+.input:focus-visible { box-shadow: inset 0 0 0 1px var(--ring); }
+/* The error toast: sonner v2 (theme dark, closeButton) with Opfield's overrides (graphite colours, radius 0). It
+   slides in from the bottom, stays 4 s (paused while hovered) and fades out; without JS too. */
+.toaster {
+  position: fixed;
+  z-index: 1000;
+  bottom: 24px;
+  left: 50%;
+  width: 356px;
+  transform: translateX(-50%);
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica Neue, Arial, Noto Sans, sans-serif, Apple Color Emoji, Segoe UI Emoji, Segoe UI Symbol, Noto Color Emoji;
+  letter-spacing: normal;
+  text-align: left;
+}
+.toast {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 356px;
+  padding: 16px;
+  border: 1px solid var(--toast-border);
+  border-radius: 0;
+  background: var(--toast);
+  color: var(--toast-foreground);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+  animation: toast-in 400ms ease both, toast-out 400ms ease 4000ms forwards;
+}
+.toast:hover { animation-play-state: paused; }
+.toast.is-closing { animation: toast-out 400ms ease forwards; }
+.toast-icon { display: flex; position: relative; flex-shrink: 0; align-items: center; justify-content: flex-start; width: 16px; height: 16px; margin-left: -3px; margin-right: 4px; }
+.toast-icon svg { flex-shrink: 0; margin-left: -1px; }
+.toast-content { display: flex; min-width: 0; flex-direction: column; gap: 2px; }
+.toast-title, .toast-description {
+  display: -webkit-box;
+  min-width: 0;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  text-overflow: ellipsis;
+  white-space: normal;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+}
+.toast-title { font-weight: 500; line-height: 1.5; }
+.toast-description { font-weight: 400; line-height: 1.4; color: var(--toast-muted); }
+.toast-close {
+  position: absolute;
+  z-index: 1;
+  top: 0;
+  left: 0;
+  display: none;
+  width: 20px;
+  height: 20px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid var(--toast-border);
+  border-radius: 0;
+  background: var(--toast);
+  color: var(--toast-muted);
+  transform: translate(-35%, -35%);
+  cursor: pointer;
+  transition: opacity 100ms, background 200ms, border-color 200ms;
+}
+.js .toast-close { display: flex; }
+.toast-close svg { fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.toast-close:hover { background: var(--toast-hover); border-color: var(--toast-hover-border); color: var(--toast-foreground); }
+.toast-close:focus { outline: none; }
+.toast-close:focus-visible { box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1), 0 0 0 2px rgba(0, 0, 0, 0.2); }
+@keyframes toast-in { from { opacity: 0; transform: translateY(100%); } to { opacity: 1; transform: none; } }
+@keyframes toast-out { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(100%); visibility: hidden; } }
+@media (max-width: 600px) {
+  .toaster { bottom: 16px; left: 16px; right: 16px; width: auto; transform: none; }
+  .toast { width: 100%; }
+}
+.foot { display: flex; flex-direction: column; align-items: center; gap: 0.5rem; padding-top: 0.75rem; font-size: 0.75rem; line-height: 1.3333; color: var(--muted-foreground); }
+.foot a { color: var(--foreground); text-decoration: none; }
+.foot a:hover { text-decoration: underline; }
+@keyframes step-in { from { opacity: 0; transform: translateX(10px); } to { opacity: 1; transform: none; } }
+@keyframes step-out { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateX(-10px); } }
+.step-enter { animation: step-in 180ms ease-out both; }
+.step-leave { position: absolute; top: 0; left: 0; right: 0; pointer-events: none; animation: step-out 180ms ease-out both; }
+@media (prefers-reduced-motion: reduce) {
+  .height { transition: none; }
+  .step-enter, .step-leave { animation: none; }
+  .toast { animation: toast-hide 0s 4000ms forwards; }
+  .toast.is-closing { animation: toast-hide 0s forwards; }
+}
+@keyframes toast-hide { to { visibility: hidden; opacity: 0; } }

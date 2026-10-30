@@ -108,21 +108,16 @@ func basicHeader(username, password string) string {
 
 func TestChallenge(t *testing.T) {
 	server, _, _ := testServer(t, true)
+	// The visitor goes to the route's own sign-in page on the same host; no cookie is set.
 	w := serve(server, accessRequest("/challenge", testListID, "203.0.113.9", nil))
-	if w.Code != http.StatusFound {
-		t.Fatalf("status %d", w.Code)
+	if w.Code != http.StatusFound || w.Header().Get("Location") != "/_opfield/access/sign-in?r=%2Freports%3Fq%3D1" || len(w.Result().Cookies()) != 0 {
+		t.Fatalf("challenge %d %v", w.Code, w.Header())
 	}
-	location, err := url.Parse(w.Header().Get("Location"))
-	if err != nil || location.Scheme != "https" || location.Host != "access.example.net" || location.Path != "/access/sign-in" {
-		t.Fatalf("location %q", w.Header().Get("Location"))
-	}
-	query := location.Query()
-	state := w.Result().Cookies()
-	if len(state) != 1 || state[0].Name != StateCookie || !state[0].HttpOnly || !state[0].Secure || state[0].MaxAge != 600 || state[0].SameSite != http.SameSiteLaxMode {
-		t.Fatalf("state cookie %+v", state)
-	}
-	if query.Get("list") != testListID || query.Get("host") != testHost || query.Get("n") != state[0].Value || query.Get("r") != "/reports?q=1" {
-		t.Fatalf("sign-in query %v", query)
+	// Opfield's own paths are never a page to return to.
+	r := accessRequest("/challenge", testListID, "203.0.113.9", nil)
+	r.Header.Set(URIHeader, "/_opfield/access/sign-in?r=%2F")
+	if w := serve(server, r); w.Header().Get("Location") != "/_opfield/access/sign-in?r=%2F" {
+		t.Fatalf("challenge of an Opfield path: %v", w.Header())
 	}
 
 	w = serve(server, accessRequest("/challenge", testBasicID, "203.0.113.9", nil))

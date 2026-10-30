@@ -672,7 +672,7 @@ func (p *NginxPlugin) capabilities() []string {
 		capabilities = append(capabilities, AccessLogFormatCapability)
 	}
 	if p.accessServer != nil {
-		capabilities = append(capabilities, accessAuthCapability)
+		capabilities = append(capabilities, accessAuthCapability, accessSignInCapability)
 	}
 	return capabilities
 }
@@ -695,7 +695,8 @@ func (p *NginxPlugin) OnSessionStart(ctx context.Context, _ *stream.Writer) erro
 	p.validateConfigIfStale(time.Now())
 	go p.runConfigValidation(sessionCtx)
 	go p.runDiskHousekeeping(sessionCtx)
-	if !p.maintenanceAccessSupported {
+	// The maintenance access form and the access sign-in page ask Opfield over their own connection.
+	if !p.maintenanceAccessSupported && p.accessServer == nil {
 		return nil
 	}
 	tlsManager := sharedauth.NewTLSManager(p.baseCfg.TLS.CACert, p.baseCfg.TLS.ClientCert, p.baseCfg.TLS.ClientKey)
@@ -706,15 +707,18 @@ func (p *NginxPlugin) OnSessionStart(ctx context.Context, _ *stream.Writer) erro
 		cancel()
 		return err
 	}
-	workers := newNginxPeerAuthority(canonicalExecutablePath(p.cfg.Nginx.Binary), p.mgr.CachedPID)
-	accessServer, err := startMaintenanceAccessServer(conn, p.logger, workers.workerGroupGID)
-	if err != nil {
-		_ = conn.Close()
-		cancel()
-		return err
+	if p.maintenanceAccessSupported {
+		workers := newNginxPeerAuthority(canonicalExecutablePath(p.cfg.Nginx.Binary), p.mgr.CachedPID)
+		accessServer, err := startMaintenanceAccessServer(conn, p.logger, workers.workerGroupGID)
+		if err != nil {
+			_ = conn.Close()
+			cancel()
+			return err
+		}
+		p.maintenanceAccess = accessServer
 	}
 	p.conn = conn
-	p.maintenanceAccess = accessServer
+	p.accessServer.setSignInClient(pb.NewAccessSignInClient(conn))
 
 	// Start log stream if we have a connection
 	// The log stream is managed at the session level for nginx
@@ -722,6 +726,7 @@ func (p *NginxPlugin) OnSessionStart(ctx context.Context, _ *stream.Writer) erro
 }
 
 func (p *NginxPlugin) OnSessionEnd() {
+	p.accessServer.setSignInClient(nil)
 	p.maintenanceAccess.close(p.socketsHandedOver())
 	p.maintenanceAccess = nil
 	if p.conn != nil {

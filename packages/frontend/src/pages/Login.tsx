@@ -91,8 +91,7 @@ function isPasskeyPromptDismissed(error: unknown): boolean {
   );
 }
 
-/** A JSON request of the sign-in entry (GET without a body); a failure throws the server's message. */
-export async function authRequest<T>(path: string, body?: unknown): Promise<T> {
+async function authRequest<T>(path: string, body?: unknown): Promise<T> {
   const response = await fetch(path, {
     method: body === undefined ? "GET" : "POST",
     credentials: "include",
@@ -145,6 +144,17 @@ export function LoginPage({
   const [preparingTotp, setPreparingTotp] = useState(false);
   const opfieldNavigationPending = useRef(false);
   const prefersReducedMotion = useReducedMotion();
+  // On the way to the identity provider: its button spins until the page leaves.
+  const [leavingToProvider, setLeavingToProvider] = useState(false);
+
+  // Back from the provider through the browser history: the page comes from the cache as it was left.
+  useEffect(() => {
+    const restored = (event: PageTransitionEvent) => {
+      if (event.persisted) setLeavingToProvider(false);
+    };
+    window.addEventListener("pageshow", restored);
+    return () => window.removeEventListener("pageshow", restored);
+  }, []);
   const resetToken = new URLSearchParams(location.search).get("token");
   const returnTo = resolveAuthReturnTo(location.search);
   const emailEnabled = methods.password || methods.emailOtp || methods.demoEmailOtp;
@@ -741,10 +751,12 @@ export function LoginPage({
                   <Button
                     className="w-full"
                     onClick={() => {
+                      setLeavingToProvider(true);
                       const absoluteReturnTo = new URL(returnTo, window.location.origin).href;
                       window.location.href = `/auth/login?return_to=${encodeURIComponent(absoluteReturnTo)}`;
                     }}
-                    disabled={busy}
+                    pending={leavingToProvider}
+                    disabled={busy || leavingToProvider}
                   >
                     {methods.oidcOpfieldAccount ? (
                       <OpfieldMark className="h-4 w-4 text-current" title="" />
@@ -759,7 +771,7 @@ export function LoginPage({
                     className="w-full"
                     variant={methods.oidc ? "outline" : "default"}
                     onClick={() => setLoginStep("email")}
-                    disabled={busy}
+                    disabled={busy || leavingToProvider}
                   >
                     <Mail className="h-4 w-4" />
                     {methods.demoEmailOtp ? "Explore the demo" : "Sign in with Email"}
@@ -770,7 +782,7 @@ export function LoginPage({
                     className="w-full"
                     variant="outline"
                     onClick={signInWithPasskey}
-                    disabled={busy}
+                    disabled={busy || leavingToProvider}
                   >
                     <Fingerprint className="h-4 w-4" />
                     Sign in with Passkey

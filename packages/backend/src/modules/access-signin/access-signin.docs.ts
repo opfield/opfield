@@ -16,7 +16,7 @@ export const getAccessSettingsRoute = appRoute({
   tags: TAG,
   summary: 'Get the access sign-in settings',
   description:
-    'Sign-in domain (null: the Opfield public URL serves the sign-in page), default session length, placement of the sign-in route and signInOrigin, the origin visitors are sent to.',
+    'The default session length of access lists. Visitors sign in on the protected route itself (/_opfield/access/sign-in of the route).',
   responses: okJson(UnknownDataResponseSchema),
 });
 
@@ -25,8 +25,7 @@ export const updateAccessSettingsRoute = appRoute({
   path: '/',
   tags: TAG,
   summary: 'Update the access sign-in settings',
-  description:
-    'A domain with nodeId or ingressGroupId gets a system route proxied to Opfield (TLS with sslCertificateId); a domain without placement must reach Opfield another way. domain null removes the route.',
+  description: 'defaultSessionTtlSeconds: how long a sign-in lasts when the access list sets no length of its own.',
   request: jsonBody(AccessSignInSettingsUpdateSchema),
   responses: okJson(UnknownDataResponseSchema),
 });
@@ -54,7 +53,8 @@ export const createAccessIdentityProviderRoute = appRoute({
   path: '/',
   tags: TAG,
   summary: 'Add an identity provider',
-  description: 'The response carries redirectUri, the URI to register at the provider.',
+  description:
+    'The response carries redirectUri, the pattern of the URIs to register at the provider: https://<route host>/_opfield/access/provider-callback for every route whose access list offers it.',
   request: jsonBody(CreateAccessIdentityProviderSchema),
   responses: createdJson(UnknownDataResponseSchema),
 });
@@ -130,7 +130,7 @@ export const listAccessSessionsRoute = appRoute({
   path: '/',
   tags: TAG,
   summary: 'List visitor sessions',
-  description: 'Visitors signed in on the sign-in domain; ended sessions only with includeEnded.',
+  description: 'Visitors signed in on protected routes; ended sessions only with includeEnded.',
   request: { query: AccessSessionListQuerySchema },
   responses: okJson(UnknownDataResponseSchema),
 });

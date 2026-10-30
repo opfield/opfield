@@ -112,14 +112,7 @@ export function accessListHandlers() {
     http.get("*/api/access-identity-providers", () => wrapped(accessIdentityProviders)),
     http.get("*/api/access-service-tokens", () => wrapped(accessServiceTokens)),
     http.get("*/api/access-settings", () =>
-      wrapped({
-        domain: "access.acme.dev",
-        defaultSessionTtlSeconds: 86_400,
-        nodeId: null,
-        ingressGroupId: null,
-        sslCertificateId: null,
-        signInOrigin: "https://access.acme.dev",
-      })
+wrapped({ defaultSessionTtlSeconds: 86_400 })
     ),
     // Opfield user and group rules pick from these.
     http.get("*/api/admin/users", () => ok(users)),

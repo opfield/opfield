@@ -103,7 +103,7 @@ function sessionStatus(session: Pick<AccessSessionRow, 'revokedAt' | 'expiresAt'
   return session.expiresAt.getTime() > now.getTime() ? 'active' : 'expired';
 }
 
-/** Visitors signed in on the sign-in domain: listing, revoking and the expiry cleanup. */
+/** Visitors signed in on protected routes: listing, revoking and the expiry cleanup. */
 export class AccessSessionService {
   constructor(
     private readonly db: DrizzleClient,

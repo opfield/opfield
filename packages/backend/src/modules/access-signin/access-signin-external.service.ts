@@ -1,39 +1,37 @@
-import { createHash, randomBytes } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 import * as client from 'openid-client';
 import { createChildLogger } from '@/lib/logger.js';
 import { AppError } from '@/middleware/error-handler.js';
 import type { CacheService } from '@/services/cache.service.js';
-import {
-  type AccessIdentityProviderService,
-  identityProviderCallbackPath,
-} from './access-identity-providers.service.js';
-import type { SignInTarget } from './access-signin.schemas.js';
+import type { AccessIdentityProviderService } from './access-identity-providers.service.js';
 import type { AccessSignInDirectory } from './access-signin-directory.js';
-import type { AccessSignInFlowService, SignedIn, VisitorMeta } from './access-signin-flow.service.js';
+import type {
+  AccessSignInFlowService,
+  AccessSignInTarget,
+  ResolvedTarget,
+  SignedIn,
+} from './access-signin-flow.service.js';
 
 const logger = createChildLogger('AccessSignInExternal');
 
-/** Binds a pending sign-in at a provider or the console to the browser that started it (login CSRF). */
-export const ACCESS_SIGN_IN_STATE_COOKIE = 'opfield_access_signin';
+/** Where a provider sends the visitor back: a path of the protected route itself, served by its nginx daemon. */
+export const ACCESS_PROVIDER_CALLBACK_PATH = '/_opfield/access/provider-callback';
 export const PENDING_SIGN_IN_TTL_SECONDS = 600;
 const OPFIELD_CODE_TTL_SECONDS = 60;
-const IDP_STATE_PREFIX = 'access-signin:idp:';
-const OPFIELD_STATE_PREFIX = 'access-signin:opfield:';
+const PENDING_PREFIX = 'access-signin:pending:';
+
+const offers = (resolved: ResolvedTarget, method: string) => (resolved.list.signInMethods as string[]).includes(method);
 const OPFIELD_CODE_PREFIX = 'access-signin:opfield-code:';
 
-interface PendingIdpSignIn {
-  providerId: string;
-  codeVerifier: string;
-  nonce: string;
-  target: SignInTarget;
-}
-
-interface PendingOpfieldSignIn {
-  target: SignInTarget;
-}
-
-export function hashSignInState(state: string): string {
-  return createHash('sha256').update(state).digest('base64url');
+interface PendingSignIn {
+  /** opfield or idp:<provider id>. */
+  method: string;
+  listId: string;
+  host: string;
+  callbackUrl: string;
+  /** Provider sign-ins: PKCE verifier and OIDC nonce, never shown to the browser. */
+  codeVerifier?: string;
+  nonce?: string;
 }
 
 function claimString(claims: Record<string, unknown>, name: string): string | undefined {
@@ -56,8 +54,38 @@ export function groupsFromClaim(claims: Record<string, unknown>, claim: string |
 }
 
 /**
- * Sign-in through an identity provider (Google, OIDC) and with an Opfield account of this installation. Both end in
- * AccessSignInFlowService.completeSignIn.
+ * The provider callback of the route the visitor signs in on: `https://<host>/_opfield/access/provider-callback`, plain
+ * HTTP only for a route served without TLS. Anything else (another host, port, path or query) is refused, so a code
+ * is never sent anywhere but the route the sign-in is for.
+ */
+export function routeCallbackUrl(resolved: ResolvedTarget, callbackUrl: string): string {
+  const invalid = () => new AppError(400, 'ACCESS_CALLBACK_INVALID', 'The sign-in return address is not valid');
+  let url: URL;
+  try {
+    url = new URL(callbackUrl);
+  } catch {
+    throw invalid();
+  }
+  const schemeAllowed = url.protocol === 'https:' || (url.protocol === 'http:' && !resolved.secure);
+  if (
+    !schemeAllowed ||
+    url.hostname !== resolved.host ||
+    url.port !== '' ||
+    url.username ||
+    url.password ||
+    url.pathname !== ACCESS_PROVIDER_CALLBACK_PATH ||
+    url.search ||
+    url.hash
+  ) {
+    throw invalid();
+  }
+  return `${url.protocol}//${resolved.host}${ACCESS_PROVIDER_CALLBACK_PATH}`;
+}
+
+/**
+ * Sign-in through an identity provider (Google, OIDC) and with an Opfield account of this installation, started and
+ * finished by the route's nginx daemon. The provider (or the Opfield console) sends the visitor back to the route's
+ * own provider callback; state, PKCE verifier and nonce stay here. Both end in AccessSignInFlowService.completeSignIn.
  */
 export class AccessSignInExternalService {
   constructor(
@@ -65,29 +93,42 @@ export class AccessSignInExternalService {
     private readonly providers: Pick<AccessIdentityProviderService, 'find' | 'clientConfiguration'>,
     private readonly directory: Pick<AccessSignInDirectory, 'getOpfieldUser'>,
     private readonly cache: Pick<CacheService, 'set' | 'get' | 'take'>,
-    private readonly signInOrigin: () => Promise<string>,
     private readonly consoleOrigin: () => Promise<string>
   ) {}
 
-  /** The provider's authorization URL and the state the browser is bound to. */
-  async startIdp(providerId: string, target: SignInTarget): Promise<{ url: string; state: string }> {
+  /** Where the visitor goes to sign in with `method` (opfield or idp:<id>), and the state the daemon binds them to. */
+  async start(
+    target: AccessSignInTarget,
+    method: string,
+    callbackUrl: string
+  ): Promise<{ url: string; state: string }> {
     const resolved = await this.flow.resolveTarget(target);
-    if (!resolved.list.signInMethods.includes(`idp:${providerId}`)) {
+    const isProvider = method.startsWith('idp:');
+    if ((method !== 'opfield' && !isProvider) || !offers(resolved, method)) {
       throw new AppError(400, 'ACCESS_METHOD_NOT_OFFERED', 'This site does not offer this sign-in method');
     }
-    const provider = await this.providers.find(providerId);
+    const callback = routeCallbackUrl(resolved, callbackUrl);
+    const pending: PendingSignIn = { method, listId: resolved.list.id, host: resolved.host, callbackUrl: callback };
+    if (!isProvider) {
+      const state = randomBytes(32).toString('base64url');
+      await this.cache.set(`${PENDING_PREFIX}${state}`, pending, PENDING_SIGN_IN_TTL_SECONDS);
+      const url = new URL('/api/access-sign-in/opfield/authorize', await this.consoleOrigin());
+      url.searchParams.set('state', state);
+      return { url: url.toString(), state };
+    }
+    const provider = await this.providers.find(method.slice(4));
     if (!provider) throw new AppError(404, 'ACCESS_IDENTITY_PROVIDER_NOT_FOUND', 'Identity provider not found');
     const config = await this.providers.clientConfiguration(provider);
     const codeVerifier = client.randomPKCECodeVerifier();
     const state = client.randomState();
     const nonce = client.randomNonce();
-    await this.cache.set<PendingIdpSignIn>(
-      `${IDP_STATE_PREFIX}${state}`,
-      { providerId, codeVerifier, nonce, target },
+    await this.cache.set(
+      `${PENDING_PREFIX}${state}`,
+      { ...pending, codeVerifier, nonce } satisfies PendingSignIn,
       PENDING_SIGN_IN_TTL_SECONDS
     );
     const url = client.buildAuthorizationUrl(config, {
-      redirect_uri: `${await this.signInOrigin()}${identityProviderCallbackPath(providerId)}`,
+      redirect_uri: callback,
       scope: provider.scopes,
       code_challenge: await client.calculatePKCECodeChallenge(codeVerifier),
       code_challenge_method: 'S256',
@@ -97,34 +138,71 @@ export class AccessSignInExternalService {
     return { url: url.href, state };
   }
 
-  /** The provider sent the browser back: exchange the code, sign the visitor in. */
-  async finishIdp(
-    providerId: string,
-    query: URLSearchParams,
-    boundState: string | undefined,
-    meta: VisitorMeta
+  /** On the console origin, for a signed-in console user: a one-time code back to the route's provider callback. */
+  async authorizeOpfield(state: string, userId: string): Promise<string> {
+    const pending = state ? await this.cache.get<PendingSignIn>(`${PENDING_PREFIX}${state}`) : null;
+    if (!pending || pending.method !== 'opfield') {
+      throw new AppError(400, 'ACCESS_SIGN_IN_EXPIRED', 'This sign-in expired; start again');
+    }
+    const code = randomBytes(32).toString('base64url');
+    await this.cache.set(`${OPFIELD_CODE_PREFIX}${code}`, { userId, state }, OPFIELD_CODE_TTL_SECONDS);
+    const url = new URL(pending.callbackUrl);
+    url.searchParams.set('code', code);
+    url.searchParams.set('state', state);
+    return url.toString();
+  }
+
+  /**
+   * The visitor is back on the route's provider callback (the daemon checked the state against the cookie it set when
+   * the sign-in started): exchange the code and sign the visitor in.
+   */
+  async finish(
+    target: AccessSignInTarget,
+    input: { state: string; code: string; error: string; callbackUrl: string }
   ): Promise<SignedIn> {
-    const state = query.get('state') ?? '';
-    if (!state || boundState !== hashSignInState(state)) {
+    const pending = input.state ? await this.cache.take<PendingSignIn>(`${PENDING_PREFIX}${input.state}`) : null;
+    if (!pending) throw new AppError(400, 'ACCESS_SIGN_IN_EXPIRED', 'This sign-in expired; start again');
+    // The callback may reach another member of the route's ingress group; that node must serve the same route.
+    const resolved = await this.flow.resolveTarget(target);
+    if (
+      pending.listId !== resolved.list.id ||
+      pending.host !== resolved.host ||
+      routeCallbackUrl(resolved, input.callbackUrl) !== pending.callbackUrl
+    ) {
       throw new AppError(400, 'ACCESS_SIGN_IN_EXPIRED', 'This sign-in expired; start again');
     }
-    const pending = await this.cache.take<PendingIdpSignIn>(`${IDP_STATE_PREFIX}${state}`);
-    if (!pending || pending.providerId !== providerId) {
-      throw new AppError(400, 'ACCESS_SIGN_IN_EXPIRED', 'This sign-in expired; start again');
-    }
-    const resolved = await this.flow.resolveTarget(pending.target);
-    const provider = await this.providers.find(providerId);
-    if (!provider || !resolved.list.signInMethods.includes(`idp:${providerId}`)) {
+    if (!offers(resolved, pending.method)) {
       throw new AppError(400, 'ACCESS_METHOD_NOT_OFFERED', 'This site does not offer this sign-in method');
     }
+    if (pending.method === 'opfield') return this.finishOpfield(resolved, input, target);
+    return this.finishIdp(resolved, pending, input, target);
+  }
+
+  private async finishIdp(
+    resolved: ResolvedTarget,
+    pending: PendingSignIn,
+    input: { state: string; code: string; error: string },
+    target: AccessSignInTarget
+  ): Promise<SignedIn> {
+    const providerId = pending.method.slice(4);
+    const provider = await this.providers.find(providerId);
+    if (!provider) throw new AppError(400, 'ACCESS_METHOD_NOT_OFFERED', 'This site does not offer this sign-in method');
+    if (input.error || !input.code) {
+      throw new AppError(401, 'ACCESS_SIGN_IN_FAILED', `${provider.name} did not sign you in`);
+    }
     const config = await this.providers.clientConfiguration(provider);
-    const callbackUrl = new URL(`${await this.signInOrigin()}${identityProviderCallbackPath(providerId)}`);
-    callbackUrl.search = query.toString();
+    const callbackUrl = new URL(pending.callbackUrl);
+    callbackUrl.searchParams.set('code', input.code);
+    callbackUrl.searchParams.set('state', input.state);
+    // The daemon hands back code and state only. A provider that announces the iss response parameter is the one the
+    // state was issued for (the pending sign-in names it), so its own issuer stands in.
+    const metadata = config.serverMetadata();
+    if (metadata.authorization_response_iss_parameter_supported) callbackUrl.searchParams.set('iss', metadata.issuer);
     let claims: Record<string, unknown>;
     try {
       const tokens = await client.authorizationCodeGrant(config, callbackUrl, {
         pkceCodeVerifier: pending.codeVerifier,
-        expectedState: state,
+        expectedState: input.state,
         expectedNonce: pending.nonce,
       });
       claims = (tokens.claims() ?? {}) as Record<string, unknown>;
@@ -139,66 +217,32 @@ export class AccessSignInExternalService {
     if (!subject) throw new AppError(401, 'ACCESS_SIGN_IN_FAILED', `${provider.name} did not name the account`);
     const email = verifiedEmail(claims);
     const groups = groupsFromClaim(claims, provider.groupsClaim);
+    const name = claimString(claims, 'name');
     return this.flow.completeSignIn(
       resolved,
       {
-        m: `idp:${providerId}`,
+        m: pending.method,
         sub: subject,
         ...(email ? { em: email } : {}),
-        ...(claimString(claims, 'name') ? { nm: claimString(claims, 'name') } : {}),
+        ...(name ? { nm: name } : {}),
         ...(groups.length ? { grp: groups } : {}),
       },
-      meta
+      target
     );
   }
 
-  /** Opfield account: the console origin confirms who the visitor is (their console session). */
-  async startOpfield(target: SignInTarget): Promise<{ url: string; state: string }> {
-    const resolved = await this.flow.resolveTarget(target);
-    if (!resolved.list.signInMethods.includes('opfield')) {
-      throw new AppError(400, 'ACCESS_METHOD_NOT_OFFERED', 'This site does not offer Opfield account sign-in');
-    }
-    const state = randomBytes(32).toString('base64url');
-    await this.cache.set<PendingOpfieldSignIn>(
-      `${OPFIELD_STATE_PREFIX}${state}`,
-      { target },
-      PENDING_SIGN_IN_TTL_SECONDS
-    );
-    const url = new URL('/api/access-sign-in/opfield/authorize', await this.consoleOrigin());
-    url.searchParams.set('state', state);
-    return { url: url.toString(), state };
-  }
-
-  /** On the console origin, for a signed-in console user: a one-time code back to the sign-in origin. */
-  async authorizeOpfield(state: string, userId: string): Promise<string> {
-    const pending = state ? await this.cache.get<PendingOpfieldSignIn>(`${OPFIELD_STATE_PREFIX}${state}`) : null;
-    if (!pending) throw new AppError(400, 'ACCESS_SIGN_IN_EXPIRED', 'This sign-in expired; start again');
-    const code = randomBytes(32).toString('base64url');
-    await this.cache.set(`${OPFIELD_CODE_PREFIX}${code}`, { userId, state }, OPFIELD_CODE_TTL_SECONDS);
-    const url = new URL('/access/opfield/callback', await this.signInOrigin());
-    url.searchParams.set('code', code);
-    url.searchParams.set('state', state);
-    return url.toString();
-  }
-
-  async finishOpfield(
-    code: string,
-    state: string,
-    boundState: string | undefined,
-    meta: VisitorMeta
+  private async finishOpfield(
+    resolved: ResolvedTarget,
+    input: { state: string; code: string; error: string },
+    target: AccessSignInTarget
   ): Promise<SignedIn> {
-    // A code shown in another browser must not use up the visitor's own pending sign-in.
-    if (!state || boundState !== hashSignInState(state)) {
-      throw new AppError(400, 'ACCESS_SIGN_IN_EXPIRED', 'This sign-in expired; start again');
-    }
-    const issued = code
-      ? await this.cache.take<{ userId: string; state: string }>(`${OPFIELD_CODE_PREFIX}${code}`)
+    if (input.error) throw new AppError(401, 'ACCESS_SIGN_IN_FAILED', 'Opfield did not sign you in');
+    const issued = input.code
+      ? await this.cache.take<{ userId: string; state: string }>(`${OPFIELD_CODE_PREFIX}${input.code}`)
       : null;
-    const pending = state ? await this.cache.take<PendingOpfieldSignIn>(`${OPFIELD_STATE_PREFIX}${state}`) : null;
-    if (!issued || !pending || issued.state !== state) {
+    if (!issued || issued.state !== input.state) {
       throw new AppError(400, 'ACCESS_SIGN_IN_EXPIRED', 'This sign-in expired; start again');
     }
-    const resolved = await this.flow.resolveTarget(pending.target);
     const user = await this.directory.getOpfieldUser(issued.userId);
     if (!user) throw new AppError(403, 'ACCESS_SIGN_IN_FAILED', 'This Opfield account cannot sign in');
     return this.flow.completeSignIn(
@@ -210,15 +254,7 @@ export class AccessSignInExternalService {
         nm: user.name,
         ...(user.groups.length ? { grp: user.groups } : {}),
       },
-      meta
+      target
     );
-  }
-
-  /** The target a pending sign-in was started for, to send a failed visitor back to the sign-in page. */
-  async pendingTarget(kind: 'idp' | 'opfield', state: string): Promise<SignInTarget | null> {
-    if (!state) return null;
-    const prefix = kind === 'idp' ? IDP_STATE_PREFIX : OPFIELD_STATE_PREFIX;
-    const pending = await this.cache.get<{ target: SignInTarget }>(`${prefix}${state}`);
-    return pending?.target ?? null;
   }
 }

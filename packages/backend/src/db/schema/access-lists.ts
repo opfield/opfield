@@ -158,7 +158,7 @@ export const accessSigningKeys = pgTable(
 );
 
 /**
- * A visitor signed in on the sign-in domain. Host tokens carry its id (sid); revoking it turns every
+ * A visitor signed in on a protected route's sign-in page. Host tokens carry its id (sid); revoking it turns every
  * token of the session away on every ingress node.
  */
 export const accessSessions = pgTable(

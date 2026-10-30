@@ -22,9 +22,14 @@ const accessSocketPath = "/run/nginx-daemon/access.sock"
 // (SyncAccessPolicyCommand), and its nginx has the auth_request module route configs use.
 const accessAuthCapability = "nginx_access_auth_v1"
 
+// accessSignInCapability: the access socket also serves the route's own sign-in page under /ui/ (route configs
+// proxy /_opfield/access/ there) and asks Opfield about its sign-ins over the daemon's control channel.
+const accessSignInCapability = "nginx_access_signin_v3"
+
 // accessServer serves the access socket. It does not depend on the control session: access keeps working from the
 // persisted policy while Opfield is unreachable.
 type accessServer struct {
+	handler  *access.Server
 	listener net.Listener
 	keptName string
 	server   *http.Server
@@ -45,13 +50,24 @@ func startAccessServer(store *access.Store, logger interface{ Warn(string, ...an
 	}
 	done := make(chan struct{})
 	go grantSocketToGroup(accessSocketPath, workerGID, maintenanceAccessGroupRetry, done, logger)
-	server := &http.Server{Handler: access.NewServer(store).Handler(), ReadHeaderTimeout: 5 * time.Second, WriteTimeout: 10 * time.Second}
+	handler := access.NewServer(store)
+	handler.SetLogger(logger)
+	// The sign-in page waits for Opfield at most signInTimeout (8 s) per question.
+	server := &http.Server{Handler: handler.Handler(), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 20 * time.Second}
 	go func() {
 		if err := server.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			logger.Warn("access socket stopped", "error", err)
 		}
 	}()
-	return &accessServer{listener: listener, keptName: keptName, server: server, done: done}, nil
+	return &accessServer{handler: handler, listener: listener, keptName: keptName, server: server, done: done}, nil
+}
+
+// setSignInClient gives the sign-in page the control channel of a session (nil when the session ends): without it
+// the page says sign-in is unavailable, while checks keep answering from the persisted policy.
+func (s *accessServer) setSignInClient(client pb.AccessSignInClient) {
+	if s != nil {
+		s.handler.SetSignInClient(client)
+	}
 }
 
 // close ends the server: for good, or, once the daemon handed its sockets to the next process (handedOver), only

@@ -56,6 +56,43 @@ function getPipelineCount(results: unknown): number {
   return count;
 }
 
+/** Counts one request of `subject` in the sliding window and returns how many came before it in the window. */
+async function countRequest(key: string, windowMs: number, now: number): Promise<number> {
+  const redis = container.resolve<RedisClient>(TOKENS.RedisClient);
+  const pipeline = redis.pipeline();
+  pipeline.zremrangebyscore(key, 0, now - windowMs);
+  pipeline.zcard(key);
+  pipeline.zadd(key, now, `${now}-${randomUUID()}`);
+  pipeline.expire(key, Math.ceil(windowMs / 1000));
+  return getPipelineCount(await withRateLimitRedisTimeout(pipeline.exec()));
+}
+
+/**
+ * The same sliding window outside an HTTP request (a daemon asking on a visitor's behalf): counts one attempt of each
+ * subject and throws RATE_LIMIT_EXCEEDED when any of them is over the environment's budget.
+ */
+export async function consumeRateLimit(
+  keyPrefix: string,
+  subjects: string[],
+  maxRequests: RateLimitSelector
+): Promise<void> {
+  const settings = getEnvironmentSettingsSnapshot().rateLimits;
+  const limit = maxRequests(settings);
+  const now = Date.now();
+  let counts: number[];
+  try {
+    counts = await Promise.all(
+      subjects.map((subject) => countRequest(`${keyPrefix}:${subject}`, settings.windowMs, now))
+    );
+  } catch (error) {
+    if (error instanceof AppError) throw error;
+    throw rateLimitUnavailable(error);
+  }
+  if (counts.some((count) => count >= limit)) {
+    throw new AppError(429, 'RATE_LIMIT_EXCEEDED', 'Too many requests, please try again later');
+  }
+}
+
 export function createRateLimiter(config: RateLimitConfig): MiddlewareHandler<AppEnv> {
   const { windowMs, maxRequests, keyPrefix = 'ratelimit' } = config;
 
@@ -64,18 +101,9 @@ export function createRateLimiter(config: RateLimitConfig): MiddlewareHandler<Ap
 
     const key = `${keyPrefix}:${subject}`;
     const now = Date.now();
-    const windowStart = now - windowMs;
 
     try {
-      const redis = container.resolve<RedisClient>(TOKENS.RedisClient);
-      const pipeline = redis.pipeline();
-      pipeline.zremrangebyscore(key, 0, windowStart);
-      pipeline.zcard(key);
-      pipeline.zadd(key, now, `${now}-${randomUUID()}`);
-      pipeline.expire(key, Math.ceil(windowMs / 1000));
-
-      const results = await withRateLimitRedisTimeout(pipeline.exec());
-      const requestCount = getPipelineCount(results);
+      const requestCount = await countRequest(key, windowMs, now);
 
       c.res.headers.set('X-RateLimit-Limit', String(maxRequests));
       c.res.headers.set('X-RateLimit-Remaining', String(Math.max(0, maxRequests - requestCount - 1)));
@@ -145,11 +173,13 @@ export const authLoginRateLimitMiddleware = createEnvironmentRateLimiter(
   (settings) => settings.authLoginMaxRequests
 );
 
-/** Password and shared-password attempts on the access sign-in page, with the console login budget. */
-export const accessSignInRateLimitMiddleware = createEnvironmentRateLimiter(
-  'ratelimit:access-sign-in',
-  (settings) => settings.authLoginMaxRequests
-);
+/**
+ * Password and shared-password attempts on a route's sign-in page (asked by the route's nginx daemon), with the
+ * console login budget: per visitor address and per account.
+ */
+export function consumeAccessSignInRateLimit(subjects: string[]): Promise<void> {
+  return consumeRateLimit('ratelimit:access-sign-in', subjects, (settings) => settings.authLoginMaxRequests);
+}
 
 export const authCallbackRateLimitMiddleware = createEnvironmentRateLimiter(
   'ratelimit:auth:callback',

@@ -1,0 +1,94 @@
+{{define "icon"}}{{if eq . "opfield"}}<svg class="mark" viewBox="0 0 48 48" fill="currentColor" aria-hidden="true"><g fill="currentColor" stroke="none"><rect x="19.5" y="4.5" width="9" height="9" rx="2.4"/><rect x="30.11" y="8.89" width="9" height="9" rx="2.4"/><rect x="34.5" y="19.5" width="9" height="9" rx="2.4"/><rect x="30.11" y="30.11" width="9" height="9" rx="2.4"/><rect x="19.5" y="34.5" width="9" height="9" rx="2.4"/><rect x="8.89" y="30.11" width="9" height="9" rx="2.4"/><rect x="4.5" y="19.5" width="9" height="9" rx="2.4"/><rect x="8.89" y="8.89" width="9" height="9" rx="2.4"/></g></svg>{{else if eq . "user"}}<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/></svg>{{else if eq . "key"}}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z"/><circle cx="16.5" cy="7.5" r=".5" fill="currentColor"/></svg>{{else if eq . "arrow-right"}}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>{{else if eq . "arrow-left"}}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>{{else}}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" x2="3" y1="12" y2="12"/></svg>{{end}}{{end}}{{define "back"}}{{if .Other}}
+          <div class="center"><a class="btn btn-outline" href="{{.BackHref}}" data-goto="methods">{{template "icon" "arrow-left"}}Other sign-in methods</a></div>{{end}}{{end}}<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<meta name="color-scheme" content="light dark">
+<title>{{.Host}}</title>
+<style nonce="{{.Nonce}}">{{css}}</style>
+</head>
+<body>
+<main class="shell">
+  <div class="column">
+    <header class="head">
+      <h1>{{.Host}}</h1>
+      <p class="subtitle" data-subtitle>{{.Subtitle}}</p>
+    </header>
+    <div class="height" data-height>
+      <div class="steps" data-steps>
+        {{- if or (eq .Step "methods") .Buttons}}
+        <section class="step" data-step="methods" data-title="Sign in to continue"{{if ne .Step "methods"}} hidden{{end}}>
+          <div class="stack">
+            {{- range .Buttons}}
+            <a class="btn {{if .Primary}}btn-primary{{else}}btn-outline{{end}} wide" href="{{.Href}}"{{if .Step}} data-goto="{{.Step}}"{{else}} data-leave{{end}}>{{template "icon" .Icon}}<span>{{.Label}}</span></a>
+            {{- end}}
+          </div>
+        </section>
+        {{- end}}
+        {{- if .HasPassword}}
+        <section class="step" data-step="password" data-title="Sign in to continue"{{if ne .Step "password"}} hidden{{end}}>
+          <form class="form" method="post" action="{{.Action}}" data-submit>
+            <input type="hidden" name="kind" value="password">
+            <input type="hidden" name="r" value="{{.Return}}">
+            <input type="hidden" name="csrf" value="{{.CSRF}}">
+            <input class="input" name="username" aria-label="Username" placeholder="Username" autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="256" required value="{{.Username}}"{{if and (eq .Step "password") (not .Username)}} autofocus{{end}}>
+            <div class="row">
+              <input class="input" type="password" name="password" aria-label="Password" placeholder="Password" autocomplete="current-password" maxlength="1024" required{{if and (eq .Step "password") .Username}} autofocus{{end}}>
+              <button class="btn btn-primary" type="submit">Sign in{{template "icon" "arrow-right"}}</button>
+            </div>
+            {{- template "back" .}}
+          </form>
+        </section>
+        {{- end}}
+        {{- if .HasShared}}
+        <section class="step" data-step="shared" data-title="Enter the password to continue"{{if ne .Step "shared"}} hidden{{end}}>
+          <form class="form" method="post" action="{{.Action}}" data-submit>
+            <input type="hidden" name="kind" value="shared">
+            <input type="hidden" name="r" value="{{.Return}}">
+            <input type="hidden" name="csrf" value="{{.CSRF}}">
+            <div class="row">
+              <input class="input" type="password" name="password" aria-label="Password" placeholder="Password" autocomplete="current-password" maxlength="1024" required{{if eq .Step "shared"}} autofocus{{end}}>
+              <button class="btn btn-primary" type="submit">Continue{{template "icon" "arrow-right"}}</button>
+            </div>
+            {{- template "back" .}}
+          </form>
+        </section>
+        {{- end}}
+        {{- if eq .Step "denied"}}
+        <section class="step" data-step="denied">
+          <div class="form">
+            <p class="text">{{if .Account}}Signed in as <span class="strong">{{.Account}}</span>. {{end}}Ask the owner of {{.Host}} to let this account in.</p>
+            <form class="center" method="post" action="{{.SignOut}}" data-submit>
+              <input type="hidden" name="r" value="{{.Return}}">
+              <input type="hidden" name="csrf" value="{{.CSRF}}">
+              <button class="btn btn-outline" type="submit">{{template "icon" "login"}}Use another account</button>
+            </form>
+          </div>
+        </section>
+        {{- end}}
+        {{- if and (eq .Step "notice") .Notice}}
+        <section class="step" data-step="notice">
+          <p class="text">{{.Notice}}</p>
+        </section>
+        {{- end}}
+      </div>
+    </div>
+    <footer class="foot">
+      <p>Protected by <a href="https://opfield.dev" target="_blank" rel="noreferrer">Opfield</a></p>
+    </footer>
+  </div>
+</main>
+{{- if .ToastTitle}}
+<section class="toaster" aria-label="Notifications" aria-live="polite">
+  <div class="toast" role="alert" data-toast>
+    <button class="toast-close" type="button" aria-label="Close toast" data-toast-close><svg viewBox="0 0 24 24" width="12" height="12" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    <div class="toast-icon"><svg viewBox="0 0 20 20" width="20" height="20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" clip-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-5a.75.75 0 01.75.75v4.5a.75.75 0 01-1.5 0v-4.5A.75.75 0 0110 5zm0 10a1 1 0 100-2 1 1 0 000 2z"/></svg></div>
+    <div class="toast-content"><div class="toast-title">{{.ToastTitle}}</div>{{if .ToastDescription}}<div class="toast-description">{{.ToastDescription}}</div>{{end}}</div>
+  </div>
+</section>
+{{- end}}
+<script nonce="{{.Nonce}}">{{js}}</script>
+</body>
+</html>

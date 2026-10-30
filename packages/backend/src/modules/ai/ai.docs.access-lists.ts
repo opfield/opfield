@@ -17,7 +17,7 @@ An access list decides who may open the routes and Pages previews it is attached
 - password: a sign-in form for the list's users; basic: HTTP basic authentication with the same users (for scripts and old clients)
 - shared: one password for every visitor (sharedPassword)
 - idp:<providerId>: Google or an OIDC provider configured in the sign-in settings
-- The sign-in page lives on the sign-in domain of the sign-in settings (by default the Opfield public URL); after signing in, a visitor stays signed in for sessionTtlSeconds (null: the default of the sign-in settings). Sign-in settings, identity providers, service tokens and sessions: topic access-sign-in
+- The sign-in page is a page of the protected route itself (\`/_opfield/access/sign-in\`, served by its ingress node); after signing in, a visitor stays signed in on that route for sessionTtlSeconds (null: the default of the sign-in settings). Sign-in settings, identity providers, service tokens and sessions: topic access-sign-in
 
 ## Rules (includeRules, requireRules, excludeRules)
 - Each rule is { selector, values }; it matches when any value matches

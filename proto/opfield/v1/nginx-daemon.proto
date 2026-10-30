@@ -77,6 +77,85 @@ message MaintenanceAccessReply {
   string session_token = 2;
 }
 
+// Internal request path used only by an enrolled nginx daemon: the sign-in page it serves on a protected route
+// (/_opfield/access/ of that route) asks Opfield to check credentials and to run provider sign-ins. The visitor
+// never reaches Opfield; Opfield answers only for a list and host the calling node serves.
+service AccessSignIn {
+  rpc Context(AccessSignInContextRequest) returns (AccessSignInContextReply);
+  rpc Password(AccessSignInPasswordRequest) returns (AccessSignInReply);
+  rpc StartProvider(AccessSignInStartRequest) returns (AccessSignInStartReply);
+  rpc FinishProvider(AccessSignInFinishRequest) returns (AccessSignInReply);
+}
+
+// The protected route a sign-in is for and the visitor nginx saw.
+message AccessSignInTarget {
+  string list_id = 1;
+  string host = 2;
+  string client_ip = 3;
+  string user_agent = 4;
+}
+
+message AccessSignInContextRequest {
+  AccessSignInTarget target = 1;
+}
+
+message AccessSignInMethod {
+  // opfield, password, shared, idp:<provider id>.
+  string key = 1;
+  // opfield, password, shared, idp.
+  string kind = 2;
+  // Shown on the button: "Google", "Acme SSO", "Opfield".
+  string label = 3;
+}
+
+message AccessSignInContextReply {
+  // The list's interactive methods in its order; empty when the list signs nobody in here.
+  repeated AccessSignInMethod methods = 1;
+}
+
+message AccessSignInPasswordRequest {
+  AccessSignInTarget target = 1;
+  // password (username and password of the list) or shared (the list's shared password).
+  string kind = 2;
+  string username = 3;
+  string password = 4;
+}
+
+message AccessSignInReply {
+  bool allowed = 1;
+  // The v1 host token the daemon turns into the route's access cookie (as /_opfield/access/callback did).
+  string token = 2;
+  // Set when not allowed: ACCESS_SIGN_IN_FAILED, ACCESS_RATE_LIMITED, ACCESS_DENIED, ...
+  string error_code = 3;
+  // A sentence the page can show.
+  string message = 4;
+}
+
+message AccessSignInStartRequest {
+  AccessSignInTarget target = 1;
+  // opfield or idp:<provider id>.
+  string method_key = 2;
+  // https://<host>/_opfield/access/provider-callback: where the provider sends the visitor back.
+  string callback_url = 3;
+}
+
+message AccessSignInStartReply {
+  string authorize_url = 1;
+  // Opaque; the daemon keeps it in a short-lived cookie of the route and hands it back on the callback.
+  string state = 2;
+  string error_code = 3;
+  string message = 4;
+}
+
+message AccessSignInFinishRequest {
+  AccessSignInTarget target = 1;
+  string state = 2;
+  string code = 3;
+  // The provider's error= parameter, if any.
+  string error = 4;
+  string callback_url = 5;
+}
+
 // Dedicated large-artifact transport. Docker daemons connect over the same
 // mutually authenticated channel as NodeControl, but artifacts never share the
 // bounded command result envelope.

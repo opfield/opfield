@@ -5,9 +5,11 @@ import { type NginxConfigDirective, parseNginxConfig } from './nginx-config-tree
  * What a route's nginx config renders of its access list.
  *
  * A node whose daemon reports NGINX_ACCESS_AUTH_CAPABILITY decides every request at its access socket: each protected
- * location asks it through auth_request (accessListDirectives), and the server answers the sign-in challenge and the
- * callback from the sign-in page (withAccessAuthLocations). The daemon checks the policy Opfield syncs to it, so a
- * change of the list changes no config.
+ * location asks it through auth_request (accessListDirectives), and the server answers the sign-in challenge
+ * (withAccessAuthLocations). The daemon checks the policy Opfield syncs to it, so a change of the list changes no
+ * config. A list with sign-in page methods (opfield, password, shared, idp:) signs visitors in on the route itself:
+ * `/_opfield/access/` goes to the daemon's sign-in page (NGINX_ACCESS_SIGNIN_CAPABILITY), which asks Opfield over the
+ * node's gRPC channel. On a node whose daemon has no sign-in page such a list answers 403: nobody is sent anywhere else.
  *
  * A node without it (an older daemon, during an update) gets allow/deny and basic authentication rendered from the
  * list instead (fallbackAccess): IP rules exactly, a list that only offers basic authentication with an htpasswd file,
@@ -15,15 +17,28 @@ import { type NginxConfigDirective, parseNginxConfig } from './nginx-config-tree
  */
 
 export const NGINX_ACCESS_AUTH_CAPABILITY = 'nginx_access_auth_v1';
+/** The daemon serves the sign-in page of a protected route (/_opfield/access/ → its access socket's /ui/). */
+export const NGINX_ACCESS_SIGNIN_CAPABILITY = 'nginx_access_signin_v3';
 const ACCESS_SOCKET = '/run/nginx-daemon/access.sock';
 export const ACCESS_CHECK_PATH = '/_opfield/access/check';
 const ACCESS_CALLBACK_PATH = '/_opfield/access/callback';
+/** Reserved on every route whose list signs visitors in on a page. */
+export const ACCESS_SIGN_IN_PREFIX = '/_opfield/access/';
 const ACCESS_CHALLENGE_LOCATION = '@opfield_access_challenge';
+/** Methods a visitor uses on the sign-in page; basic is HTTP authentication and service tokens are headers. */
+const SIGN_IN_PAGE_METHODS = new Set(['opfield', 'password', 'shared']);
+
+/** Whether the list signs visitors in on a page (opfield, password, shared or an identity provider). */
+export function hasSignInPageMethods(signInMethods: readonly string[]): boolean {
+  return signInMethods.some((method) => SIGN_IN_PAGE_METHODS.has(method) || method.startsWith('idp:'));
+}
 
 export interface NginxAccessList {
   id: string;
   /** The node checks requests at its access socket; false: the fallback directives. */
   authRequest: boolean;
+  /** The node's daemon serves the route's sign-in page (NGINX_ACCESS_SIGNIN_CAPABILITY). */
+  signInPage?: boolean;
   signInMethods: string[];
   /** The list has users (basic authentication of the fallback). */
   hasUsers: boolean;
@@ -58,7 +73,7 @@ export function nginxAccessListOf(
   };
 }
 
-type AccessPolicy = Omit<NginxAccessList, 'id' | 'authRequest'>;
+type AccessPolicy = Omit<NginxAccessList, 'id' | 'authRequest' | 'signInPage'>;
 
 // Values were validated as IPs or CIDR ranges on write; anything else never reaches a directive.
 function ipValue(value: string): string {
@@ -219,20 +234,57 @@ export function upgradeLegacyAccessListBlocks(content: string): string {
 // Server-level locations and inheritance (nodes with the access socket)
 // ---------------------------------------------------------------------------
 
+const listHeaderValue = (listId: string) => listId.replace(/[^0-9A-Za-z-]/g, '');
+
 const FORWARDED_ACCESS_HEADERS = (listId: string) => [
-  `proxy_set_header X-Opfield-Access-List "${listId.replace(/[^0-9A-Za-z-]/g, '')}";`,
+  `proxy_set_header X-Opfield-Access-List "${listHeaderValue(listId)}";`,
   'proxy_set_header X-Opfield-Access-Host $host;',
   'proxy_set_header X-Opfield-Access-Client-Ip $remote_addr;',
   'proxy_set_header X-Opfield-Access-Uri $request_uri;',
   'proxy_set_header X-Opfield-Access-Secure $https;',
 ];
 
-function accessLocations(listId: string): string {
+/**
+ * How the server answers a visitor who is not let in: the daemon's challenge (the route's sign-in page, or basic
+ * authentication for a basic-only list), or 403 where a sign-in page is needed but the node's daemon has none.
+ */
+function challengeLines(list: NginxAccessList): string[] {
+  if (hasSignInPageMethods(list.signInMethods) && !list.signInPage) return ['auth_request off;', 'return 403;'];
+  return [
+    'auth_request off;',
+    'rewrite ^ /challenge break;',
+    `proxy_pass http://unix:${ACCESS_SOCKET};`,
+    'proxy_pass_request_body off;',
+    'proxy_set_header Content-Length "";',
+    ...FORWARDED_ACCESS_HEADERS(list.id),
+  ];
+}
+
+/** The route's own sign-in page, served by the node's daemon; the visitor never reaches Opfield. */
+function signInPageLines(list: NginxAccessList): string[] {
+  return [
+    // Sign-in forms and provider callbacks carry credentials and codes: never in the access log.
+    'access_log off;',
+    'auth_request off;',
+    `proxy_pass http://unix:${ACCESS_SOCKET}:/ui/;`,
+    'proxy_redirect off;',
+    'proxy_set_header Host $host;',
+    `proxy_set_header X-Opfield-Access-List "${listHeaderValue(list.id)}";`,
+    'proxy_set_header X-Opfield-Access-Host $host;',
+    'proxy_set_header X-Opfield-Access-Client-IP $remote_addr;',
+    'proxy_set_header X-Opfield-Access-Scheme $scheme;',
+    'proxy_set_header User-Agent $http_user_agent;',
+    'client_max_body_size 64k;',
+  ];
+}
+
+function accessLocations(list: NginxAccessList): string {
   const block = (header: string, lines: string[]) => [
     `    ${header} {`,
     ...lines.map((line) => `        ${line}`),
     '    }',
   ];
+  const signInPage = list.signInPage && hasSignInPageMethods(list.signInMethods);
   return [
     '',
     '    # Opfield access list: the node checks every request at its access socket.',
@@ -241,7 +293,7 @@ function accessLocations(listId: string): string {
       `proxy_pass http://unix:${ACCESS_SOCKET}:/check;`,
       'proxy_pass_request_body off;',
       'proxy_set_header Content-Length "";',
-      ...FORWARDED_ACCESS_HEADERS(listId),
+      ...FORWARDED_ACCESS_HEADERS(list.id),
     ]),
     '',
     ...block(`location = ${ACCESS_CALLBACK_PATH}`, [
@@ -253,21 +305,20 @@ function accessLocations(listId: string): string {
       'proxy_set_header X-Opfield-Access-Secure $https;',
     ]),
     '',
-    ...block(`location ${ACCESS_CHALLENGE_LOCATION}`, [
-      'auth_request off;',
-      'rewrite ^ /challenge break;',
-      `proxy_pass http://unix:${ACCESS_SOCKET};`,
-      'proxy_pass_request_body off;',
-      'proxy_set_header Content-Length "";',
-      ...FORWARDED_ACCESS_HEADERS(listId),
-    ]),
+    ...(signInPage ? [...block(`location ^~ ${ACCESS_SIGN_IN_PREFIX}`, signInPageLines(list)), ''] : []),
+    ...block(`location ${ACCESS_CHALLENGE_LOCATION}`, challengeLines(list)),
     '',
   ].join('\n');
 }
 
 function isAccessLocation(location: NginxConfigDirective): boolean {
   const target = location.args.at(-1)?.value;
-  return target === ACCESS_CHECK_PATH || target === ACCESS_CALLBACK_PATH || target === ACCESS_CHALLENGE_LOCATION;
+  return (
+    target === ACCESS_CHECK_PATH ||
+    target === ACCESS_CALLBACK_PATH ||
+    target === ACCESS_SIGN_IN_PREFIX ||
+    target === ACCESS_CHALLENGE_LOCATION
+  );
 }
 
 function protectsHere(location: NginxConfigDirective): boolean {
@@ -368,7 +419,7 @@ export function withAccessAuthLocations(rendered: string, list: NginxAccessList 
     if (server.name !== 'server' || !server.block || !hasProtectedLocation(server.block.children)) continue;
     const children = server.block.children;
     if (!children.some((child) => child.name === 'location' && isAccessLocation(child))) {
-      edits.push({ position: server.block.open + 1, text: accessLocations(list.id) });
+      edits.push({ position: server.block.open + 1, text: accessLocations(list) });
     }
     const outer = {
       headers: own(rendered, children, 'proxy_set_header'),

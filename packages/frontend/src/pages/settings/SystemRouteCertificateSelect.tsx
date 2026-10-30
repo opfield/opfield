@@ -10,8 +10,8 @@ import type { SSLCertificate } from "@/types";
 const NO_CERTIFICATE = "__none__";
 
 /**
- * The certificate a system route (the status page, the access sign-in domain) presents: "No
- * certificate" or one of the active certificates.
+ * The certificate a system route (the status page) presents: "No certificate" or one of the
+ * active certificates.
  */
 export function SystemRouteCertificateSelect({
   value,

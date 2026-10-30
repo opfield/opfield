@@ -1,7 +1,4 @@
 import { z } from 'zod';
-import { isAccessHostName } from './access-token.js';
-
-const domainNameRegex = /^([a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$/;
 
 /** Session lengths the sign-in settings and access lists accept: 5 minutes to 30 days. */
 export const MIN_ACCESS_SESSION_TTL_SECONDS = 300;
@@ -11,21 +8,7 @@ export const DEFAULT_ACCESS_SESSION_TTL_SECONDS = 86_400;
 const SessionTtlSchema = z.number().int().min(MIN_ACCESS_SESSION_TTL_SECONDS).max(MAX_ACCESS_SESSION_TTL_SECONDS);
 
 export const AccessSignInSettingsUpdateSchema = z.object({
-  // Null: the Opfield public URL serves the sign-in pages.
-  domain: z
-    .string()
-    .trim()
-    .toLowerCase()
-    .regex(domainNameRegex, 'Invalid domain name')
-    .nullable()
-    .optional()
-    .or(z.literal('').transform(() => null)),
   defaultSessionTtlSeconds: SessionTtlSchema.optional(),
-  // Where the sign-in route runs (as the status page route): an nginx node, or every member of an ingress group.
-  // Without either the domain must reach Opfield some other way (DNS straight to Opfield or an existing proxy).
-  nodeId: z.string().uuid().nullable().optional(),
-  ingressGroupId: z.string().uuid().nullable().optional(),
-  sslCertificateId: z.string().uuid().nullable().optional(),
 });
 export type AccessSignInSettingsUpdate = z.infer<typeof AccessSignInSettingsUpdateSchema>;
 
@@ -99,35 +82,3 @@ export const AccessSessionListQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(200).optional(),
 });
 export type AccessSessionListQuery = z.infer<typeof AccessSessionListQuerySchema>;
-
-// ---------------------------------------------------------------------------
-// Public sign-in (the visitor's request back to its host)
-// ---------------------------------------------------------------------------
-
-export const SignInTargetSchema = z.object({
-  list: z.string().uuid(),
-  // $host of the protected request: a strict DNS name (see isAccessHostName).
-  host: z.string().trim().toLowerCase().refine(isAccessHostName, 'host must be a DNS name'),
-  // The daemon's state nonce (32 random bytes, base64url).
-  n: z
-    .string()
-    .min(16)
-    .max(128)
-    .regex(/^[A-Za-z0-9_-]+$/),
-  // A longer return path than the daemon keeps (4096) degrades to "/" rather than refusing the sign-in.
-  r: z
-    .string()
-    .optional()
-    .transform((value) => (value && value.length > 4096 ? '/' : value)),
-});
-export type SignInTarget = z.infer<typeof SignInTargetSchema>;
-
-export const PasswordSignInSchema = SignInTargetSchema.extend({
-  // Stored usernames are trimmed.
-  username: z.string().trim().min(1).max(255),
-  password: z.string().min(1).max(1024),
-});
-
-export const SharedSignInSchema = SignInTargetSchema.extend({
-  password: z.string().min(1).max(1024),
-});

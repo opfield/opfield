@@ -1,8 +1,7 @@
 import { createPublicKey, type KeyObject, sign, verify } from 'node:crypto';
 
 // Access tokens (contract "Access token"): `v1.<payloadB64url>.<sigB64url>`, an Ed25519 signature over the ASCII
-// bytes `opfield-access-v1.<payloadB64url>`. The nginx daemon verifies host tokens with the same rules; the backend
-// verifies the central session cookie of the sign-in domain.
+// bytes `opfield-access-v1.<payloadB64url>`. The nginx daemon verifies host tokens with the same rules.
 
 const TOKEN_VERSION = 'v1';
 const SIGNING_PREFIX = 'opfield-access-v1.';

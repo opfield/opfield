@@ -25,7 +25,12 @@ import type { RelayPoolService } from '@/services/relay-pool.service.js';
 import type { AdditionalRouteService } from './additional-route.service.js';
 import { supportsPagesRouteTemplate } from './additional-route-template.js';
 import { effectiveMaintenance } from './effective-maintenance.js';
-import { NGINX_ACCESS_AUTH_CAPABILITY, nginxAccessListOf, usesFallbackBasicAuth } from './nginx-access-list.js';
+import {
+  NGINX_ACCESS_AUTH_CAPABILITY,
+  NGINX_ACCESS_SIGNIN_CAPABILITY,
+  nginxAccessListOf,
+  usesFallbackBasicAuth,
+} from './nginx-access-list.js';
 import { NGINX_ERROR_PAGES_CAPABILITY, withOpfieldErrorPages } from './nginx-error-pages.js';
 import { MAINTENANCE_FLAG_CAPABILITY } from './nginx-maintenance-flag-guard.js';
 import {
@@ -132,7 +137,10 @@ export interface StatusPageSystemHostInput {
   upstreamUrl?: string | null;
 }
 
-/** System routes proxied to Opfield itself: the public status page and the access sign-in domain. */
+/**
+ * System routes proxied to Opfield itself: the public status page. `access_sign_in` was the access sign-in domain
+ * before routes signed visitors in themselves; an existing one is only withdrawn (removeLegacyAccessSignInRoute).
+ */
 export type BackendSystemHostKind = 'status_page' | 'access_sign_in';
 export const BACKEND_SYSTEM_HOST_LABELS: Record<BackendSystemHostKind, string> = {
   status_page: 'status page',
@@ -721,10 +729,12 @@ export abstract class ProxyServiceCore {
     routeAccessList: ProxyHostConfig['accessList'],
     pagesRouteIncludePathOverride?: string
   ): Promise<string> {
-    // A node with the access socket checks requests there; an older one gets the fallback directives.
+    // A node with the access socket checks requests there; an older one gets the fallback directives. Visitors sign
+    // in on the route's own page where the node's daemon serves it, else such a list answers 403.
     const accessList = routeAccessList && {
       ...routeAccessList,
       authRequest: await this.nodeReports(host.nodeId, NGINX_ACCESS_AUTH_CAPABILITY),
+      signInPage: await this.nodeReports(host.nodeId, NGINX_ACCESS_SIGNIN_CAPABILITY),
     };
     // Raw mode is an explicit user-owned escape hatch: only the node's file and nginx names in it follow the node
     // (nginx-node-names.ts).

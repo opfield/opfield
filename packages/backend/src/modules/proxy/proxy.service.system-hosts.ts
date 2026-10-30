@@ -116,7 +116,7 @@ export class ProxyServiceSystemHosts extends ProxyServiceReconciliation {
     return this.upsertBackendSystemHost('status_page', input, userId);
   }
 
-  /** A route proxied to Opfield itself: the status page, or the access sign-in domain (setting access.signIn). */
+  /** A route proxied to Opfield itself: the status page. */
   async upsertBackendSystemHost(
     kind: BackendSystemHostKind,
     input: StatusPageSystemHostInput,
@@ -274,13 +274,13 @@ export class ProxyServiceSystemHosts extends ProxyServiceReconciliation {
     return this.disableBackendSystemHost('status_page', userId);
   }
 
-  async disableBackendSystemHost(kind: BackendSystemHostKind, userId: string): Promise<ProxyHostRow | null> {
+  async disableBackendSystemHost(kind: BackendSystemHostKind, userId: string | null): Promise<ProxyHostRow | null> {
     return this.withSystemHostLocks(kind, null, () => this.disableBackendSystemHostLocked(kind, userId));
   }
 
   private async disableBackendSystemHostLocked(
     kind: BackendSystemHostKind,
-    userId: string
+    userId: string | null
   ): Promise<ProxyHostRow | null> {
     const label = BACKEND_SYSTEM_HOST_LABELS[kind];
     const existing = await this.db.query.proxyHosts.findFirst({ where: eq(proxyHosts.systemKind, kind) });

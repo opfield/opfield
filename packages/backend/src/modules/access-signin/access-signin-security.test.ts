@@ -5,81 +5,146 @@ import { container } from '@/container.js';
 import { errorHandler } from '@/middleware/error-handler.js';
 import type { AppEnv } from '@/types.js';
 import { accessSignInApiRoutes } from './access-signin.public-routes.js';
-import { SignInTargetSchema } from './access-signin.schemas.js';
 import { MemorySessionStore, MemorySigningKeyStore, testCrypto } from './access-signin.test-support.js';
 import { type AccessListRow, domainServesHost } from './access-signin-directory.js';
-import { AccessSignInExternalService, verifiedEmail } from './access-signin-external.service.js';
+import { AccessSignInExternalService, routeCallbackUrl, verifiedEmail } from './access-signin-external.service.js';
 import { AccessSignInFlowService } from './access-signin-flow.service.js';
 import { AccessSigningKeyService } from './access-signing-key.service.js';
 
 const LIST_ID = '11111111-1111-4111-8111-111111111111';
-const NONCE = 'n'.repeat(43);
+const NODE_ID = '33333333-3333-4333-8333-333333333333';
 const list = {
   id: LIST_ID,
   signInMethods: ['opfield'],
   users: [],
   sessionTtlSeconds: 3600,
 } as unknown as AccessListRow;
+const target = (host: string) => ({ listId: LIST_ID, host, nodeId: NODE_ID, clientIp: '203.0.113.9', userAgent: null });
 
 function wildcardFlow() {
   return new AccessSignInFlowService({
     directory: {
       getList: async () => list,
-      // The list protects a route for *.example.com.
-      hostOfList: async (_listId, host) => (domainServesHost('*.example.com', host) ? { secure: true } : null),
+      // The list protects a route for *.example.com on this node.
+      hostOfList: async (_listId, host, nodeId) =>
+        nodeId === NODE_ID && domainServesHost('*.example.com', host) ? { secure: true } : null,
       getOpfieldUser: async () => ({ id: 'u1', email: 'lena@acme.dev', name: 'Lena', groups: [] }),
       providerNames: async () => new Map(),
     },
     sessions: new MemorySessionStore(),
     keys: new AccessSigningKeyService(new MemorySigningKeyStore(), testCrypto),
-    settings: {
-      getConfig: async () => ({
-        domain: null,
-        defaultSessionTtlSeconds: 86_400,
-        nodeId: null,
-        ingressGroupId: null,
-        sslCertificateId: null,
-      }),
-      signInOrigin: async () => 'https://access.example.com',
-    },
+    settings: { getConfig: async () => ({ defaultSessionTtlSeconds: 86_400 }) },
     decide: (_list, _request, identity) => (identity ? 'allow' : 'redirect'),
   });
 }
 
-describe('access sign-in host validation', () => {
-  const meta = { clientIp: '203.0.113.9', userAgent: null };
+/** A cache with the semantics of CacheService set/get/take. */
+function memoryCache() {
+  const values = new Map<string, unknown>();
+  return {
+    set: async (key: string, value: unknown) => {
+      values.set(key, value);
+    },
+    get: async <T>(key: string) => (values.get(key) as T) ?? null,
+    take: async <T>(key: string) => {
+      const value = (values.get(key) as T) ?? null;
+      values.delete(key);
+      return value;
+    },
+  };
+}
 
-  it('never issues a token for a host the URL parser would read as another host', async () => {
+describe('access sign-in host validation', () => {
+  it('never resolves a host the URL parser would read as another host', async () => {
     const host = '1572395042/.example.com';
-    expect(SignInTargetSchema.safeParse({ list: LIST_ID, host, n: NONCE }).success).toBe(false);
     expect(domainServesHost('*.example.com', host)).toBe(false);
     for (const bad of [host, 'app.example.com:8443', 'user@app.example.com', 'app.example.com#x', '-a.example.com']) {
-      await expect(
-        wildcardFlow().completeSignIn(
-          { list, host: bad, secure: true, nonce: NONCE, returnPath: '/' },
-          { m: 'opfield', sub: 'u1' },
-          meta
-        )
-      ).rejects.toMatchObject({ code: 'ACCESS_HOST_NOT_PROTECTED' });
+      await expect(wildcardFlow().resolveTarget(target(bad))).rejects.toMatchObject({ code: 'ACCESS_DENIED' });
     }
-    // A real subdomain of the wildcard route still gets its token.
-    const signed = await wildcardFlow().completeSignIn(
-      { list, host: 'app.example.com', secure: true, nonce: NONCE, returnPath: '/' },
-      { m: 'opfield', sub: 'u1' },
-      meta
-    );
-    expect(new URL(signed.redirect).hostname).toBe('app.example.com');
+    // A real subdomain of the wildcard route resolves, lowercased.
+    expect((await wildcardFlow().resolveTarget(target('App.Example.com'))).host).toBe('app.example.com');
   });
 
-  it('lowercases the host and degrades an over-long return path to "/"', () => {
-    const parsed = SignInTargetSchema.parse({
-      list: LIST_ID,
-      host: 'App.Example.COM',
-      n: NONCE,
-      r: `/${'a'.repeat(5000)}`,
+  it('accepts only the route provider callback as the return address', () => {
+    const resolved = { list, host: 'app.example.com', secure: true };
+    expect(routeCallbackUrl(resolved, 'https://app.example.com/_opfield/access/provider-callback')).toBe(
+      'https://app.example.com/_opfield/access/provider-callback'
+    );
+    for (const bad of [
+      'http://app.example.com/_opfield/access/provider-callback',
+      'https://evil.example.com/_opfield/access/provider-callback',
+      'https://app.example.com:8443/_opfield/access/provider-callback',
+      'https://user@app.example.com/_opfield/access/provider-callback',
+      'https://app.example.com/_opfield/access/provider-callback?next=x',
+      'https://app.example.com/other',
+      'not a url',
+    ]) {
+      expect(() => routeCallbackUrl(resolved, bad)).toThrow(
+        expect.objectContaining({ code: 'ACCESS_CALLBACK_INVALID' })
+      );
+    }
+    // A route without TLS returns over plain HTTP.
+    expect(
+      routeCallbackUrl({ ...resolved, secure: false }, 'http://app.example.com/_opfield/access/provider-callback')
+    ).toBe('http://app.example.com/_opfield/access/provider-callback');
+  });
+});
+
+describe('Opfield account sign-in on a route', () => {
+  const callback = 'https://app.example.com/_opfield/access/provider-callback';
+
+  function external() {
+    const flow = wildcardFlow();
+    return new AccessSignInExternalService(
+      flow,
+      { find: async () => null, clientConfiguration: async () => ({}) as never },
+      { getOpfieldUser: async (id) => (id === 'u1' ? { id, email: 'lena@acme.dev', name: 'Lena', groups: [] } : null) },
+      memoryCache() as never,
+      async () => 'https://opfield.example.com'
+    );
+  }
+
+  it('confirms on the console and returns to the route callback with a one-time code', async () => {
+    const service = external();
+    const started = await service.start(target('app.example.com'), 'opfield', callback);
+    const authorize = new URL(started.url);
+    expect(`${authorize.origin}${authorize.pathname}`).toBe(
+      'https://opfield.example.com/api/access-sign-in/opfield/authorize'
+    );
+    expect(authorize.searchParams.get('state')).toBe(started.state);
+
+    const back = new URL(await service.authorizeOpfield(started.state, 'u1'));
+    expect(`${back.origin}${back.pathname}`).toBe(callback);
+    const code = back.searchParams.get('code')!;
+
+    // Another route of the list cannot finish it.
+    await expect(
+      service.finish(target('other.example.com'), { state: started.state, code, error: '', callbackUrl: callback })
+    ).rejects.toMatchObject({ code: 'ACCESS_SIGN_IN_EXPIRED' });
+
+    const again = await service.start(target('app.example.com'), 'opfield', callback);
+    const code2 = new URL(await service.authorizeOpfield(again.state, 'u1')).searchParams.get('code')!;
+    const signed = await service.finish(target('app.example.com'), {
+      state: again.state,
+      code: code2,
+      error: '',
+      callbackUrl: callback,
     });
-    expect(parsed.host).toBe('app.example.com');
-    expect(parsed.r).toBe('/');
+    expect(signed.token).toMatch(/^v1\./);
+    // State and code are one-time.
+    await expect(
+      service.finish(target('app.example.com'), { state: again.state, code: code2, error: '', callbackUrl: callback })
+    ).rejects.toMatchObject({ code: 'ACCESS_SIGN_IN_EXPIRED' });
+  });
+
+  it('refuses a method the list does not offer and a foreign return address', async () => {
+    const service = external();
+    await expect(service.start(target('app.example.com'), 'idp:x', callback)).rejects.toMatchObject({
+      code: 'ACCESS_METHOD_NOT_OFFERED',
+    });
+    await expect(
+      service.start(target('app.example.com'), 'opfield', 'https://evil.example.com/_opfield/access/provider-callback')
+    ).rejects.toMatchObject({ code: 'ACCESS_CALLBACK_INVALID' });
   });
 });
 
@@ -97,7 +162,7 @@ describe('Opfield account authorize', () => {
 
   function app(context: Partial<{ authType: string; impersonation: unknown }>) {
     container.registerInstance(AccessSignInExternalService, {
-      authorizeOpfield: async () => 'https://access.example.com/access/opfield/callback?code=c&state=s',
+      authorizeOpfield: async () => 'https://app.example.com/_opfield/access/provider-callback?code=c&state=s',
     } as unknown as AccessSignInExternalService);
     const hono = new Hono<AppEnv>();
     hono.onError(errorHandler);
@@ -115,7 +180,9 @@ describe('Opfield account authorize', () => {
   it('signs in only with the console session of the person at the browser', async () => {
     const session = await authorize(app({ authType: 'session' }));
     expect(session.status).toBe(302);
-    expect(session.headers.get('location')).toMatch(/^https:\/\/access\.example\.com\/access\/opfield\/callback/);
+    expect(session.headers.get('location')).toMatch(
+      /^https:\/\/app\.example\.com\/_opfield\/access\/provider-callback/
+    );
 
     for (const authType of ['api-token', 'oauth-token']) {
       expect((await authorize(app({ authType }))).status).toBe(403);

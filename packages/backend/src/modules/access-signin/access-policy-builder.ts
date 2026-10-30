@@ -14,7 +14,6 @@ export interface AccessPolicyListSource {
 
 export interface AccessPolicySources {
   revision: number;
-  signInOrigin: string;
   keys: AccessVerificationKeyView[];
   lists: AccessPolicyListSource[];
   /** Sessions revoked before they expired. */
@@ -38,7 +37,8 @@ export function buildAccessPolicyCommand(sources: AccessPolicySources): SyncAcce
   const now = sources.now.getTime();
   return {
     revision: String(sources.revision),
-    signInOrigin: sources.signInOrigin,
+    // Visitors sign in on the route itself (/_opfield/access/ of the route); no sign-in origin any more.
+    signInOrigin: '',
     keys: sources.keys.map((key) => ({ keyId: key.keyId, publicKey: key.publicKey })),
     lists: sources.lists.map((list) => {
       const methods = [...(list.signInMethods ?? [])] as string[];

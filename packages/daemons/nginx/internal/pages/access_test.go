@@ -213,6 +213,8 @@ func TestPreviewAccessChecksOnTheAccessSocket(t *testing.T) {
 		"    location = /_opfield/access/callback {\n        auth_request off;\n        access_log off;\n        proxy_pass http://unix:/run/nginx-daemon/access.sock:/callback;\n",
 		"    location @opfield_access_challenge {\n        auth_request off;\n        rewrite ^ /challenge break;\n        proxy_pass http://unix:/run/nginx-daemon/access.sock;\n",
 		"        auth_basic off;\n        auth_request off;\n",
+		// The preview's own sign-in page.
+		"    location ^~ /_opfield/access/ {\n        access_log off;\n        auth_request off;\n        proxy_pass http://unix:/run/nginx-daemon/access.sock:/ui/;\n        proxy_set_header X-Opfield-Access-List \"" + accessListID + "\";\n        proxy_set_header X-Opfield-Access-Host $host;\n        proxy_set_header X-Opfield-Access-Client-Ip $remote_addr;\n        proxy_set_header X-Opfield-Access-Scheme $scheme;\n",
 	} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("missing %q:\n%s", want, text)

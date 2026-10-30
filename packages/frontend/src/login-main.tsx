@@ -5,7 +5,6 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { ErrorBoundary } from "@/components/common/ErrorBoundary";
 import { ThemeProvider } from "@/components/layout/ThemeProvider";
 import { AuthCallback } from "@/pages/AuthCallback";
-import { AccessSignInPage } from "@/pages/access-sign-in/AccessSignInPage";
 import { type AuthMethods, LoginPage, loadAuthMethods } from "@/pages/Login";
 import "./index.css";
 
@@ -34,9 +33,7 @@ async function startLoginApp() {
   let initialMethods = readInjectedAuthMethods();
   let initialMethodsFailed = false;
 
-  // An access list's sign-in page (on the sign-in domain) loads its own context instead.
-  const needsAuthMethods =
-    window.location.pathname !== "/callback" && !window.location.pathname.startsWith("/access/");
+  const needsAuthMethods = window.location.pathname !== "/callback";
   if (!initialMethods && needsAuthMethods) {
     try {
       initialMethods = await loadAuthMethods();
@@ -73,7 +70,6 @@ async function startLoginApp() {
                 }
               />
               <Route path="/callback" element={<AuthCallback />} />
-              <Route path="/access/sign-in" element={<AccessSignInPage />} />
               <Route path="*" element={<Navigate to="/login" replace />} />
             </Routes>
           </BrowserRouter>

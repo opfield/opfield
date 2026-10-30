@@ -59,6 +59,70 @@ export interface MaintenanceAccessReply {
   sessionToken: string;
 }
 
+// ─── Access sign-in (nginx daemon → Opfield, see the proto) ─────────
+
+/** The protected route a sign-in is for and the visitor nginx saw. */
+export interface AccessSignInTarget {
+  listId: string;
+  host: string;
+  clientIp: string;
+  userAgent: string;
+}
+
+export interface AccessSignInContextRequest {
+  target?: AccessSignInTarget;
+}
+
+export interface AccessSignInMethod {
+  /** opfield, password, shared, idp:<provider id>. */
+  key: string;
+  /** opfield, password, shared, idp. */
+  kind: string;
+  label: string;
+}
+
+export interface AccessSignInContextReply {
+  methods: AccessSignInMethod[];
+}
+
+export interface AccessSignInPasswordRequest {
+  target?: AccessSignInTarget;
+  /** password or shared. */
+  kind: string;
+  username: string;
+  password: string;
+}
+
+export interface AccessSignInReply {
+  allowed: boolean;
+  /** The v1 host token the daemon turns into the route's access cookie. */
+  token: string;
+  errorCode: string;
+  message: string;
+}
+
+export interface AccessSignInStartRequest {
+  target?: AccessSignInTarget;
+  /** opfield or idp:<provider id>. */
+  methodKey: string;
+  callbackUrl: string;
+}
+
+export interface AccessSignInStartReply {
+  authorizeUrl: string;
+  state: string;
+  errorCode: string;
+  message: string;
+}
+
+export interface AccessSignInFinishRequest {
+  target?: AccessSignInTarget;
+  state: string;
+  code: string;
+  error: string;
+  callbackUrl: string;
+}
+
 // ─── Daemon Messages (daemon → Opfield) ─────────────────────────────
 
 export interface DaemonMessage {
@@ -564,6 +628,7 @@ export interface SetRelayDrainCommand {
 
 export interface SyncAccessPolicyCommand {
   revision: number | string;
+  /** Always empty: visitors sign in on the route itself (field kept for the wire format). */
   signInOrigin: string;
   keys: AccessVerificationKey[];
   lists: AccessListPolicy[];

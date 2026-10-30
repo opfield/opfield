@@ -70,20 +70,12 @@ export interface CreateAccessListRequest {
   folderId?: string | null;
 }
 
-/** Setting `access.signIn`: where visitors sign in and how long they stay signed in. */
+/** Setting `access.signIn`: how long visitors stay signed in unless a list sets its own length. */
 export interface AccessSignInSettings {
-  /** Null: the Opfield address serves the sign-in pages. */
-  domain: string | null;
   defaultSessionTtlSeconds: number;
-  /** Node or ingress group that serves the sign-in domain's route; both null: no route. */
-  nodeId: string | null;
-  ingressGroupId: string | null;
-  sslCertificateId: string | null;
-  /** "https://access.acme.dev": where the sign-in pages are served (read-only). */
-  signInOrigin: string;
 }
 
-export type AccessSignInSettingsUpdate = Omit<AccessSignInSettings, "signInOrigin">;
+export type AccessSignInSettingsUpdate = AccessSignInSettings;
 
 export type AccessIdentityProviderKind = "google" | "oidc";
 
@@ -95,15 +87,11 @@ export interface AccessIdentityProvider {
   clientId: string;
   /** Claim the SSO group rules read; null: no groups. */
   groupsClaim: string | null;
-  /** The callback address to register with the provider, when the server reports it. */
-  redirectUri?: string | null;
   createdAt: string;
   updatedAt: string;
 }
 
 export interface AccessIdentityProviderRequest {
-  /** A new provider's id, so its redirect URI can be shown before it is saved. */
-  id?: string;
   kind: AccessIdentityProviderKind;
   name: string;
   issuer?: string;
@@ -126,22 +114,3 @@ export interface AccessServiceToken {
 export interface AccessServiceTokenCreated extends AccessServiceToken {
   clientSecret: string;
 }
-
-// ── Public sign-in page ──────────────────────────────────────────────────
-
-export type AccessSignInMethodKind = "opfield" | "idp" | "password" | "shared";
-
-export interface AccessSignInMethodOption {
-  key: string;
-  label: string;
-  kind: AccessSignInMethodKind;
-}
-
-export type AccessSignInContext =
-  | { redirect: string }
-  | {
-      host: string;
-      methods: AccessSignInMethodOption[];
-      state: "methods" | "denied";
-      identity?: { email?: string; name?: string };
-    };

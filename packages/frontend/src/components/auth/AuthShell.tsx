@@ -23,8 +23,6 @@ export function AuthShell({
   wide = false,
   loading = false,
   loadingLabel,
-  title,
-  subtitle = "Infrastructure control plane",
 }: {
   children?: React.ReactNode;
   contentClassName?: string;
@@ -33,13 +31,6 @@ export function AuthShell({
   /** Hides the content behind `AuthWindowLoader` until it can show at its final size. */
   loading?: boolean;
   loadingLabel?: string;
-  /**
-   * A page that is not Opfield's own sign-in (an access list's, on a protected site's behalf)
-   * names what it is for: the title replaces the Opfield mark and name, and the footer reads
-   * "Protected by Opfield".
-   */
-  title?: string;
-  subtitle?: string;
 }) {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4 py-8">
@@ -53,23 +44,17 @@ export function AuthShell({
         aria-busy={loading || undefined}
       >
         <div className="flex flex-col items-center gap-3">
-          {title !== undefined ? (
-            <h1 className="max-w-full break-words text-3xl font-bold tracking-tight text-foreground">
-              {title}
-            </h1>
-          ) : (
-            <div className="flex items-center gap-3">
-              <OpfieldMark className="h-10 w-10" />
-              <h1 className="text-3xl font-bold tracking-tight text-foreground">Opfield</h1>
-            </div>
-          )}
-          <p className="text-sm text-muted-foreground">{subtitle}</p>
+          <div className="flex items-center gap-3">
+            <OpfieldMark className="h-10 w-10" />
+            <h1 className="text-3xl font-bold tracking-tight text-foreground">Opfield</h1>
+          </div>
+          <p className="text-sm text-muted-foreground">Infrastructure control plane</p>
         </div>
         {children}
         <div className="flex flex-col items-center gap-2 pt-3 text-xs text-muted-foreground">
           {footerLeading}
           <p>
-            {title !== undefined ? "Protected by" : "Powered by"}{" "}
+            Powered by{" "}
             <a
               href="https://opfield.dev"
               target="_blank"

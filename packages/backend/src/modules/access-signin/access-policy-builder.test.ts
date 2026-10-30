@@ -9,7 +9,6 @@ describe('access policy payload', () => {
     const users = [{ username: 'lena', passwordHash: '$2b$10$hash' }];
     const command = buildAccessPolicyCommand({
       revision: 1_772_323_200_000,
-      signInOrigin: 'https://access.example.com',
       keys: [{ keyId: 'k1', publicKey: Buffer.alloc(32, 7) }],
       lists: [
         {
@@ -44,7 +43,8 @@ describe('access policy payload', () => {
     });
 
     expect(command.revision).toBe('1772323200000');
-    expect(command.signInOrigin).toBe('https://access.example.com');
+    // Visitors sign in on the route itself: no sign-in origin.
+    expect(command.signInOrigin).toBe('');
     expect(command.keys).toEqual([{ keyId: 'k1', publicKey: Buffer.alloc(32, 7) }]);
     expect(command.lists[0]).toEqual({
       id: 'list-basic',

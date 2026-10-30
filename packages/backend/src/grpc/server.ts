@@ -24,6 +24,7 @@ import {
 } from './interceptors/auth.js';
 import { receiveLimitInterceptor } from './interceptors/receive-limit.js';
 import { legacyGrpcServiceDefinition } from './legacy-service-names.js';
+import { createAccessSignInHandlers } from './services/access-sign-in.js';
 import { createControlHandlers } from './services/control.js';
 import { createEnrollmentHandlers } from './services/enrollment.js';
 import { createLogStreamHandlers } from './services/log-stream.js';
@@ -244,6 +245,7 @@ export async function startGrpcServer(
   const logs = createLogStreamHandlers(deps);
   const migration = createMigrationTransferHandlers(deps);
   const maintenanceAccess = createMaintenanceAccessHandlers(deps);
+  const accessSignIn = createAccessSignInHandlers(deps);
   // 2.12.1+ daemons call opfield.v1.*; the same handlers also answer under the LEGACY_GRPC_PACKAGE.* names.
   const addService = (service: grpc.ServiceDefinition, implementation: grpc.UntypedServiceImplementation) => {
     server!.addService(service, implementation);
@@ -268,6 +270,7 @@ export async function startGrpcServer(
     relayOnly ? { Transfer: protectStream(migration.Transfer) } : migration
   );
   addService(opfieldV1.MaintenanceAccess.service, maintenanceAccess);
+  addService(opfieldV1.AccessSignIn.service, accessSignIn);
   const credentials = await createGrpcServerCredentials(tlsCertPath, tlsKeyPath, deps.systemCA, relayOnly);
   logger.info('gRPC server using TLS with Opfield system CA client certificate validation', { relayOnly });
 

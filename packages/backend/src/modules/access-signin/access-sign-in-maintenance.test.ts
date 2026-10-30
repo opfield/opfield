@@ -3,7 +3,6 @@ import { accessLists, accessSessions } from '@/db/schema/index.js';
 import { NGINX_ACCESS_AUTH_CAPABILITY } from '@/modules/proxy/nginx-access-list.js';
 import { configureAccessPolicySync, syncAccessPolicyNow } from './access-policy-sync.js';
 import { AccessSessionService, opfieldSessionMatches } from './access-sessions.service.js';
-import { PasswordSignInSchema } from './access-signin.schemas.js';
 
 const LIST = {
   id: '11111111-1111-4111-8111-111111111111',
@@ -42,7 +41,6 @@ describe('access policy resync', () => {
     configureAccessPolicySync({
       db: fakeDb((table) => (table === accessLists ? lists : [])) as never,
       keys: { verificationKeys: async () => [{ keyId: 'k1', publicKey: Buffer.alloc(32, 1) }] },
-      settings: { signInOrigin: async () => 'https://access.example.com' },
       registry: {
         getNodesByType: () => [{ nodeId: 'n1', capabilities: new Set([NGINX_ACCESS_AUTH_CAPABILITY]) }] as never,
       },
@@ -105,18 +103,5 @@ describe('Opfield account sessions after an account change', () => {
     live = [...live, { id: 'old-group', email: 'lena@acme.dev', groups: ['g1'] }];
     expect(await service.revokeChangedOpfieldSessions('u1', directory)).toBe(1);
     expect(updates).toBe(1);
-  });
-});
-
-describe('password sign-in body', () => {
-  it('trims the username like the stored ones', () => {
-    const parsed = PasswordSignInSchema.parse({
-      list: LIST.id,
-      host: 'app.example.com',
-      n: 'n'.repeat(43),
-      username: '  lena.novak ',
-      password: 'secret',
-    });
-    expect(parsed.username).toBe('lena.novak');
   });
 });

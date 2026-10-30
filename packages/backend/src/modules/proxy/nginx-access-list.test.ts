@@ -15,6 +15,7 @@ const TEMPLATE_ID = '33333333-3333-4333-8333-333333333333';
 const signIn: NginxAccessList = {
   id: LIST_ID,
   authRequest: true,
+  signInPage: true,
   signInMethods: ['opfield'],
   hasUsers: false,
   skipIpRanges: ['10.0.40.0/24'],
@@ -147,6 +148,31 @@ describe('access list rendering on a node with the access socket', () => {
     expect(lines(byPath.get('/.well-known/acme-challenge/'))).toContain('auth_request off');
     expect(config).not.toMatch(/\b(allow|deny) (10\.0\.40|198\.51)/);
     expect(config).not.toContain('auth_basic "');
+  });
+
+  it('serves the route sign-in page from the daemon, and answers 403 where the daemon has none', async () => {
+    const byPath = locations(await render({}));
+    expect(lines(byPath.get('^~ /_opfield/access/'))).toEqual(
+      expect.arrayContaining([
+        'access_log off',
+        'auth_request off',
+        'proxy_pass http://unix:/run/nginx-daemon/access.sock:/ui/',
+        `proxy_set_header X-Opfield-Access-List "${LIST_ID}"`,
+        'proxy_set_header X-Opfield-Access-Host $host',
+        'proxy_set_header X-Opfield-Access-Client-IP $remote_addr',
+        'proxy_set_header X-Opfield-Access-Scheme $scheme',
+      ])
+    );
+
+    // An older daemon: no sign-in page, and nobody is sent anywhere else.
+    const older = locations(await render({ accessList: { ...signIn, signInPage: false } }));
+    expect(older.has('^~ /_opfield/access/')).toBe(false);
+    expect(lines(older.get('@opfield_access_challenge'))).toEqual(['auth_request off', 'return 403']);
+
+    // A basic-only list keeps the daemon's basic challenge and needs no sign-in page.
+    const basic = locations(await render({ accessList: { ...basicOnly, signInPage: false } }));
+    expect(basic.has('^~ /_opfield/access/')).toBe(false);
+    expect(lines(basic.get('@opfield_access_challenge'))).toContain('rewrite ^ /challenge break');
   });
 
   it('keeps the Pages 404 handling the route location inherited before its own error_page', async () => {

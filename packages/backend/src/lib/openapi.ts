@@ -648,7 +648,7 @@ export const tags = [
   { name: 'Access Lists', description: 'Who may open routes and Pages: sign-in methods, rules, skip ranges' },
   {
     name: 'Access Sign-in',
-    description: 'Sign-in domain, identity providers, service tokens and visitor sessions of access lists',
+    description: 'Sign-in settings, identity providers, service tokens and visitor sessions of access lists',
   },
   { name: 'Databases', description: 'Database connections, monitoring, and explorers' },
   { name: 'Status Page', description: 'Status page settings, services, and incidents' },

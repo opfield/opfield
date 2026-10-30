@@ -44,7 +44,7 @@ const providers = () => container.resolve(AccessIdentityProviderService);
 const tokens = () => container.resolve(AccessServiceTokenService);
 const sessions = () => container.resolve(AccessSessionService);
 
-// Sign-in domain and identity providers decide who can sign in anywhere: admin:system. Service tokens and sessions
+// Sign-in settings and identity providers decide who can sign in anywhere: admin:system. Service tokens and sessions
 // are access list credentials: acl:edit. Anyone who views access lists reads providers and tokens (the list dialog
 // offers them as sign-in methods and rule values); secrets are never part of a read.
 const readProviders = () => requireAnyScopeBase('admin:system', 'acl:view');

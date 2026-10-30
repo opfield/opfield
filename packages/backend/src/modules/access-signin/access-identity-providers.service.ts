@@ -13,10 +13,11 @@ export const GOOGLE_ISSUER = 'https://accounts.google.com';
 
 export type AccessIdentityProviderRow = typeof accessIdentityProviders.$inferSelect;
 
-/** Path of a provider's redirect URI on the sign-in origin. */
-export function identityProviderCallbackPath(providerId: string): string {
-  return `/access/idp/${providerId}/callback`;
-}
+/**
+ * The redirect URI to register at a provider: every protected route signs in on its own page, so each route's address
+ * is registered (https://<route host>/_opfield/access/provider-callback).
+ */
+export const IDENTITY_PROVIDER_REDIRECT_URI_PATTERN = 'https://<route host>/_opfield/access/provider-callback';
 
 /**
  * Google and OIDC providers access lists offer as sign-in methods (`idp:<id>`). The client secret is stored encrypted
@@ -28,18 +29,16 @@ export class AccessIdentityProviderService {
   constructor(
     private readonly db: DrizzleClient,
     private readonly cryptoService: Pick<CryptoService, 'encryptString' | 'decryptString'>,
-    private readonly signInOrigin: () => Promise<string>,
     private readonly auditService?: Pick<AuditService, 'log'>
   ) {}
 
   async list() {
     const rows = await this.db.select().from(accessIdentityProviders).orderBy(asc(accessIdentityProviders.name));
-    const origin = await this.originOrNull();
-    return rows.map((row) => this.toView(row, origin));
+    return rows.map((row) => this.toView(row));
   }
 
   async get(id: string) {
-    return this.toView(await this.require(id), await this.originOrNull());
+    return this.toView(await this.require(id));
   }
 
   async find(id: string): Promise<AccessIdentityProviderRow | null> {
@@ -66,7 +65,7 @@ export class AccessIdentityProviderService {
       })
       .returning();
     await this.audit(userId, 'access_identity_provider.create', row);
-    return this.toView(row, await this.originOrNull());
+    return this.toView(row);
   }
 
   async update(id: string, input: UpdateAccessIdentityProviderInput, userId: string | null) {
@@ -86,7 +85,7 @@ export class AccessIdentityProviderService {
       .returning();
     this.discovered.delete(id);
     await this.audit(userId, 'access_identity_provider.update', row);
-    return this.toView(row, await this.originOrNull());
+    return this.toView(row);
   }
 
   /** Refused while an access list offers the provider: remove the method from those lists first. */
@@ -129,7 +128,7 @@ export class AccessIdentityProviderService {
     }
   }
 
-  private toView(row: AccessIdentityProviderRow, origin: string | null) {
+  private toView(row: AccessIdentityProviderRow) {
     return {
       id: row.id,
       kind: row.kind,
@@ -138,15 +137,11 @@ export class AccessIdentityProviderService {
       clientId: row.clientId,
       scopes: row.scopes,
       groupsClaim: row.groupsClaim,
-      // Register this at the provider.
-      redirectUri: origin ? `${origin}${identityProviderCallbackPath(row.id)}` : null,
+      // Register this at the provider, with the host of every route whose list offers it.
+      redirectUri: IDENTITY_PROVIDER_REDIRECT_URI_PATTERN,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     };
-  }
-
-  private async originOrNull(): Promise<string | null> {
-    return this.signInOrigin().catch(() => null);
   }
 
   private async require(id: string): Promise<AccessIdentityProviderRow> {

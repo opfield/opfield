@@ -1,6 +1,7 @@
 import { Plus, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useId, useState } from "react";
 import { toast } from "sonner";
+import { AnimatedHeight } from "@/components/common/AnimatedHeight";
 import { confirm } from "@/components/common/ConfirmDialog";
 import { OneTimeSecretDialog } from "@/components/common/OneTimeSecretDialog";
 import { PanelShell } from "@/components/common/PanelShell";
@@ -50,6 +51,7 @@ export function AccessServiceTokensPanel({
   const [creating, setCreating] = useState(false);
   const [created, setCreated] = useState<AccessServiceTokenCreated | null>(null);
   const [createdOpen, setCreatedOpen] = useState(false);
+  const [revokingId, setRevokingId] = useState<string | null>(null);
 
   const load = useCallback(() => {
     api
@@ -94,12 +96,15 @@ export function AccessServiceTokensPanel({
       confirmLabel: "Revoke",
     });
     if (!ok) return;
+    setRevokingId(token.id);
     try {
       await api.deleteAccessServiceToken(token.id);
       toast.success("Service token revoked");
       load();
     } catch (error) {
       toastApiError(error, "Failed to revoke service token");
+    } finally {
+      setRevokingId(null);
     }
   };
 
@@ -131,6 +136,7 @@ export function AccessServiceTokensPanel({
                   variant="outline"
                   size="icon"
                   aria-label={`Revoke ${token.name}`}
+                  pending={revokingId === token.id}
                   onClick={() => void revoke(token)}
                 >
                   <Trash2 className="h-4 w-4" />
@@ -146,20 +152,22 @@ export function AccessServiceTokensPanel({
           <DialogHeader>
             <DialogTitle>Create Service Token</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-1.5">
-              <label htmlFor={`${id}-name`} className="text-sm font-medium">
-                Name
-              </label>
-              <Input
-                id={`${id}-name`}
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-                placeholder="e.g., Status checker"
-              />
+          <AnimatedHeight>
+            <div className="space-y-4">
+              <div className="space-y-1.5">
+                <label htmlFor={`${id}-name`} className="text-sm font-medium">
+                  Name
+                </label>
+                <Input
+                  id={`${id}-name`}
+                  value={name}
+                  onChange={(event) => setName(event.target.value)}
+                  placeholder="e.g., Status checker"
+                />
+              </div>
+              <ExpiryField value={expiry} onChange={setExpiry} />
             </div>
-            <ExpiryField value={expiry} onChange={setExpiry} />
-          </div>
+          </AnimatedHeight>
           <DialogFooter className="shrink-0">
             <Button variant="outline" onClick={() => setCreateOpen(false)}>
               Cancel
