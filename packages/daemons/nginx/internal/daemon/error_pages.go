@@ -4,6 +4,7 @@ import (
 	"log/slog"
 
 	"github.com/opfield/opfield/nginx-daemon/internal/nginx"
+	"github.com/opfield/opfield/nginx-daemon/internal/pages"
 )
 
 // ensureErrorPages writes the page variables nginx answers its own errors with (errorpages.Config) and reports whether
@@ -61,5 +62,26 @@ func (p *NginxPlugin) ensureDefaultHTTPServerErrorPages(logger *slog.Logger) (re
 		return false
 	}
 	logger.Info("the HTTP default server answers with the Opfield error pages", "path", path)
+	return true
+}
+
+// ensurePagesErrorPages gives the Pages preview configs an earlier daemon wrote the codes the error pages gained since
+// and reports whether nginx must reload. nginx tests them once; a set it does not accept is taken back.
+func (p *NginxPlugin) ensurePagesErrorPages(logger *slog.Logger) (reload bool) {
+	previous, err := p.pagesRuntime.UpgradeErrorPages()
+	if err != nil {
+		logger.Warn("Pages previews could not all get the current Opfield error pages", "error", err)
+	}
+	if len(previous) == 0 {
+		return false
+	}
+	if valid, output := p.mgr.TestConfig(); !valid {
+		if err := pages.RestoreConfigs(previous); err != nil {
+			logger.Warn("failed to restore the Pages preview configs", "error", err)
+		}
+		logger.Warn("Pages previews with the current Opfield error pages conflict with this node's nginx configuration; they stay as they were", "output", output)
+		return false
+	}
+	logger.Info("Pages previews answer with the current Opfield error pages", "previews", len(previous))
 	return true
 }

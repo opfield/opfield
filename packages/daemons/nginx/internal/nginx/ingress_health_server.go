@@ -17,6 +17,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/opfield/opfield/nginx-daemon/internal/errorpages"
 	"github.com/opfield/opfield/nginx-daemon/internal/naming"
 )
 
@@ -47,9 +48,14 @@ func ingressHealthCertPaths(certsDir string) (cert, key string) {
 }
 
 // IngressHealthServerConfig answers the reserved hostname on :80 and :443 with only the health locations. Probes that
-// address the node by IP use this hostname (SNI and Host); the TLS catch-all rejects every other unknown name.
-func IngressHealthServerConfig(certsDir string) string {
+// address the node by IP use this hostname (SNI and Host); the TLS catch-all rejects every other unknown name. On a
+// node that keeps the error page variables (errorPages) every error nginx raises there is an Opfield page.
+func IngressHealthServerConfig(certsDir string, errorPages bool) string {
 	cert, key := ingressHealthCertPaths(certsDir)
+	pages := ""
+	if errorPages {
+		pages = "\n" + strings.Join(errorpages.ServerDirectives(), "\n") + "\n"
+	}
 	return naming.Render(fmt.Sprintf(`# Managed by Opfield: ingress health server (auto-generated).
 # Answers %s and %s for probes that address this node by IP address.
 server {
@@ -65,8 +71,8 @@ server {
     location / {
         return 404;
     }
-}
-`, IngressHealthPath, LegacyIngressHealthPath, IngressHealthHostname, cert, key, IngressHealthLocation()))
+%s}
+`, IngressHealthPath, LegacyIngressHealthPath, IngressHealthHostname, cert, key, IngressHealthLocation(), pages))
 }
 
 // EnsureIngressHealthCertificate keeps a valid self-signed certificate for the reserved hostname: it is created when
@@ -126,9 +132,9 @@ func EnsureIngressHealthCertificate(certsDir string, now time.Time) (bool, error
 }
 
 // EnsureIngressHealthServer writes the reserved-hostname server when it differs from the managed content.
-func EnsureIngressHealthServer(configDir, certsDir string) (bool, error) {
+func EnsureIngressHealthServer(configDir, certsDir string, errorPages bool) (bool, error) {
 	path := IngressHealthServerPath(configDir)
-	desired := []byte(IngressHealthServerConfig(certsDir))
+	desired := []byte(IngressHealthServerConfig(certsDir, errorPages))
 	existing, err := ReadFile(path)
 	if err != nil {
 		return false, err

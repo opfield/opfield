@@ -167,6 +167,20 @@ func TestProtectedPreviewRedirectsPlainHTTP(t *testing.T) {
 		t.Fatalf("plain HTTP server block must carry no content:\n%s", config)
 	}
 
+	// With the page variables, an error nginx raises on the redirect server (a URI too long, a header too large) is an
+	// Opfield page too.
+	runtime.SetErrorPages(true)
+	if err := runtime.MaterializePreview(profileID, deploymentID, "tls.pages.example", certificateID, version, PreviewFallback{Access: access}); err != nil {
+		t.Fatal(err)
+	}
+	config, _ = os.ReadFile(runtime.previewConfigPath("tls.pages.example"))
+	plain = string(config)[:strings.Index(string(config), "listen 443 ssl;")]
+	if !strings.Contains(plain, "    server_name tls.pages.example;\n    error_page 401 403 404 ") || !strings.Contains(plain, "error_page 400 414 505 /.well-known/opfield-error;") ||
+		!strings.Contains(plain, "    return 301 https://tls.pages.example$request_uri;\n}\n") || strings.Contains(plain, "root ") {
+		t.Fatalf("redirect server with the error pages:\n%s", plain)
+	}
+	runtime.SetErrorPages(false)
+
 	if err := runtime.MaterializePreview(profileID, deploymentID, "open.pages.example", certificateID, version); err != nil {
 		t.Fatal(err)
 	}
@@ -297,5 +311,45 @@ func TestPreviewAccessFollowsThePolicy(t *testing.T) {
 	}
 	if _, err := os.Stat(runtime.previewAccessRecordPath("follow.pages.example")); !os.IsNotExist(err) {
 		t.Fatalf("record of a removed preview kept: %v", err)
+	}
+}
+
+// A preview an earlier daemon rendered gets the error page codes added since, and a node without the page variables
+// changes nothing.
+func TestUpgradeErrorPagesOfEarlierPreviews(t *testing.T) {
+	runtime, _ := accessRuntime(t)
+	runtime.SetErrorPages(true)
+	if err := runtime.MaterializePreview(profileID, deploymentID, "earlier.pages.example", "", ""); err != nil {
+		t.Fatal(err)
+	}
+	path := runtime.previewConfigPath("earlier.pages.example")
+	current, _ := os.ReadFile(path)
+	earlier := strings.Replace(strings.Replace(string(current), " 500 501 502 ", " 500 502 ", 1), "error_page 400 414 505 /", "error_page 400 414 /", 1)
+	if earlier == string(current) {
+		t.Fatal("the preview names 501 and 505")
+	}
+	if err := os.WriteFile(path, []byte(earlier), 0o640); err != nil {
+		t.Fatal(err)
+	}
+	runtime.SetErrorPages(false)
+	if previous, err := runtime.UpgradeErrorPages(); err != nil || len(previous) != 0 {
+		t.Fatalf("without the variables: %v %v", previous, err)
+	}
+	runtime.SetErrorPages(true)
+	previous, err := runtime.UpgradeErrorPages()
+	if err != nil || string(previous[path]) != earlier {
+		t.Fatalf("upgrade: %v %v", previous, err)
+	}
+	if upgraded, _ := os.ReadFile(path); string(upgraded) != string(current) {
+		t.Fatalf("upgraded preview:\n%s", upgraded)
+	}
+	if again, _ := runtime.UpgradeErrorPages(); len(again) != 0 {
+		t.Fatal("an upgraded preview is left alone")
+	}
+	if err := RestoreConfigs(previous); err != nil {
+		t.Fatal(err)
+	}
+	if restored, _ := os.ReadFile(path); string(restored) != earlier {
+		t.Fatal("restore")
 	}
 }

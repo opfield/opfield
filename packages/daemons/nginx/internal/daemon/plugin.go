@@ -346,6 +346,18 @@ func (p *NginxPlugin) Init(baseCfg *lifecycle.BaseConfig, logger *slog.Logger) e
 	globalConfigModified := false
 	configDirModified := false
 
+	// The Opfield pages nginx answers its own errors with come first: the managed servers below answer with them when
+	// the node keeps them. Without them Opfield renders routes without error_page.
+	if p.ensureErrorPages(logger) {
+		configDirModified = true
+	}
+	if p.pagesRuntime != nil {
+		p.pagesRuntime.SetErrorPages(p.errorPagesSupported)
+		if p.ensurePagesErrorPages(logger) {
+			configDirModified = true
+		}
+	}
+
 	// Ensure the managed HTTPS catch-all default server is present, so an
 	// unmatched SNI/Host cannot fall through to an arbitrary route (this
 	// covers nodes provisioned before the installer wrote it).
@@ -363,13 +375,6 @@ func (p *NginxPlugin) Init(baseCfg *lifecycle.BaseConfig, logger *slog.Logger) e
 	// during maintenance.
 	if p.maintenanceFlagsSupported && p.ensureMaintenanceGuardMaps(logger) {
 		configDirModified = true
-	}
-	// The Opfield pages nginx answers its own errors with; without them Opfield renders routes without error_page.
-	if p.ensureErrorPages(logger) {
-		configDirModified = true
-	}
-	if p.pagesRuntime != nil {
-		p.pagesRuntime.SetErrorPages(p.errorPagesSupported)
 	}
 	if p.errorPagesSupported && p.ensureDefaultHTTPServerErrorPages(logger) {
 		configDirModified = true
@@ -664,7 +669,7 @@ func (p *NginxPlugin) capabilities() []string {
 		capabilities = append(capabilities, maintenanceFlagCapability)
 	}
 	if p.errorPagesSupported {
-		capabilities = append(capabilities, nginx.ErrorPagesCapability)
+		capabilities = append(capabilities, nginx.ErrorPagesCapability, nginx.ErrorPagesV2Capability)
 	}
 	if p.pagesV1Available && p.pagesRuntime != nil {
 		capabilities = append(capabilities, "nginx_pages_v1", "nginx_pages_route_probe_v1", "nginx_pages_preview_revocation_v1", "nginx_pages_preview_access_v1", "nginx_pages_preview_client_ip_v1", pagesDeferredReloadCapability)
@@ -933,12 +938,12 @@ func (p *NginxPlugin) runLogStreamSession(ctx context.Context, conn *grpc.Client
 	return ctx.Err()
 }
 
-// ensureManagedDefaultServer writes the managed HTTPS catch-all and reports whether the config
-// directory changed. A node whose nginx already has its own 443 default_server (integrate mode)
+// ensureManagedDefaultServer writes the managed HTTPS catch-all (with the Opfield error pages when
+// the node keeps them; ensureErrorPages runs first) and reports whether the config directory changed. A node whose nginx already has its own 443 default_server (integrate mode)
 // rejects a second one, and an invalid tree would block every later route sync, so the file stays
 // only when the configuration is valid with it or was already invalid without it.
 func (p *NginxPlugin) ensureManagedDefaultServer(logger *slog.Logger) bool {
-	modified, err := nginx.EnsureDefaultServer(p.cfg.Nginx.ConfigDir)
+	modified, err := nginx.EnsureDefaultServer(p.cfg.Nginx.ConfigDir, p.errorPagesSupported)
 	if err != nil {
 		logger.Warn("failed to write managed default HTTPS server", "error", err)
 		return false
@@ -962,7 +967,7 @@ func (p *NginxPlugin) ensureManagedDefaultServer(logger *slog.Logger) bool {
 		)
 		return false
 	}
-	if _, err := nginx.EnsureDefaultServer(p.cfg.Nginx.ConfigDir); err != nil {
+	if _, err := nginx.EnsureDefaultServer(p.cfg.Nginx.ConfigDir, p.errorPagesSupported); err != nil {
 		logger.Warn("failed to restore managed default HTTPS server", "error", err)
 		return true
 	}

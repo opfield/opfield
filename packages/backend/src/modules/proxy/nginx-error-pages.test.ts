@@ -10,6 +10,7 @@ import { type NginxConfigDirective, parseNginxConfig } from './nginx-config-tree
 import {
   ERROR_PAGE_PATH,
   OPFIELD_ERROR_PAGE_CODES,
+  OPFIELD_ERROR_PAGE_CODES_V1,
   OPFIELD_SPECIAL_ERROR_PAGE_CODES,
   withOpfieldErrorPages,
 } from './nginx-error-pages.js';
@@ -105,7 +106,7 @@ function keep(name: string, config: string) {
 
 describe('Opfield error pages', () => {
   it('hands every code nginx generates in a proxy route to the pages, and keeps proxy_intercept_errors off', async () => {
-    const config = withOpfieldErrorPages(await render());
+    const config = withOpfieldErrorPages(await render(), false, true);
     keep('proxy', config);
     expect(config).not.toMatch(/proxy_intercept_errors\s+on/);
     const all = servers(config);
@@ -113,7 +114,8 @@ describe('Opfield error pages', () => {
     for (const server of all) {
       const pages = errorPages(server);
       for (const code of OPFIELD_ERROR_PAGE_CODES) {
-        expect(pages.get(code), String(code)).toBe(code === 400 || code === 414 ? ERROR_PAGE_PATH : '@opfield_error');
+        // 505 ends a request before nginx has its URI, like 400 and 414.
+        expect(pages.get(code), String(code)).toBe([400, 414, 505].includes(code) ? ERROR_PAGE_PATH : '@opfield_error');
       }
       for (const code of OPFIELD_SPECIAL_ERROR_PAGE_CODES) expect(pages.get(code)).toBe(`@opfield_error_${code}`);
       const named = locations(server).map((location) => location.args.map((arg) => arg.value).join(' '));
@@ -125,6 +127,21 @@ describe('Opfield error pages', () => {
     expect(config).toContain('return 200 $opfield_error_page;');
     // A client the server's own rules deny, or who has no password, still gets the page.
     expect(config).toMatch(/location @opfield_error \{\s+allow all;\s+auth_basic off;/);
+  });
+
+  it('hands 501 and 505 to the pages only on a node whose page variables hold them', async () => {
+    const rendered = await render();
+    const older = withOpfieldErrorPages(rendered);
+    for (const server of servers(older)) {
+      const pages = errorPages(server);
+      for (const code of OPFIELD_ERROR_PAGE_CODES_V1) expect(pages.has(code), String(code)).toBe(true);
+      expect(pages.has(501)).toBe(false);
+      expect(pages.has(505)).toBe(false);
+    }
+    expect(older).toContain(`error_page 400 414 ${ERROR_PAGE_PATH};`);
+    const current = withOpfieldErrorPages(rendered, false, true);
+    expect(current).toContain(`error_page 400 414 505 ${ERROR_PAGE_PATH};`);
+    expect(current).toContain('error_page 401 403 404 405 408 413 429 500 501 502 503 504 @opfield_error;');
   });
 
   it('keeps the 404 handling of Pages and gives its locations the codes they do not name', async () => {

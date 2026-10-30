@@ -31,7 +31,11 @@ import {
   nginxAccessListOf,
   usesFallbackBasicAuth,
 } from './nginx-access-list.js';
-import { NGINX_ERROR_PAGES_CAPABILITY, withOpfieldErrorPages } from './nginx-error-pages.js';
+import {
+  NGINX_ERROR_PAGES_CAPABILITY,
+  NGINX_ERROR_PAGES_V2_CAPABILITY,
+  withOpfieldErrorPages,
+} from './nginx-error-pages.js';
 import { MAINTENANCE_FLAG_CAPABILITY } from './nginx-maintenance-flag-guard.js';
 import {
   NGINX_ACCESS_LOG_FORMAT_CAPABILITY,
@@ -876,7 +880,9 @@ export abstract class ProxyServiceCore {
     // pages the node keeps (rendered per node: an older daemon lacks the page variables). The internal registry's
     // route answers Docker clients, which read the status and the registry's own JSON errors, never a page.
     if (!usesRegistryIngress && (await this.nodeReports(host.nodeId, NGINX_ERROR_PAGES_CAPABILITY))) {
-      result = withOpfieldErrorPages(result, hideExternalBranding);
+      // A node that also keeps the 501 and 505 pages gets those codes too.
+      const pagesV2 = await this.nodeReports(host.nodeId, NGINX_ERROR_PAGES_V2_CAPABILITY);
+      result = withOpfieldErrorPages(result, hideExternalBranding, pagesV2);
     }
     return this.withNodeNginxNames(host.nodeId, result);
   }

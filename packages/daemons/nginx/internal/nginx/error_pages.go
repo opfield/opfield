@@ -14,6 +14,10 @@ const errorPagesFilename = "00-opfield-error-pages.conf"
 // renders may hand nginx's own error responses to them (nginx-error-pages.ts in Opfield).
 const ErrorPagesCapability = "nginx_error_pages_v1"
 
+// ErrorPagesV2Capability tells Opfield the page variables also hold the pages of errorpages.V2Codes (501, 505), so
+// route configs may hand those codes to them too.
+const ErrorPagesV2Capability = "nginx_error_pages_v2"
+
 // ErrorPagesConfigPath is the managed file in the config directory that holds the page variables.
 func ErrorPagesConfigPath(configDir string) string {
 	return filepath.Join(configDir, naming.File(errorPagesFilename))

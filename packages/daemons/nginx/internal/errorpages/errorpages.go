@@ -11,8 +11,9 @@
 // original code unless error_page names another (`=code`). nginx answers 494-497 with 400; their pages say what went
 // wrong, so each has a named location and variable of its own.
 //
-// 400 and 414 can end a request whose request line nginx could not read, which has no URI; nginx cannot hand such a
-// request to a named location (it answers 500), so these two go to an internal location with a reserved path
+// 400, 414 and 505 can end a request whose request line nginx could not read (505: ngx_http_process_request_line
+// finalizes an unsupported HTTP version before it processes the URI), which has no URI; nginx cannot hand such a
+// request to a named location (it answers 500), so these go to an internal location with a reserved path
 // (RequestLinePath) instead. A request for that path from outside gets the 404 page.
 //
 // The locations allow every client and ask for no password: a client the server's own access rules deny gets the 403
@@ -24,6 +25,7 @@ package errorpages
 
 import (
 	"fmt"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -64,10 +66,16 @@ var Pages = []Page{
 	{414, "Address too long", "The requested address is longer than the server accepts."},
 	{429, "Too many requests", "Too many requests were sent in a short time. Please wait a moment and try again."},
 	{500, "Internal error", "The server could not complete this request. Please try again later."},
+	{501, "Not implemented", "The server does not support what this request asks for."},
 	{502, "Service unreachable", "The service behind this address cannot be reached right now. Please try again later."},
 	{503, "Service unavailable", "The service is temporarily unavailable. Please try again later."},
 	{504, "Service timed out", "The service behind this address did not answer in time. Please try again later."},
+	{505, "HTTP version not supported", "The server does not support the HTTP version this request used."},
 }
+
+// V2Codes are the codes of Pages that came with nginx_error_pages_v2; the server blocks of earlier daemons do not name
+// them (UpgradeServerDirectives).
+var V2Codes = []int{501, 505}
 
 // SpecialPages are the codes nginx answers with status 400; each page says what was wrong with the request.
 var SpecialPages = []Page{
@@ -115,11 +123,11 @@ func Variable(code int, branded bool) string {
 	return name
 }
 
-// RequestLinePath is the internal location 400 and 414 are handed to (see the package comment).
+// RequestLinePath is the internal location 400, 414 and 505 are handed to (see the package comment).
 const RequestLinePath = "/.well-known/opfield-error"
 
 // RequestLineCodes are the codes handed to RequestLinePath.
-var RequestLineCodes = []int{400, 414}
+var RequestLineCodes = []int{400, 414, 505}
 
 // Location is the named location the codes of Pages (code 0) or one code of SpecialPages are handed to.
 func Location(code int) string {
@@ -196,4 +204,38 @@ func serverDirectives(accessChecked bool, except ...int) []string {
 		lines = append(lines, body(Variable(page.Code, true))...)
 	}
 	return lines
+}
+
+// earlierPageLine is an error_page line of the pages: its codes and where they go.
+var earlierPageLine = regexp.MustCompile(`(?m)^([ \t]*error_page )((?:[0-9]{3} )+)(` + regexp.QuoteMeta(Location(0)) + `|` + regexp.QuoteMeta(RequestLinePath) + `);$`)
+
+// UpgradeServerDirectives gives the error_page lines of the pages in a server block an earlier daemon (or the
+// installer) wrote the codes of V2Codes: 501 to the named location, 505 to RequestLinePath. A line that already names
+// a code of V2Codes, and every other line, stays as it is; it reports whether anything changed.
+func UpgradeServerDirectives(text string) (string, bool) {
+	changed := false
+	upgraded := earlierPageLine.ReplaceAllStringFunc(text, func(line string) string {
+		match := earlierPageLine.FindStringSubmatch(line)
+		var codes []int
+		for _, field := range strings.Fields(match[2]) {
+			code, _ := strconv.Atoi(field)
+			if slices.Contains(V2Codes, code) {
+				return line
+			}
+			codes = append(codes, code)
+		}
+		for _, code := range V2Codes {
+			if slices.Contains(RequestLineCodes, code) == (match[3] == RequestLinePath) {
+				codes = append(codes, code)
+			}
+		}
+		slices.Sort(codes)
+		fields := make([]string, len(codes))
+		for index, code := range codes {
+			fields[index] = strconv.Itoa(code)
+		}
+		changed = true
+		return match[1] + strings.Join(fields, " ") + " " + match[3] + ";"
+	})
+	return upgraded, changed
 }

@@ -3346,10 +3346,10 @@ server {
     }
 
     # Opfield error pages: the page variables live in the file the nginx-daemon keeps (00-opfield-error-pages.conf).
-    # 400 and 414 go to an internal path: a request whose request line nginx could not read has no URI for a named
-    # location.
-    error_page 401 403 404 405 408 413 429 500 502 503 504 @opfield_error;
-    error_page 400 414 /.well-known/opfield-error;
+    # 400, 414 and 505 go to an internal path: a request whose request line nginx could not read has no URI for a
+    # named location.
+    error_page 401 403 404 405 408 413 429 500 501 502 503 504 @opfield_error;
+    error_page 400 414 505 /.well-known/opfield-error;
     error_page 494 @opfield_error_494;
     error_page 495 @opfield_error_495;
     error_page 496 @opfield_error_496;
@@ -3394,12 +3394,61 @@ EOF
 # Opfield managed default server (auto-injected)
 # Rejects any TLS request whose SNI or Host does not match a configured
 # route, so a deleted route's hostname (or any other hostname pointed at
-# this node) cannot fall through to another route's server block.
+# this node) cannot fall through to another route's server block. A request
+# whose SNI names a route but whose Host names none gets the Opfield 404 page.
 server {
     listen 443 ssl default_server;
     listen [::]:443 ssl default_server;
     server_name _;
     ssl_reject_handshake on;
+
+    location / {
+        return 404;
+    }
+
+    error_page 401 403 404 405 408 413 429 500 501 502 503 504 @opfield_error;
+    error_page 400 414 505 /.well-known/opfield-error;
+    error_page 494 @opfield_error_494;
+    error_page 495 @opfield_error_495;
+    error_page 496 @opfield_error_496;
+    error_page 497 @opfield_error_497;
+    location @opfield_error {
+        allow all;
+        auth_basic off;
+        default_type text/html;
+        return 200 $opfield_error_page;
+    }
+    location = /.well-known/opfield-error {
+        internal;
+        allow all;
+        auth_basic off;
+        default_type text/html;
+        return 200 $opfield_error_page;
+    }
+    location @opfield_error_494 {
+        allow all;
+        auth_basic off;
+        default_type text/html;
+        return 200 $opfield_error_page_494;
+    }
+    location @opfield_error_495 {
+        allow all;
+        auth_basic off;
+        default_type text/html;
+        return 200 $opfield_error_page_495;
+    }
+    location @opfield_error_496 {
+        allow all;
+        auth_basic off;
+        default_type text/html;
+        return 200 $opfield_error_page_496;
+    }
+    location @opfield_error_497 {
+        allow all;
+        auth_basic off;
+        default_type text/html;
+        return 200 $opfield_error_page_497;
+    }
 }
 EOF
 

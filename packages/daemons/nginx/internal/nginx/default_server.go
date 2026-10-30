@@ -2,7 +2,9 @@ package nginx
 
 import (
 	"path/filepath"
+	"strings"
 
+	"github.com/opfield/opfield/nginx-daemon/internal/errorpages"
 	"github.com/opfield/opfield/nginx-daemon/internal/naming"
 )
 
@@ -25,12 +27,27 @@ server {
 }
 `
 
+// DefaultServerConfig is the managed HTTPS catch-all. A TLS request with an
+// unknown SNI never gets past the handshake; one whose SNI names a route but
+// whose Host names none (or that has no Host) lands here. On a node that keeps
+// the Opfield error page variables (errorPages) it answers 404 and every error
+// nginx raises itself with the Opfield pages, as the HTTP default server does;
+// otherwise it is the plain catch-all the installer writes.
+func DefaultServerConfig(errorPages bool) string {
+	if !errorPages {
+		return defaultServerConfig
+	}
+	lines := []string{"", "    location / {", "        return 404;", "    }", ""}
+	lines = append(lines, errorpages.ServerDirectives()...)
+	return strings.TrimSuffix(defaultServerConfig, "}\n") + strings.Join(lines, "\n") + "\n}\n"
+}
+
 // EnsureDefaultServer writes (or repairs) the managed HTTPS catch-all server
-// block described above. It is idempotent: an existing file with the exact
-// managed contents is left untouched, so callers can invoke it on every
-// daemon start without spurious reloads. Returns true when the file was
-// created or its contents changed.
-func EnsureDefaultServer(configDir string) (bool, error) {
+// block described above (DefaultServerConfig). It is idempotent: an existing
+// file with the exact managed contents is left untouched, so callers can
+// invoke it on every daemon start without spurious reloads. Returns true when
+// the file was created or its contents changed.
+func EnsureDefaultServer(configDir string, errorPages bool) (bool, error) {
 	path := DefaultServerConfigPath(configDir)
 	// The installer writes the catch-all too, under the name the daemon binary carries; a copy under the other
 	// scheme's name would be a second default server, which nginx refuses.
@@ -50,10 +67,11 @@ func EnsureDefaultServer(configDir string) (bool, error) {
 	if err != nil {
 		return removedOther, err
 	}
-	if existing != nil && string(existing) == defaultServerConfig {
+	desired := DefaultServerConfig(errorPages)
+	if existing != nil && string(existing) == desired {
 		return removedOther, nil
 	}
-	return true, WriteAtomic(path, []byte(defaultServerConfig))
+	return true, WriteAtomic(path, []byte(desired))
 }
 
 // DefaultServerConfigPath returns the path of the managed default server

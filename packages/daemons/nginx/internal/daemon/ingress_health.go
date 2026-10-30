@@ -332,7 +332,7 @@ func (p *NginxPlugin) ensureIngressHealthConfig(logger *slog.Logger) (changed bo
 
 	if _, err := nginx.EnsureIngressHealthCertificate(p.cfg.Nginx.CertsDir, time.Now()); err != nil {
 		logger.Warn("failed to create the ingress health certificate", "error", err)
-	} else if serverWritten, err := nginx.EnsureIngressHealthServer(p.cfg.Nginx.ConfigDir, p.cfg.Nginx.CertsDir); err != nil {
+	} else if serverWritten, err := nginx.EnsureIngressHealthServer(p.cfg.Nginx.ConfigDir, p.cfg.Nginx.CertsDir, p.errorPagesSupported); err != nil {
 		logger.Warn("failed to write the ingress health server", "error", err)
 	} else if serverWritten {
 		if valid, output := p.mgr.TestConfig(); valid {

@@ -28,8 +28,9 @@ func defaultHTTPServerErrorPages() string {
 }
 
 // EnsureDefaultHTTPServerErrorPages moves the installer's HTTP default server (managed mode) to the Opfield error
-// pages, so a malformed request, an unknown host or a denied status request on port 80 gets them too. A file without
-// the installer's inline 404 (already moved, integrate mode, an operator's own) is left alone. It returns the content
+// pages, so a malformed request, an unknown host or a denied status request on port 80 gets them too; one already on
+// the pages gets the codes added since (errorpages.UpgradeServerDirectives). Any other file (integrate mode, an
+// operator's own) is left alone. It returns the content
 // it replaced and whether it wrote; a node whose daemon cannot write the file keeps it.
 func EnsureDefaultHTTPServerErrorPages(globalConfigPath string) (previous []byte, written bool, err error) {
 	path := DefaultHTTPServerPath(globalConfigPath)
@@ -38,14 +39,24 @@ func EnsureDefaultHTTPServerErrorPages(globalConfigPath string) (previous []byte
 		return nil, false, err
 	}
 	content := string(existing)
-	if strings.Contains(content, errorpages.Location(0)) || !strings.Contains(content, "listen 80 default_server;") {
+	if !strings.Contains(content, "listen 80 default_server;") {
 		return existing, false, nil
 	}
-	loc := installerNotFoundLocation.FindStringIndex(content)
-	if loc == nil {
-		return existing, false, nil
+	var next string
+	if strings.Contains(content, errorpages.Location(0)) {
+		// Already on the pages: a server moved (or installed) by an earlier release gets the codes added since.
+		upgraded, changed := errorpages.UpgradeServerDirectives(content)
+		if !changed {
+			return existing, false, nil
+		}
+		next = upgraded
+	} else {
+		loc := installerNotFoundLocation.FindStringIndex(content)
+		if loc == nil {
+			return existing, false, nil
+		}
+		next = content[:loc[0]] + defaultHTTPServerErrorPages() + content[loc[1]:]
 	}
-	next := content[:loc[0]] + defaultHTTPServerErrorPages() + content[loc[1]:]
 	info, err := os.Stat(path)
 	if err != nil {
 		return existing, false, err

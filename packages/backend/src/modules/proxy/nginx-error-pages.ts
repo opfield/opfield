@@ -13,8 +13,9 @@ import { type NginxConfigDirective, parseNginxConfig } from './nginx-config-tree
  *
  * `return 200` keeps the status of the error: nginx sends a response that error_page produced with the original code
  * unless error_page names another (`=code`). nginx answers 494-497 with 400; each has a page that says what went wrong.
- * 400 and 414 can end a request whose request line nginx could not read, which has no URI and cannot be handed to a
- * named location (nginx answers 500), so they go to an internal location with a reserved path (ERROR_PAGE_PATH); a
+ * 400, 414 and 505 can end a request whose request line nginx could not read (505: an unsupported HTTP version is
+ * refused before nginx processes the URI), which has no URI and cannot be handed to a named location (nginx answers
+ * 500), so they go to an internal location with a reserved path (ERROR_PAGE_PATH); a
  * request for that path from outside gets the 404 page. The locations allow every client and ask for no password, so a
  * client the server's own access rules deny gets the 403 page.
  *
@@ -25,14 +26,20 @@ import { type NginxConfigDirective, parseNginxConfig } from './nginx-config-tree
  */
 
 export const NGINX_ERROR_PAGES_CAPABILITY = 'nginx_error_pages_v1';
+/** The node's page variables also hold the pages of 501 and 505 (errorpages.V2Codes in the nginx daemon). */
+export const NGINX_ERROR_PAGES_V2_CAPABILITY = 'nginx_error_pages_v2';
 
+/** The codes a node with NGINX_ERROR_PAGES_CAPABILITY only has pages for. */
+export const OPFIELD_ERROR_PAGE_CODES_V1 = [400, 401, 403, 404, 405, 408, 413, 414, 429, 500, 502, 503, 504] as const;
 /** Kept in step with Pages and SpecialPages in the nginx daemon (internal/errorpages). */
-export const OPFIELD_ERROR_PAGE_CODES = [400, 401, 403, 404, 405, 408, 413, 414, 429, 500, 502, 503, 504] as const;
+export const OPFIELD_ERROR_PAGE_CODES = [
+  400, 401, 403, 404, 405, 408, 413, 414, 429, 500, 501, 502, 503, 504, 505,
+] as const;
 export const OPFIELD_SPECIAL_ERROR_PAGE_CODES = [494, 495, 496, 497] as const;
 
 /** Kept in step with RequestLinePath and RequestLineCodes in the nginx daemon (internal/errorpages). */
 export const ERROR_PAGE_PATH = '/.well-known/opfield-error';
-const REQUEST_LINE_CODES: readonly number[] = [400, 414];
+const REQUEST_LINE_CODES: readonly number[] = [400, 414, 505];
 
 const RESERVED = /@opfield_error\b|\$\{?opfield_error_page|\/\.well-known\/opfield-error\b/;
 
@@ -65,9 +72,13 @@ interface TextEdit {
   text: string;
 }
 
-function serverPages(server: NginxConfigDirective, hideExternalBranding: boolean): string {
+function serverPages(
+  server: NginxConfigDirective,
+  hideExternalBranding: boolean,
+  pageCodes: readonly number[]
+): string {
   const declared = declaredCodes(server);
-  const codes = missing(OPFIELD_ERROR_PAGE_CODES, declared);
+  const codes = missing(pageCodes, declared);
   const named = codes.filter((code) => !REQUEST_LINE_CODES.includes(code));
   const requestLine = codes.filter((code) => REQUEST_LINE_CODES.includes(code));
   const special = missing(OPFIELD_SPECIAL_ERROR_PAGE_CODES, declared);
@@ -90,12 +101,12 @@ function serverPages(server: NginxConfigDirective, hideExternalBranding: boolean
 }
 
 /** Locations (at any depth) that name error pages themselves get the codes they do not name. */
-function locationEdits(children: NginxConfigDirective[], edits: TextEdit[]): void {
+function locationEdits(children: NginxConfigDirective[], edits: TextEdit[], pageCodes: readonly number[]): void {
   for (const location of children) {
     if (location.name !== 'location' || !location.block) continue;
     const declared = declaredCodes(location);
     if (declared.size > 0) {
-      const codes = missing(OPFIELD_ERROR_PAGE_CODES, declared);
+      const codes = missing(pageCodes, declared);
       const named = codes.filter((code) => !REQUEST_LINE_CODES.includes(code));
       const requestLine = codes.filter((code) => REQUEST_LINE_CODES.includes(code));
       const last = location.block.children.filter((directive) => directive.name === 'error_page').at(-1)!;
@@ -105,15 +116,17 @@ function locationEdits(children: NginxConfigDirective[], edits: TextEdit[]): voi
       ].join('');
       if (text) edits.push({ position: last.end, text });
     }
-    locationEdits(location.block.children, edits);
+    locationEdits(location.block.children, edits, pageCodes);
   }
 }
 
 /**
  * Hands nginx's own error responses of every server in a rendered route config to the Opfield pages. A config that
- * cannot be parsed, or already names the pages, is returned unchanged.
+ * cannot be parsed, or already names the pages, is returned unchanged. `pagesV2`: the node reports
+ * NGINX_ERROR_PAGES_V2_CAPABILITY, so 501 and 505 are handed to the pages too; an older node's variables lack them.
  */
-export function withOpfieldErrorPages(rendered: string, hideExternalBranding = false): string {
+export function withOpfieldErrorPages(rendered: string, hideExternalBranding = false, pagesV2 = false): string {
+  const pageCodes: readonly number[] = pagesV2 ? OPFIELD_ERROR_PAGE_CODES : OPFIELD_ERROR_PAGE_CODES_V1;
   if (RESERVED.test(rendered)) return rendered;
   let directives: NginxConfigDirective[];
   try {
@@ -124,8 +137,8 @@ export function withOpfieldErrorPages(rendered: string, hideExternalBranding = f
   const edits: TextEdit[] = [];
   for (const server of directives) {
     if (server.name !== 'server' || !server.block) continue;
-    edits.push({ position: server.block.open + 1, text: serverPages(server, hideExternalBranding) });
-    locationEdits(server.block.children, edits);
+    edits.push({ position: server.block.open + 1, text: serverPages(server, hideExternalBranding, pageCodes) });
+    locationEdits(server.block.children, edits, pageCodes);
   }
   let result = rendered;
   for (const edit of edits.sort((left, right) => right.position - left.position)) {

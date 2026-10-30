@@ -374,13 +374,13 @@ func (p *NginxPlugin) regenerateOwnFiles(original map[string][]byte) ([]namesFil
 		write func() error
 	}
 	regenerations := []regeneration{
-		{name: "00-opfield-default-server.conf", write: func() error { _, err := nginx.EnsureDefaultServer(configDir); return err }},
+		{name: "00-opfield-default-server.conf", write: func() error { _, err := nginx.EnsureDefaultServer(configDir, p.errorPagesSupported); return err }},
 		{name: "00-opfield-maintenance.conf", write: func() error { _, _, err := nginx.EnsureMaintenanceGuardConfig(configDir); return err }},
 		{name: "00-opfield-ingress-health.conf", write: func() error {
 			if _, err := nginx.EnsureIngressHealthCertificate(p.cfg.Nginx.CertsDir, time.Now()); err != nil {
 				return err
 			}
-			_, err := nginx.EnsureIngressHealthServer(configDir, p.cfg.Nginx.CertsDir)
+			_, err := nginx.EnsureIngressHealthServer(configDir, p.cfg.Nginx.CertsDir, p.errorPagesSupported)
 			return err
 		}},
 	}

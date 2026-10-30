@@ -94,7 +94,7 @@ func TestUnknownHostsAnsweredNeedsBothManagedDefaultServers(t *testing.T) {
 	if plugin.unknownHostsAnswered() {
 		t.Fatal("answered without any default server")
 	}
-	if _, err := nginx.EnsureDefaultServer(configDir); err != nil {
+	if _, err := nginx.EnsureDefaultServer(configDir, false); err != nil {
 		t.Fatal(err)
 	}
 	if plugin.unknownHostsAnswered() {

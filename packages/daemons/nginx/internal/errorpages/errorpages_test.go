@@ -3,6 +3,7 @@ package errorpages
 import (
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -44,8 +45,17 @@ func TestConfigDefinesEveryVariableTheDirectivesUse(t *testing.T) {
 	if strings.Contains(directives, " 404 ") {
 		t.Fatal("an excepted code is still handed to the pages")
 	}
-	if !strings.Contains(directives, "error_page 400 414 "+RequestLinePath+";") || !strings.Contains(directives, "location = "+RequestLinePath+" {\n        internal;") {
-		t.Fatalf("400 and 414 must go to the internal path:\n%s", directives)
+	// 505 ends a request before nginx has its URI, like 400 and 414.
+	if !strings.Contains(directives, "error_page 400 414 505 "+RequestLinePath+";") || !strings.Contains(directives, "location = "+RequestLinePath+" {\n        internal;") {
+		t.Fatalf("400, 414 and 505 must go to the internal path:\n%s", directives)
+	}
+	if !strings.Contains(directives, "error_page 401 403 405 408 413 429 500 501 502 503 504 "+Location(0)+";") {
+		t.Fatalf("501 must go to the named location:\n%s", directives)
+	}
+	for _, code := range []int{501, 505} {
+		if !strings.Contains(config, "    "+strconv.Itoa(code)+" '") {
+			t.Fatalf("config lacks the %d page", code)
+		}
 	}
 	if dir := os.Getenv("OPFIELD_NGINX_RENDER_DIR"); dir != "" {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -54,5 +64,31 @@ func TestConfigDefinesEveryVariableTheDirectivesUse(t *testing.T) {
 		if err := os.WriteFile(filepath.Join(dir, "00-opfield-error-pages.conf"), []byte(config), 0o644); err != nil {
 			t.Fatal(err)
 		}
+	}
+}
+
+// A server block an earlier daemon (or the installer) wrote gets the codes of V2Codes; nothing else changes.
+func TestUpgradeServerDirectives(t *testing.T) {
+	old := "server {\n" + strings.Join(ServerDirectives(V2Codes...), "\n") + "\n}\n"
+	if strings.Contains(old, "501") || strings.Contains(old, "505") {
+		t.Fatal("the earlier directives name no 501 or 505")
+	}
+	upgraded, changed := UpgradeServerDirectives(old)
+	if !changed || upgraded != "server {\n"+strings.Join(ServerDirectives(), "\n")+"\n}\n" {
+		t.Fatalf("changed=%v:\n%s", changed, upgraded)
+	}
+	if again, changed := UpgradeServerDirectives(upgraded); changed || again != upgraded {
+		t.Fatal("an upgraded server is left alone")
+	}
+	// A server that answers 404 itself (a preview) gets the codes too, and keeps answering 404 itself.
+	own := strings.Join(ServerDirectives(append([]int{404}, V2Codes...)...), "\n") + "\n"
+	upgraded, changed = UpgradeServerDirectives(own)
+	if !changed || upgraded != strings.Join(ServerDirectives(404), "\n")+"\n" {
+		t.Fatalf("changed=%v:\n%s", changed, upgraded)
+	}
+	// Other error_page lines (a project's own, the access challenge) are never touched.
+	other := "    error_page 404 @opfield_pages_404;\n    error_page 401 = @opfield_access_challenge;\n    error_page 500 502 /custom.html;\n"
+	if again, changed := UpgradeServerDirectives(other); changed || again != other {
+		t.Fatal("other error_page lines are not rewritten")
 	}
 }

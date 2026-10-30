@@ -1,6 +1,7 @@
 package pages
 
 import (
+	"errors"
 	"fmt"
 	"net/url"
 	"os"
@@ -125,7 +126,9 @@ func (r *Runtime) previewConfig(hostname, deploymentID, certificateID, certifica
 	if certificateID != "" && fallback.Access.Enabled() {
 		// Never ask for basic-auth credentials over plain HTTP: a protected
 		// preview with a certificate only answers port 80 with a redirect.
-		lines = append(lines, "server {", "    listen 80;", "    server_name "+hostname+";", "    return 301 https://"+hostname+"$request_uri;", "}", "server {")
+		lines = append(lines, "server {", "    listen 80;", "    server_name "+hostname+";")
+		lines = append(lines, r.errorPageDirectives()...)
+		lines = append(lines, "    return 301 https://"+hostname+"$request_uri;", "}", "server {")
 	} else {
 		lines = append(lines, "server {", "    listen 80;")
 	}
@@ -181,6 +184,47 @@ func (r *Runtime) previewConfig(hostname, deploymentID, certificateID, certifica
 	}
 	lines = append(lines, "    location ~* "+previewAssetPattern+" {", "        limit_except GET HEAD { deny all; }", "        expires 1y;", "        add_header Cache-Control \"public, max-age=31536000, immutable\" always;", "    }", "}")
 	return strings.Join(lines, "\n") + "\n"
+}
+
+// UpgradeErrorPages gives the preview configs an earlier daemon wrote the codes the error pages gained since
+// (errorpages.UpgradeServerDirectives), so they answer those with the Opfield pages too. It writes the files without
+// testing them and returns what each changed one held before: the caller tests the configuration once and, when
+// nginx refuses it, takes every change back (RestoreConfigs). Nothing changes without the page variables.
+func (r *Runtime) UpgradeErrorPages() (map[string][]byte, error) {
+	previous := map[string][]byte{}
+	if !r.errorPages {
+		return previous, nil
+	}
+	paths, err := filepath.Glob(filepath.Join(r.configDir, "pages-preview-*.conf"))
+	if err != nil {
+		return previous, err
+	}
+	for _, path := range paths {
+		content, err := readFileNoFollow(path)
+		if err != nil {
+			return previous, err
+		}
+		upgraded, changed := errorpages.UpgradeServerDirectives(string(content))
+		if !changed {
+			continue
+		}
+		if err := writeAtomic(path, []byte(upgraded), 0o640); err != nil {
+			return previous, err
+		}
+		previous[path] = content
+	}
+	return previous, nil
+}
+
+// RestoreConfigs writes back what UpgradeErrorPages replaced.
+func RestoreConfigs(previous map[string][]byte) error {
+	var failures []error
+	for path, content := range previous {
+		if err := writeAtomic(path, content, 0o640); err != nil {
+			failures = append(failures, err)
+		}
+	}
+	return errors.Join(failures...)
 }
 
 // errorPageDirectives are the server-level lines that hand nginx's own error responses to the Opfield pages, without
