@@ -194,6 +194,12 @@ func previewAccessCheckDirectives(accessListID string) []string {
 		"        access_log off;",
 		"        auth_request off;",
 		"        proxy_pass "+accessSocket+":/ui/;",
+		// The sign-in page sends no referrer at all, as on routes: the preview's own same-origin policy (an add_header
+		// here replaces the server's) does not apply to it.
+		"        proxy_hide_header Referrer-Policy;",
+		"        proxy_hide_header X-Content-Type-Options;",
+		"        add_header Referrer-Policy no-referrer always;",
+		"        add_header X-Content-Type-Options nosniff always;",
 	)
 	lines = append(lines, previewAccessHeaders(accessListID, "\"\"")...)
 	return append(lines, "    }")

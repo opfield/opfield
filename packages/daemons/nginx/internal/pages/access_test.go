@@ -218,7 +218,7 @@ func TestPreviewAccessChecksOnTheAccessSocket(t *testing.T) {
 		"    location @opfield_access_challenge {\n        auth_request off;\n        rewrite ^ /challenge break;\n        proxy_pass http://unix:/run/nginx-daemon/access.sock;\n",
 		"        auth_basic off;\n        auth_request off;\n",
 		// The preview's own sign-in page.
-		"    location ^~ /_opfield/access/ {\n        access_log off;\n        auth_request off;\n        proxy_pass http://unix:/run/nginx-daemon/access.sock:/ui/;\n" + visitorHeaders + "    }\n",
+		"    location ^~ /_opfield/access/ {\n        access_log off;\n        auth_request off;\n        proxy_pass http://unix:/run/nginx-daemon/access.sock:/ui/;\n        proxy_hide_header Referrer-Policy;\n        proxy_hide_header X-Content-Type-Options;\n        add_header Referrer-Policy no-referrer always;\n        add_header X-Content-Type-Options nosniff always;\n" + visitorHeaders + "    }\n",
 		// The old callback reads the scheme too; a visitor cannot send it.
 		"proxy_pass http://unix:/run/nginx-daemon/access.sock:/callback;\n" + visitorHeaders + "    }\n",
 	} {
