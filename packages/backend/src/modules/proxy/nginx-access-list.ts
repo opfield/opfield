@@ -236,12 +236,26 @@ export function upgradeLegacyAccessListBlocks(content: string): string {
 
 const listHeaderValue = (listId: string) => listId.replace(/[^0-9A-Za-z-]/g, '');
 
-const FORWARDED_ACCESS_HEADERS = (listId: string) => [
+/**
+ * Every X-Opfield-Access-* request header the daemon reads, always set by nginx so a visitor's own copies never reach
+ * it ("" drops one). The client address is $remote_addr: the route's client IP source (route-client-ip.ts) renders
+ * realip at the server level, which replaces $remote_addr with the address a trusted proxy forwards, so this is the
+ * route's resolved client address.
+ */
+const FORWARDED_ACCESS_HEADERS = (listId: string, uri = '$request_uri') => [
   `proxy_set_header X-Opfield-Access-List "${listHeaderValue(listId)}";`,
   'proxy_set_header X-Opfield-Access-Host $host;',
   'proxy_set_header X-Opfield-Access-Client-Ip $remote_addr;',
-  'proxy_set_header X-Opfield-Access-Uri $request_uri;',
+  `proxy_set_header X-Opfield-Access-Uri ${uri};`,
   'proxy_set_header X-Opfield-Access-Secure $https;',
+  'proxy_set_header X-Opfield-Access-Scheme $scheme;',
+];
+
+/** Headers the daemon only ever sends (auth_request replies); an empty value keeps a visitor's copy from passing. */
+const CLEARED_ACCESS_HEADERS = [
+  'proxy_set_header X-Opfield-Access-Assertion "";',
+  'proxy_set_header X-Opfield-Access-Email "";',
+  'proxy_set_header X-Opfield-Access-User "";',
 ];
 
 /**
@@ -269,10 +283,9 @@ function signInPageLines(list: NginxAccessList): string[] {
     `proxy_pass http://unix:${ACCESS_SOCKET}:/ui/;`,
     'proxy_redirect off;',
     'proxy_set_header Host $host;',
-    `proxy_set_header X-Opfield-Access-List "${listHeaderValue(list.id)}";`,
-    'proxy_set_header X-Opfield-Access-Host $host;',
-    'proxy_set_header X-Opfield-Access-Client-IP $remote_addr;',
-    'proxy_set_header X-Opfield-Access-Scheme $scheme;',
+    // Every X-Opfield-Access-* header is set here: a visitor cannot pass any of their own to the sign-in page.
+    ...FORWARDED_ACCESS_HEADERS(list.id, '""'),
+    ...CLEARED_ACCESS_HEADERS,
     'proxy_set_header User-Agent $http_user_agent;',
     'client_max_body_size 64k;',
   ];
@@ -301,8 +314,7 @@ function accessLocations(list: NginxAccessList): string {
       'access_log off;',
       'auth_request off;',
       `proxy_pass http://unix:${ACCESS_SOCKET}:/callback;`,
-      'proxy_set_header X-Opfield-Access-Host $host;',
-      'proxy_set_header X-Opfield-Access-Secure $https;',
+      ...FORWARDED_ACCESS_HEADERS(list.id, '""'),
     ]),
     '',
     ...(signInPage ? [...block(`location ^~ ${ACCESS_SIGN_IN_PREFIX}`, signInPageLines(list)), ''] : []),

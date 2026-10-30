@@ -48,6 +48,7 @@ import {
   proxyHostRoute,
   storageRoute,
 } from "@/lib/resource-routes";
+import { AccessSignInConfirm } from "@/pages/AccessSignInConfirm";
 import { Administration } from "@/pages/Administration";
 import { AdminNodeDetail } from "@/pages/AdminNodeDetail";
 import { AdminNodes } from "@/pages/AdminNodes";
@@ -1530,6 +1531,7 @@ function OpfieldApp() {
             <Route path="/reset-password" element={<AuthDocumentRoute />} />
             <Route path="/callback" element={<AuthDocumentRoute />} />
             <Route path="/oauth/consent" element={<OAuthConsent />} />
+            <Route path="/access-sign-in/confirm" element={<AccessSignInConfirm />} />
             <Route path="/oauth/error" element={<OAuthError />} />
             <Route path="/blocked" element={<BlockedPage />} />
             <Route

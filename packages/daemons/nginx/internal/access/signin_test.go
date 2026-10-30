@@ -102,14 +102,14 @@ func TestSignInPage(t *testing.T) {
 			t.Errorf("page is missing %q", want)
 		}
 	}
-	csrf := responseCookies(w)[CSRFCookie]
-	if csrf == nil || !csrf.HttpOnly || !csrf.Secure || csrf.SameSite != http.SameSiteStrictMode || csrf.Path != "/_opfield/access/" ||
+	csrf := responseCookies(w)[hostCookiePrefix+CSRFCookie]
+	if csrf == nil || !csrf.HttpOnly || !csrf.Secure || csrf.SameSite != http.SameSiteStrictMode || csrf.Path != "/" || csrf.Domain != "" ||
 		!strings.Contains(body, `name="csrf" value="`+csrf.Value+`"`) {
 		t.Fatalf("csrf cookie %+v", csrf)
 	}
 
 	// A visitor the list lets in goes back to the page.
-	allowed := &http.Cookie{Name: TokenCookie, Value: sign(testClaims("lena@acme.dev"))}
+	allowed := &http.Cookie{Name: hostCookiePrefix + TokenCookie, Value: sign(testClaims("lena@acme.dev"))}
 	if w := serve(server, uiRequest(http.MethodGet, "/ui/sign-in?r=%2Freports", nil, allowed)); w.Code != http.StatusSeeOther || w.Header().Get("Location") != "/reports" {
 		t.Fatalf("signed in: %d %v", w.Code, w.Header())
 	}
@@ -139,7 +139,7 @@ func TestSignInPage(t *testing.T) {
 func TestPasswordSignIn(t *testing.T) {
 	server, fake, sign := signInServer(t)
 	page := serve(server, uiRequest(http.MethodGet, "/ui/sign-in", nil))
-	csrf := responseCookies(page)[CSRFCookie]
+	csrf := responseCookies(page)[hostCookiePrefix+CSRFCookie]
 	form := func(token string) url.Values {
 		return url.Values{"kind": {"password"}, "username": {"lena"}, "password": {"pw"}, "r": {"/reports?q=1"}, "csrf": {token}}
 	}
@@ -148,6 +148,11 @@ func TestPasswordSignIn(t *testing.T) {
 	w := serve(server, uiRequest(http.MethodPost, "/ui/sign-in", form(csrf.Value)))
 	if w.Code != http.StatusForbidden || fake.passwordRequest != nil || !strings.Contains(w.Body.String(), messageExpired) {
 		t.Fatalf("without the csrf cookie: %d", w.Code)
+	}
+	// Over HTTPS a bare CSRF cookie (one a sibling subdomain can set) does not count.
+	tossed := &http.Cookie{Name: CSRFCookie, Value: csrf.Value}
+	if w := serve(server, uiRequest(http.MethodPost, "/ui/sign-in", form(csrf.Value), tossed)); w.Code != http.StatusForbidden || fake.passwordRequest != nil {
+		t.Fatalf("with a bare csrf cookie over https: %d", w.Code)
 	}
 
 	fake.password = &pb.AccessSignInReply{Allowed: false, ErrorCode: "ACCESS_SIGN_IN_FAILED", Message: "Wrong username or password"}
@@ -169,10 +174,19 @@ func TestPasswordSignIn(t *testing.T) {
 	token := sign(testClaims("lena@acme.dev"))
 	fake.password = &pb.AccessSignInReply{Allowed: true, Token: token}
 	w = serve(server, uiRequest(http.MethodPost, "/ui/sign-in", form(csrf.Value), csrf))
-	access := responseCookies(w)[TokenCookie]
+	access := responseCookies(w)[hostCookiePrefix+TokenCookie]
 	if w.Code != http.StatusSeeOther || w.Header().Get("Location") != "/reports?q=1" ||
-		access == nil || access.Value != token || access.Path != "/" || !access.HttpOnly || !access.Secure || access.MaxAge != 3600 {
+		access == nil || access.Value != token || access.Path != "/" || access.Domain != "" || !access.HttpOnly || !access.Secure || access.MaxAge != 3600 {
 		t.Fatalf("allowed: %d %v %+v", w.Code, w.Header(), access)
+	}
+	if responseCookies(w)[TokenCookie] != nil {
+		t.Fatal("no bare access cookie to expire, none set")
+	}
+	// The bare access cookie of an earlier release is expired once the __Host- one is set.
+	legacy := &http.Cookie{Name: TokenCookie, Value: sign(testClaims("lena@gmail.com"))}
+	w = serve(server, uiRequest(http.MethodPost, "/ui/sign-in", form(csrf.Value), csrf, legacy))
+	if expired := responseCookies(w)[TokenCookie]; expired == nil || expired.MaxAge >= 0 || expired.Path != "/" {
+		t.Fatalf("bare access cookie not expired: %+v", expired)
 	}
 
 	// A token for another host never becomes the cookie.
@@ -180,7 +194,7 @@ func TestPasswordSignIn(t *testing.T) {
 	other.Audience = "other.example.com"
 	fake.password = &pb.AccessSignInReply{Allowed: true, Token: sign(other)}
 	w = serve(server, uiRequest(http.MethodPost, "/ui/sign-in", form(csrf.Value), csrf))
-	if w.Code != http.StatusBadGateway || responseCookies(w)[TokenCookie] != nil {
+	if w.Code != http.StatusBadGateway || responseCookies(w)[hostCookiePrefix+TokenCookie] != nil {
 		t.Fatalf("token of another host: %d", w.Code)
 	}
 
@@ -208,8 +222,8 @@ func TestProviderSignIn(t *testing.T) {
 	if fake.startRequest.GetMethodKey() != "idp:g1" || fake.startRequest.GetCallbackUrl() != "https://app.example.com/_opfield/access/provider-callback" {
 		t.Fatalf("start request %+v", fake.startRequest)
 	}
-	state := responseCookies(w)[StateCookie]
-	if state == nil || state.Value != "state-1|"+base64.RawURLEncoding.EncodeToString([]byte("/reports?q=1")) || state.Path != "/_opfield/access/" ||
+	state := responseCookies(w)[hostCookiePrefix+StateCookie]
+	if state == nil || state.Value != "state-1|"+base64.RawURLEncoding.EncodeToString([]byte("/reports?q=1")) || state.Path != "/" || state.Domain != "" ||
 		state.MaxAge != 600 || !state.HttpOnly || !state.Secure || state.SameSite != http.SameSiteLaxMode {
 		t.Fatalf("state cookie %+v", state)
 	}
@@ -225,13 +239,18 @@ func TestProviderSignIn(t *testing.T) {
 	if w := serve(server, uiRequest(http.MethodGet, "/ui/provider-callback?state=state-2&code=c", nil, state)); w.Code != http.StatusBadRequest || fake.finishRequest != nil {
 		t.Fatalf("callback of another state: %d", w.Code)
 	}
+	// Over HTTPS a bare state cookie (one a sibling subdomain can set) does not start a sign-in.
+	tossed := &http.Cookie{Name: StateCookie, Value: state.Value}
+	if w := serve(server, uiRequest(http.MethodGet, "/ui/provider-callback?state=state-1&code=c", nil, tossed)); w.Code != http.StatusBadRequest || fake.finishRequest != nil {
+		t.Fatalf("callback with a bare state cookie over https: %d", w.Code)
+	}
 
 	fake.finish = &pb.AccessSignInReply{Allowed: false, ErrorCode: "ACCESS_SIGN_IN_FAILED", Message: "This account cannot sign in here."}
 	w = serve(server, uiRequest(http.MethodGet, "/ui/provider-callback?state=state-1&code=c", nil, state))
 	if w.Code != http.StatusUnauthorized || !strings.Contains(w.Body.String(), "Sign-in failed") || !strings.Contains(w.Body.String(), "This account cannot sign in here.") {
 		t.Fatalf("refused callback: %d", w.Code)
 	}
-	if cleared := responseCookies(w)[StateCookie]; cleared == nil || cleared.MaxAge >= 0 {
+	if cleared := responseCookies(w)[hostCookiePrefix+StateCookie]; cleared == nil || cleared.MaxAge >= 0 || cleared.Path != "/" {
 		t.Fatalf("state cookie not cleared: %+v", cleared)
 	}
 
@@ -240,7 +259,7 @@ func TestProviderSignIn(t *testing.T) {
 	// An old sign-in domain state cookie on / may come along.
 	old := &http.Cookie{Name: StateCookie, Value: "nonce-1"}
 	w = serve(server, uiRequest(http.MethodGet, "/ui/provider-callback?state=state-1&code=the-code", nil, old, state))
-	if w.Code != http.StatusSeeOther || w.Header().Get("Location") != "/reports?q=1" || responseCookies(w)[TokenCookie].Value != token {
+	if w.Code != http.StatusSeeOther || w.Header().Get("Location") != "/reports?q=1" || responseCookies(w)[hostCookiePrefix+TokenCookie].Value != token {
 		t.Fatalf("callback %d %v", w.Code, w.Header())
 	}
 	if fake.finishRequest.GetState() != "state-1" || fake.finishRequest.GetCode() != "the-code" ||
@@ -250,17 +269,58 @@ func TestProviderSignIn(t *testing.T) {
 }
 
 func TestSignOut(t *testing.T) {
-	server, _, _ := signInServer(t)
-	csrf := responseCookies(serve(server, uiRequest(http.MethodGet, "/ui/sign-in", nil)))[CSRFCookie]
-	w := serve(server, uiRequest(http.MethodPost, "/ui/sign-out", url.Values{"r": {"/reports"}, "csrf": {csrf.Value}}, csrf))
+	server, _, sign := signInServer(t)
+	csrf := responseCookies(serve(server, uiRequest(http.MethodGet, "/ui/sign-in", nil)))[hostCookiePrefix+CSRFCookie]
+	refused := &http.Cookie{Name: hostCookiePrefix + TokenCookie, Value: sign(testClaims("lena@gmail.com"))}
+	legacy := &http.Cookie{Name: TokenCookie, Value: refused.Value}
+	w := serve(server, uiRequest(http.MethodPost, "/ui/sign-out", url.Values{"r": {"/reports"}, "csrf": {csrf.Value}}, csrf, refused, legacy))
 	if w.Code != http.StatusSeeOther || w.Header().Get("Location") != "/_opfield/access/sign-in?r=%2Freports" {
 		t.Fatalf("sign-out %d %v", w.Code, w.Header())
 	}
-	if cleared := responseCookies(w)[TokenCookie]; cleared == nil || cleared.MaxAge >= 0 || cleared.Path != "/" {
-		t.Fatalf("access cookie not cleared: %+v", cleared)
+	// The route's access cookie goes under both names.
+	for _, name := range []string{hostCookiePrefix + TokenCookie, TokenCookie} {
+		if cleared := responseCookies(w)[name]; cleared == nil || cleared.MaxAge >= 0 || cleared.Path != "/" || cleared.Domain != "" || !cleared.Secure {
+			t.Fatalf("%s not cleared: %+v", name, cleared)
+		}
 	}
-	if w := serve(server, uiRequest(http.MethodPost, "/ui/sign-out", url.Values{"csrf": {csrf.Value}})); responseCookies(w)[TokenCookie] != nil {
+	// Without the cookie the sign-in page shows the methods again.
+	if w := serve(server, uiRequest(http.MethodGet, "/ui/sign-in?r=%2Freports", nil, csrf)); w.Code != http.StatusOK || !strings.Contains(w.Body.String(), "Sign in with Google") ||
+		strings.Contains(w.Body.String(), "Use another account") {
+		t.Fatalf("after sign-out: %d", w.Code)
+	}
+	if w := serve(server, uiRequest(http.MethodPost, "/ui/sign-out", url.Values{"csrf": {csrf.Value}})); len(w.Result().Cookies()) != 0 {
 		t.Fatal("sign-out without the csrf cookie must not clear the access cookie")
+	}
+}
+
+// Plain-HTTP routes keep the bare cookie names: the CSRF and state cookies on the sign-in page's path.
+func TestSignInCookiesOverHTTP(t *testing.T) {
+	server, fake, sign := signInServer(t)
+	plain := func(r *http.Request) *http.Request {
+		r.Header.Del(SchemeHeader)
+		r.Header.Set(SchemeHeader, "http")
+		return r
+	}
+	csrf := responseCookies(serve(server, plain(uiRequest(http.MethodGet, "/ui/sign-in", nil))))[CSRFCookie]
+	if csrf == nil || csrf.Secure || csrf.Path != "/_opfield/access/" {
+		t.Fatalf("csrf cookie over http %+v", csrf)
+	}
+	token := sign(testClaims("lena@acme.dev"))
+	fake.password = &pb.AccessSignInReply{Allowed: true, Token: token}
+	form := url.Values{"kind": {"password"}, "username": {"lena"}, "password": {"pw"}, "csrf": {csrf.Value}}
+	w := serve(server, plain(uiRequest(http.MethodPost, "/ui/sign-in", form, csrf)))
+	if access := responseCookies(w)[TokenCookie]; w.Code != http.StatusSeeOther || access == nil || access.Value != token || access.Secure || access.Path != "/" {
+		t.Fatalf("access cookie over http: %d %+v", w.Code, access)
+	}
+	fake.start = &pb.AccessSignInStartReply{AuthorizeUrl: "https://accounts.google.com/o/oauth2/auth", State: "state-1"}
+	w = serve(server, plain(uiRequest(http.MethodGet, "/ui/start/idp:g1", nil)))
+	if state := responseCookies(w)[StateCookie]; state == nil || state.Secure || state.Path != "/_opfield/access/" ||
+		fake.startRequest.GetCallbackUrl() != "http://app.example.com/_opfield/access/provider-callback" {
+		t.Fatalf("state cookie over http %+v", state)
+	}
+	w = serve(server, plain(uiRequest(http.MethodPost, "/ui/sign-out", url.Values{"csrf": {csrf.Value}}, csrf)))
+	if cleared := responseCookies(w)[TokenCookie]; cleared == nil || cleared.MaxAge >= 0 || len(w.Result().Cookies()) != 1 {
+		t.Fatalf("sign-out over http: %+v", w.Result().Cookies())
 	}
 }
 

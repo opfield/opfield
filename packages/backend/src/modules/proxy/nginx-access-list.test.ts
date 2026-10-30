@@ -159,10 +159,29 @@ describe('access list rendering on a node with the access socket', () => {
         'proxy_pass http://unix:/run/nginx-daemon/access.sock:/ui/',
         `proxy_set_header X-Opfield-Access-List "${LIST_ID}"`,
         'proxy_set_header X-Opfield-Access-Host $host',
-        'proxy_set_header X-Opfield-Access-Client-IP $remote_addr',
+        'proxy_set_header X-Opfield-Access-Client-Ip $remote_addr',
+        'proxy_set_header X-Opfield-Access-Uri ""',
+        'proxy_set_header X-Opfield-Access-Secure $https',
         'proxy_set_header X-Opfield-Access-Scheme $scheme',
+        'proxy_set_header X-Opfield-Access-Assertion ""',
       ])
     );
+    // Every X-Opfield-Access-* header the daemon reads is set by nginx in each of its locations, never passed from
+    // the visitor.
+    const daemonHeaders = ['list', 'host', 'client-ip', 'uri', 'secure', 'scheme'].map(
+      (name) => `x-opfield-access-${name}`
+    );
+    for (const path of [
+      '= /_opfield/access/check',
+      '= /_opfield/access/callback',
+      '^~ /_opfield/access/',
+      '@opfield_access_challenge',
+    ]) {
+      const set = lines(byPath.get(path))
+        .filter((line) => line.startsWith('proxy_set_header X-Opfield-Access-'))
+        .map((line) => line.split(' ')[1]?.toLowerCase());
+      expect(set, path).toEqual(expect.arrayContaining(daemonHeaders));
+    }
 
     // An older daemon: no sign-in page, and nobody is sent anywhere else.
     const older = locations(await render({ accessList: { ...signIn, signInPage: false } }));

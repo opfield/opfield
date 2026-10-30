@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
+import { isIPv4, isIPv6 } from 'node:net';
 import type { Context, MiddlewareHandler } from 'hono';
 import { container, TOKENS } from '@/container.js';
 import { createChildLogger } from '@/lib/logger.js';
@@ -12,6 +13,7 @@ import type { AppEnv } from '@/types.js';
 
 const logger = createChildLogger('RateLimit');
 const RATE_LIMIT_PIPELINE_RESULT_COUNT = 4;
+const PEEK_PIPELINE_RESULT_COUNT = 2;
 
 interface RateLimitConfig {
   windowMs: number;
@@ -30,11 +32,11 @@ function rateLimitUnavailable(error?: unknown): AppError {
   return new AppError(503, 'RATE_LIMIT_UNAVAILABLE', 'Opfield is temporarily unavailable');
 }
 
-function getPipelineCount(results: unknown): number {
+function getPipelineCount(results: unknown, expected = RATE_LIMIT_PIPELINE_RESULT_COUNT): number {
   if (!Array.isArray(results)) {
     throw rateLimitUnavailable(new Error('Redis pipeline returned no results'));
   }
-  if (results.length !== RATE_LIMIT_PIPELINE_RESULT_COUNT) {
+  if (results.length !== expected) {
     throw rateLimitUnavailable(new Error('Redis pipeline returned incomplete results'));
   }
 
@@ -67,9 +69,28 @@ async function countRequest(key: string, windowMs: number, now: number): Promise
   return getPipelineCount(await withRateLimitRedisTimeout(pipeline.exec()));
 }
 
+/** How many requests of the key are in the sliding window, without counting one. */
+async function peekRequests(key: string, windowMs: number, now: number): Promise<number> {
+  const redis = container.resolve<RedisClient>(TOKENS.RedisClient);
+  const pipeline = redis.pipeline();
+  pipeline.zremrangebyscore(key, 0, now - windowMs);
+  pipeline.zcard(key);
+  return getPipelineCount(await withRateLimitRedisTimeout(pipeline.exec()), PEEK_PIPELINE_RESULT_COUNT);
+}
+
+async function inRedis<T>(run: () => Promise<T>): Promise<T> {
+  try {
+    return await run();
+  } catch (error) {
+    if (error instanceof AppError) throw error;
+    throw rateLimitUnavailable(error);
+  }
+}
+
 /**
- * The same sliding window outside an HTTP request (a daemon asking on a visitor's behalf): counts one attempt of each
- * subject and throws RATE_LIMIT_EXCEEDED when any of them is over the environment's budget.
+ * The same sliding window outside an HTTP request (a daemon asking on a visitor's behalf): throws RATE_LIMIT_EXCEEDED
+ * when any subject is over the environment's budget, else counts one request of each. A refused request is not
+ * counted, so a client that keeps going is let in again once its window has passed.
  */
 export async function consumeRateLimit(
   keyPrefix: string,
@@ -79,18 +100,65 @@ export async function consumeRateLimit(
   const settings = getEnvironmentSettingsSnapshot().rateLimits;
   const limit = maxRequests(settings);
   const now = Date.now();
-  let counts: number[];
-  try {
-    counts = await Promise.all(
-      subjects.map((subject) => countRequest(`${keyPrefix}:${subject}`, settings.windowMs, now))
-    );
-  } catch (error) {
-    if (error instanceof AppError) throw error;
-    throw rateLimitUnavailable(error);
-  }
+  const counts = await peekRateLimit(keyPrefix, subjects, now);
   if (counts.some((count) => count >= limit)) {
     throw new AppError(429, 'RATE_LIMIT_EXCEEDED', 'Too many requests, please try again later');
   }
+  await recordRateLimit(keyPrefix, subjects, now);
+}
+
+/** How many requests of each subject are in the environment's window (nothing is counted). */
+export function peekRateLimit(keyPrefix: string, subjects: string[], now = Date.now()): Promise<number[]> {
+  const { windowMs } = getEnvironmentSettingsSnapshot().rateLimits;
+  return inRedis(() => Promise.all(subjects.map((subject) => peekRequests(`${keyPrefix}:${subject}`, windowMs, now))));
+}
+
+/** Counts one request of each subject in the environment's window. */
+export async function recordRateLimit(keyPrefix: string, subjects: string[], now = Date.now()): Promise<void> {
+  const { windowMs } = getEnvironmentSettingsSnapshot().rateLimits;
+  await inRedis(() => Promise.all(subjects.map((subject) => countRequest(`${keyPrefix}:${subject}`, windowMs, now))));
+}
+
+/**
+ * The counter name of a client address: an IPv4 address as is, an IPv6 address by its /64 (one subscriber's
+ * network; every address in it is the same client), an IPv4-mapped IPv6 address as its IPv4 address.
+ */
+export function rateLimitAddress(address: string): string {
+  const value = address.trim().replace(/%.*$/, '');
+  if (!value) return 'unknown';
+  if (isIPv4(value)) return value;
+  if (!isIPv6(value)) return value.toLowerCase();
+  const groups = ipv6Groups(value);
+  if (!groups) return value.toLowerCase();
+  if (groups.slice(0, 5).every((group) => group === 0) && groups[5] === 0xffff) {
+    return [groups[6]! >> 8, groups[6]! & 0xff, groups[7]! >> 8, groups[7]! & 0xff].join('.');
+  }
+  return `${groups
+    .slice(0, 4)
+    .map((group) => group.toString(16))
+    .join(':')}::/64`;
+}
+
+/** The eight 16-bit groups of a valid IPv6 address (with `::` and a dotted IPv4 tail expanded). */
+function ipv6Groups(address: string): number[] | null {
+  let value = address.toLowerCase();
+  const lastColon = value.lastIndexOf(':');
+  const tail = value.slice(lastColon + 1);
+  if (isIPv4(tail)) {
+    const [a, b, c, d] = tail.split('.').map(Number) as [number, number, number, number];
+    value = `${value.slice(0, lastColon + 1)}${((a << 8) | b).toString(16)}:${((c << 8) | d).toString(16)}`;
+  }
+  const halves = value.split('::');
+  if (halves.length > 2) return null;
+  const head = halves[0] ? halves[0].split(':') : [];
+  const rest = halves.length === 2 && halves[1] ? halves[1].split(':') : [];
+  const missing = 8 - head.length - rest.length;
+  if (halves.length === 1 ? missing !== 0 : missing < 1) return null;
+  const parts = [...head, ...Array<string>(halves.length === 2 ? missing : 0).fill('0'), ...rest];
+  const groups = parts.map((part) => Number.parseInt(part, 16));
+  return groups.length === 8 && groups.every((group) => Number.isInteger(group) && group >= 0 && group <= 0xffff)
+    ? groups
+    : null;
 }
 
 export function createRateLimiter(config: RateLimitConfig): MiddlewareHandler<AppEnv> {
@@ -172,14 +240,6 @@ export const authLoginRateLimitMiddleware = createEnvironmentRateLimiter(
   'ratelimit:auth:login',
   (settings) => settings.authLoginMaxRequests
 );
-
-/**
- * Password and shared-password attempts on a route's sign-in page (asked by the route's nginx daemon), with the
- * console login budget: per visitor address and per account.
- */
-export function consumeAccessSignInRateLimit(subjects: string[]): Promise<void> {
-  return consumeRateLimit('ratelimit:access-sign-in', subjects, (settings) => settings.authLoginMaxRequests);
-}
 
 export const authCallbackRateLimitMiddleware = createEnvironmentRateLimiter(
   'ratelimit:auth:callback',

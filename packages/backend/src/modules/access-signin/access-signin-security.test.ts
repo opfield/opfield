@@ -1,6 +1,6 @@
 import 'reflect-metadata';
 import { Hono } from 'hono';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { container } from '@/container.js';
 import { errorHandler } from '@/middleware/error-handler.js';
 import type { AppEnv } from '@/types.js';
@@ -10,6 +10,12 @@ import { type AccessListRow, domainServesHost } from './access-signin-directory.
 import { AccessSignInExternalService, routeCallbackUrl, verifiedEmail } from './access-signin-external.service.js';
 import { AccessSignInFlowService } from './access-signin-flow.service.js';
 import { AccessSigningKeyService } from './access-signing-key.service.js';
+
+// The console session and CSRF checks are the auth middleware's own (auth.middleware tests); here the test sets the user.
+vi.mock('@/modules/auth/auth.middleware.js', async (original) => ({
+  ...(await original<typeof import('@/modules/auth/auth.middleware.js')>()),
+  authMiddleware: async (_c: unknown, next: () => Promise<void>) => next(),
+}));
 
 const LIST_ID = '11111111-1111-4111-8111-111111111111';
 const NODE_ID = '33333333-3333-4333-8333-333333333333';
@@ -50,6 +56,11 @@ function memoryCache() {
       const value = (values.get(key) as T) ?? null;
       values.delete(key);
       return value;
+    },
+    setIfAbsent: async (key: string, value: unknown) => {
+      if (values.has(key)) return false;
+      values.set(key, value);
+      return true;
     },
   };
 }
@@ -113,9 +124,16 @@ describe('Opfield account sign-in on a route', () => {
     );
     expect(authorize.searchParams.get('state')).toBe(started.state);
 
+    expect(await service.opfieldConsent(started.state)).toEqual({ host: 'app.example.com' });
     const back = new URL(await service.authorizeOpfield(started.state, 'u1'));
     expect(`${back.origin}${back.pathname}`).toBe(callback);
     const code = back.searchParams.get('code')!;
+    // Decided once: the same link cannot be confirmed, cancelled or shown again.
+    await expect(service.authorizeOpfield(started.state, 'u1')).rejects.toMatchObject({
+      code: 'ACCESS_SIGN_IN_EXPIRED',
+    });
+    await expect(service.denyOpfield(started.state)).rejects.toMatchObject({ code: 'ACCESS_SIGN_IN_EXPIRED' });
+    await expect(service.opfieldConsent(started.state)).rejects.toMatchObject({ code: 'ACCESS_SIGN_IN_EXPIRED' });
 
     // Another route of the list cannot finish it.
     await expect(
@@ -135,6 +153,23 @@ describe('Opfield account sign-in on a route', () => {
     await expect(
       service.finish(target('app.example.com'), { state: again.state, code: code2, error: '', callbackUrl: callback })
     ).rejects.toMatchObject({ code: 'ACCESS_SIGN_IN_EXPIRED' });
+  });
+
+  it('cancels back to the route, which says the sign-in failed', async () => {
+    const service = external();
+    const started = await service.start(target('app.example.com'), 'opfield', callback);
+    const back = new URL(await service.denyOpfield(started.state));
+    expect(`${back.origin}${back.pathname}`).toBe(callback);
+    expect(back.searchParams.get('error')).toBe('access_denied');
+    expect(back.searchParams.get('code')).toBeNull();
+    await expect(
+      service.finish(target('app.example.com'), {
+        state: started.state,
+        code: '',
+        error: 'access_denied',
+        callbackUrl: callback,
+      })
+    ).rejects.toMatchObject({ code: 'ACCESS_SIGN_IN_FAILED' });
   });
 
   it('refuses a method the list does not offer and a foreign return address', async () => {
@@ -162,12 +197,14 @@ describe('Opfield account authorize', () => {
 
   function app(context: Partial<{ authType: string; impersonation: unknown }>) {
     container.registerInstance(AccessSignInExternalService, {
+      opfieldConsent: async () => ({ host: 'app.example.com' }),
       authorizeOpfield: async () => 'https://app.example.com/_opfield/access/provider-callback?code=c&state=s',
+      denyOpfield: async () => 'https://app.example.com/_opfield/access/provider-callback?error=access_denied&state=s',
     } as unknown as AccessSignInExternalService);
     const hono = new Hono<AppEnv>();
     hono.onError(errorHandler);
     hono.use('*', async (c, next) => {
-      c.set('user', { id: 'u1', isBlocked: false } as never);
+      c.set('user', { id: 'u1', email: 'lena@acme.dev', name: 'Lena', isBlocked: false } as never);
       if (context.authType) c.set('authType', context.authType as never);
       if (context.impersonation) c.set('impersonation', context.impersonation as never);
       await next();
@@ -176,19 +213,41 @@ describe('Opfield account authorize', () => {
     return hono;
   }
   const authorize = (hono: Hono<AppEnv>) => hono.request('/api/access-sign-in/opfield/authorize?state=s');
+  const decide = (hono: Hono<AppEnv>, decision: 'approve' | 'deny') =>
+    hono.request(`/api/access-sign-in/opfield/consent/${decision}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ state: 's' }),
+    });
 
-  it('signs in only with the console session of the person at the browser', async () => {
+  it('never signs in on a GET: the console user confirms the route host first', async () => {
     const session = await authorize(app({ authType: 'session' }));
     expect(session.status).toBe(302);
-    expect(session.headers.get('location')).toMatch(
-      /^https:\/\/app\.example\.com\/_opfield\/access\/provider-callback/
-    );
+    expect(session.headers.get('location')).toBe('/access-sign-in/confirm?state=s');
 
+    const consent = await app({ authType: 'session' }).request('/api/access-sign-in/opfield/consent?state=s');
+    expect(await consent.json()).toEqual({
+      host: 'app.example.com',
+      account: { email: 'lena@acme.dev', name: 'Lena' },
+    });
+
+    const approved = await decide(app({ authType: 'session' }), 'approve');
+    expect(await approved.json()).toEqual({
+      redirectUrl: 'https://app.example.com/_opfield/access/provider-callback?code=c&state=s',
+    });
+    const denied = await decide(app({ authType: 'session' }), 'deny');
+    expect(((await denied.json()) as { redirectUrl: string }).redirectUrl).toMatch(/error=access_denied/);
+  });
+
+  it('signs in only with the console session of the person at the browser', async () => {
     for (const authType of ['api-token', 'oauth-token']) {
       expect((await authorize(app({ authType }))).status).toBe(403);
+      expect((await decide(app({ authType }), 'approve')).status).toBe(403);
     }
-    const impersonating = await authorize(app({ authType: 'session', impersonation: { actor: { id: 'admin' } } }));
+    const impersonation = { authType: 'session', impersonation: { actor: { id: 'admin' } } };
+    const impersonating = await authorize(app(impersonation));
     expect(impersonating.status).toBe(302);
     expect(impersonating.headers.get('location')).toMatch(/^\/login\?return_to=/);
+    expect((await decide(app(impersonation), 'approve')).status).toBe(403);
   });
 });

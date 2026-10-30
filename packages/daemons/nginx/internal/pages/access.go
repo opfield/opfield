@@ -160,15 +160,10 @@ func (r *Runtime) previewAccessDirectives(access *PreviewAccess) []string {
 // the callback location stays for sign-ins started on a sign-in domain of older releases. A preview serves files, so
 // there is no upstream to hand the identity to.
 func previewAccessCheckDirectives(accessListID string) []string {
-	requestHeaders := []string{
+	checkHeaders := append([]string{
 		"        proxy_pass_request_body off;",
 		"        proxy_set_header Content-Length \"\";",
-		"        proxy_set_header X-Opfield-Access-List \"" + accessListID + "\";",
-		"        proxy_set_header X-Opfield-Access-Host $host;",
-		"        proxy_set_header X-Opfield-Access-Client-Ip $remote_addr;",
-		"        proxy_set_header X-Opfield-Access-Uri $request_uri;",
-		"        proxy_set_header X-Opfield-Access-Secure $https;",
-	}
+	}, previewAccessHeaders(accessListID, "$request_uri")...)
 	lines := []string{
 		"    auth_request " + accessCheckPath + ";",
 		"    error_page 401 = " + accessChallengeLocation + ";",
@@ -177,35 +172,45 @@ func previewAccessCheckDirectives(accessListID string) []string {
 		"        auth_request off;",
 		"        proxy_pass " + accessSocket + ":/check;",
 	}
-	lines = append(lines, requestHeaders...)
+	lines = append(lines, checkHeaders...)
 	lines = append(lines, "    }",
 		"    location = "+accessCallbackPath+" {",
 		"        auth_request off;",
 		// The request line carries the access token.
 		"        access_log off;",
 		"        proxy_pass "+accessSocket+":/callback;",
-		"        proxy_set_header X-Opfield-Access-Host $host;",
-		"        proxy_set_header X-Opfield-Access-Secure $https;",
-		"    }",
+	)
+	lines = append(lines, previewAccessHeaders(accessListID, "\"\"")...)
+	lines = append(lines, "    }",
 		"    location "+accessChallengeLocation+" {",
 		"        auth_request off;",
 		"        rewrite ^ /challenge break;",
 		"        proxy_pass "+accessSocket+";",
 	)
-	lines = append(lines, requestHeaders...)
-	return append(lines, "    }",
+	lines = append(lines, checkHeaders...)
+	lines = append(lines, "    }",
 		"    location ^~ "+accessSignInPrefix+" {",
 		// Sign-in forms and provider callbacks carry credentials and codes: never in the access log.
 		"        access_log off;",
 		"        auth_request off;",
 		"        proxy_pass "+accessSocket+":/ui/;",
-		"        proxy_set_header X-Opfield-Access-List \""+accessListID+"\";",
+	)
+	lines = append(lines, previewAccessHeaders(accessListID, "\"\"")...)
+	return append(lines, "    }")
+}
+
+// previewAccessHeaders are every X-Opfield-Access-* request header the access socket reads, all set by nginx so a
+// visitor's own copies never reach the daemon ("" drops one). The client address is $remote_addr: the preview's
+// realip directives (previewClientIPDirectives, server level) already resolve it to the visitor behind a trusted proxy.
+func previewAccessHeaders(accessListID, uri string) []string {
+	return []string{
+		"        proxy_set_header X-Opfield-Access-List \"" + accessListID + "\";",
 		"        proxy_set_header X-Opfield-Access-Host $host;",
 		"        proxy_set_header X-Opfield-Access-Client-Ip $remote_addr;",
-		"        proxy_set_header X-Opfield-Access-Scheme $scheme;",
+		"        proxy_set_header X-Opfield-Access-Uri " + uri + ";",
 		"        proxy_set_header X-Opfield-Access-Secure $https;",
-		"    }",
-	)
+		"        proxy_set_header X-Opfield-Access-Scheme $scheme;",
+	}
 }
 
 // UsesAccessList reports whether a materialized preview references the access

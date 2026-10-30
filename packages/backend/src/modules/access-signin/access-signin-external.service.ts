@@ -22,6 +22,10 @@ const PENDING_PREFIX = 'access-signin:pending:';
 
 const offers = (resolved: ResolvedTarget, method: string) => (resolved.list.signInMethods as string[]).includes(method);
 const OPFIELD_CODE_PREFIX = 'access-signin:opfield-code:';
+/** Set once the console user approved or cancelled an Opfield sign-in: each is decided once. */
+const OPFIELD_DECIDED_PREFIX = 'access-signin:opfield-decided:';
+
+const expiredSignIn = () => new AppError(400, 'ACCESS_SIGN_IN_EXPIRED', 'This sign-in expired; start again');
 
 interface PendingSignIn {
   /** opfield or idp:<provider id>. */
@@ -92,7 +96,7 @@ export class AccessSignInExternalService {
     private readonly flow: AccessSignInFlowService,
     private readonly providers: Pick<AccessIdentityProviderService, 'find' | 'clientConfiguration'>,
     private readonly directory: Pick<AccessSignInDirectory, 'getOpfieldUser'>,
-    private readonly cache: Pick<CacheService, 'set' | 'get' | 'take'>,
+    private readonly cache: Pick<CacheService, 'set' | 'get' | 'take' | 'setIfAbsent'>,
     private readonly consoleOrigin: () => Promise<string>
   ) {}
 
@@ -138,18 +142,48 @@ export class AccessSignInExternalService {
     return { url: url.href, state };
   }
 
-  /** On the console origin, for a signed-in console user: a one-time code back to the route's provider callback. */
+  /** What the console asks its signed-in user to confirm: the route host of a pending, undecided Opfield sign-in. */
+  async opfieldConsent(state: string): Promise<{ host: string }> {
+    const pending = await this.pendingOpfield(state);
+    if (await this.cache.get<boolean>(`${OPFIELD_DECIDED_PREFIX}${state}`)) throw expiredSignIn();
+    return { host: pending.host };
+  }
+
+  /**
+   * The console user confirmed (a POST with the console CSRF token): a one-time code back to the route's provider
+   * callback. A sign-in is decided once, so a link to it cannot be approved again.
+   */
   async authorizeOpfield(state: string, userId: string): Promise<string> {
-    const pending = state ? await this.cache.get<PendingSignIn>(`${PENDING_PREFIX}${state}`) : null;
-    if (!pending || pending.method !== 'opfield') {
-      throw new AppError(400, 'ACCESS_SIGN_IN_EXPIRED', 'This sign-in expired; start again');
-    }
+    const pending = await this.decideOpfield(state);
     const code = randomBytes(32).toString('base64url');
     await this.cache.set(`${OPFIELD_CODE_PREFIX}${code}`, { userId, state }, OPFIELD_CODE_TTL_SECONDS);
     const url = new URL(pending.callbackUrl);
     url.searchParams.set('code', code);
     url.searchParams.set('state', state);
     return url.toString();
+  }
+
+  /** The console user cancelled: back to the route's provider callback, which shows that the sign-in failed. */
+  async denyOpfield(state: string): Promise<string> {
+    const pending = await this.decideOpfield(state);
+    const url = new URL(pending.callbackUrl);
+    url.searchParams.set('error', 'access_denied');
+    url.searchParams.set('state', state);
+    return url.toString();
+  }
+
+  private async pendingOpfield(state: string): Promise<PendingSignIn> {
+    const pending = state ? await this.cache.get<PendingSignIn>(`${PENDING_PREFIX}${state}`) : null;
+    if (!pending || pending.method !== 'opfield') throw expiredSignIn();
+    return pending;
+  }
+
+  private async decideOpfield(state: string): Promise<PendingSignIn> {
+    const pending = await this.pendingOpfield(state);
+    if (!(await this.cache.setIfAbsent(`${OPFIELD_DECIDED_PREFIX}${state}`, true, PENDING_SIGN_IN_TTL_SECONDS))) {
+      throw expiredSignIn();
+    }
+    return pending;
   }
 
   /**

@@ -3,6 +3,7 @@ import type { DrizzleClient } from '@/db/client.js';
 import {
   accessIdentityProviders,
   accessLists,
+  domains,
   pageDeployments,
   pageProjects,
   pageRouteTargets,
@@ -124,13 +125,13 @@ export class DrizzleAccessSignInDirectory implements AccessSignInDirectory {
       .limit(1);
     if (!project || project.accessListId !== listId) return false;
     if ([project.nodeId, project.migrationSourceNodeId, project.migrationTargetNodeId].includes(nodeId)) return true;
-    // Previews are served on the node of the Pages wildcard profile.
-    const [profile] = await this.db
-      .select({ id: pageWildcardProfiles.id })
+    // Previews are served on the node of the Pages wildcard profile whose domain the preview host is a label of.
+    const profiles = await this.db
+      .select({ domain: domains.domain })
       .from(pageWildcardProfiles)
-      .where(eq(pageWildcardProfiles.nodeId, nodeId))
-      .limit(1);
-    return !!profile;
+      .innerJoin(domains, eq(domains.id, pageWildcardProfiles.domainId))
+      .where(and(eq(pageWildcardProfiles.nodeId, nodeId), eq(pageWildcardProfiles.enabled, true)));
+    return profiles.some((profile) => domainServesHost(`*.${profile.domain}`, target));
   }
 
   async getOpfieldUser(id: string): Promise<OpfieldAccessUser | null> {

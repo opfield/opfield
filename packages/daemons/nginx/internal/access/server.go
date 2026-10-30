@@ -30,15 +30,89 @@ const (
 	UserHeader      = "X-Opfield-Access-User"
 )
 
-// The cookies of the sign-in flow.
+// The cookies of the sign-in flow. Over HTTPS each one is named with the __Host- prefix (Secure, Path=/, no Domain),
+// so a sibling subdomain cannot set or shadow it; plain-HTTP routes keep the bare names.
 const (
 	TokenCookie = "opfield_access"
-	// StateCookie is the state of a provider sign-in the sign-in page started (<state>|<return path>, on the
-	// sign-in page's path), and the nonce of a sign-in on a sign-in domain of older releases (on /).
+	// StateCookie is the state of a provider sign-in the sign-in page started (<state>|<return path>), and the
+	// nonce of a sign-in on a sign-in domain of older releases (bare name, on /).
 	StateCookie = "opfield_access_state"
 	// stateMaxAge is how long a sign-in may take.
 	stateMaxAge = 600
+	// hostCookiePrefix makes the browser refuse the cookie unless it is Secure, on / and without a Domain.
+	hostCookiePrefix = "__Host-"
 )
+
+// flowCookieName is the name a cookie of the sign-in flow has on this request.
+func flowCookieName(r *http.Request, name string) string {
+	if secureRequest(r) {
+		return hostCookiePrefix + name
+	}
+	return name
+}
+
+// flowCookiePath is the path of the sign-in page's own cookies (CSRF, provider state): __Host- cookies must be on /.
+func flowCookiePath(r *http.Request) string {
+	if secureRequest(r) {
+		return "/"
+	}
+	return signInPrefix
+}
+
+// setFlowCookie sets (maxAge > 0, or 0 for a session cookie) or expires (maxAge < 0) a cookie of the sign-in flow under
+// the name and with the attributes this request's scheme calls for.
+func setFlowCookie(w http.ResponseWriter, r *http.Request, name, value, path string, maxAge int, sameSite http.SameSite) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     flowCookieName(r, name),
+		Value:    value,
+		Path:     path,
+		MaxAge:   maxAge,
+		HttpOnly: true,
+		Secure:   secureRequest(r),
+		SameSite: sameSite,
+	})
+}
+
+// setAccessCookie makes the token the route's access cookie. Over HTTPS a bare access cookie of an earlier release
+// is expired, so only the __Host- one remains.
+func setAccessCookie(w http.ResponseWriter, r *http.Request, token string, maxAge int) {
+	setFlowCookie(w, r, TokenCookie, token, "/", maxAge, http.SameSiteLaxMode)
+	if secureRequest(r) && hasCookie(r, TokenCookie) {
+		http.SetCookie(w, &http.Cookie{Name: TokenCookie, Value: "", Path: "/", MaxAge: -1, HttpOnly: true, Secure: true, SameSite: http.SameSiteLaxMode})
+	}
+}
+
+// clearAccessCookies ends the visitor's sign-in on this route: the access cookie under both names.
+func clearAccessCookies(w http.ResponseWriter, r *http.Request) {
+	setFlowCookie(w, r, TokenCookie, "", "/", -1, http.SameSiteLaxMode)
+	if secureRequest(r) {
+		http.SetCookie(w, &http.Cookie{Name: TokenCookie, Value: "", Path: "/", MaxAge: -1, HttpOnly: true, Secure: true, SameSite: http.SameSiteLaxMode})
+	}
+}
+
+// accessTokens are the access cookies the request carries: the __Host- ones first, then bare ones (set over HTTP, or
+// over HTTPS by an earlier release), so a bare cookie a sibling subdomain set never shadows the visitor's own.
+func accessTokens(r *http.Request) []string {
+	var prefixed, bare []string
+	for _, cookie := range r.Cookies() {
+		switch cookie.Name {
+		case hostCookiePrefix + TokenCookie:
+			prefixed = append(prefixed, cookie.Value)
+		case TokenCookie:
+			bare = append(bare, cookie.Value)
+		}
+	}
+	return append(prefixed, bare...)
+}
+
+func hasCookie(r *http.Request, name string) bool {
+	for _, cookie := range r.Cookies() {
+		if cookie.Name == name {
+			return true
+		}
+	}
+	return false
+}
 
 // Server answers nginx's requests on the access socket.
 type Server struct {
@@ -113,13 +187,10 @@ func (s *Server) evaluate(r *http.Request) *request {
 		}
 	}
 	if req.identity == nil {
-		for _, cookie := range r.Cookies() {
-			if cookie.Name != TokenCookie {
-				continue
-			}
-			if claims, err := policy.VerifyToken(cookie.Value, req.host, now); err == nil {
+		for _, token := range accessTokens(r) {
+			if claims, err := policy.VerifyToken(token, req.host, now); err == nil {
 				identity := claims.Identity
-				req.identity, req.source, req.token, req.issuedAt = &identity, SourceCookie, cookie.Value, claims.IssuedAt
+				req.identity, req.source, req.token, req.issuedAt = &identity, SourceCookie, token, claims.IssuedAt
 				break
 			}
 		}
@@ -246,17 +317,9 @@ func (s *Server) serveCallback(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "The sign-in link is not for this browser. Open the page again to sign in.", http.StatusBadRequest)
 		return
 	}
-	secure := secureRequest(r)
-	http.SetCookie(w, &http.Cookie{
-		Name:     TokenCookie,
-		Value:    token,
-		Path:     "/",
-		MaxAge:   int(max(claims.ExpiresAt-now.Unix(), 1)),
-		HttpOnly: true,
-		Secure:   secure,
-		SameSite: http.SameSiteLaxMode,
-	})
-	http.SetCookie(w, &http.Cookie{Name: StateCookie, Value: "", Path: "/", MaxAge: -1, HttpOnly: true, Secure: secure, SameSite: http.SameSiteLaxMode})
+	setAccessCookie(w, r, token, int(max(claims.ExpiresAt-now.Unix(), 1)))
+	// The nonce cookie of older releases has the bare name on /.
+	http.SetCookie(w, &http.Cookie{Name: StateCookie, Value: "", Path: "/", MaxAge: -1, HttpOnly: true, Secure: secureRequest(r), SameSite: http.SameSiteLaxMode})
 	w.Header().Set("Location", safeReturnPath(query.Get("r")))
 	w.WriteHeader(http.StatusFound)
 }

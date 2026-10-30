@@ -1,6 +1,12 @@
 import type { AIApprovalMode } from "@/lib/ai-approval-mode";
 import { useAuthStore } from "@/stores/auth";
-import type { BrowserSession, OAuthAuthorization, OAuthConsentPreview, User } from "@/types";
+import type {
+  AccessSignInConsent,
+  BrowserSession,
+  OAuthAuthorization,
+  OAuthConsentPreview,
+  User,
+} from "@/types";
 import type { ApiClientBaseConstructor } from "./api-mixins";
 
 const AUTH_BASE = "/auth";
@@ -155,6 +161,23 @@ export function withAuthApi<TBase extends ApiClientBaseConstructor>(Base: TBase)
 
     getLoginUrl(): string {
       return `${AUTH_BASE}/login`;
+    }
+
+    async getAccessSignInConsent(state: string): Promise<AccessSignInConsent> {
+      return this.request<AccessSignInConsent>(
+        `/api/access-sign-in/opfield/consent?state=${encodeURIComponent(state)}`
+      );
+    }
+
+    /** Continue or Cancel: where the browser goes next (the route's provider callback). */
+    async decideAccessSignIn(
+      state: string,
+      decision: "approve" | "deny"
+    ): Promise<{ redirectUrl: string }> {
+      return this.request<{ redirectUrl: string }>(
+        `/api/access-sign-in/opfield/consent/${decision}`,
+        { method: "POST", body: JSON.stringify({ state }) }
+      );
     }
 
     async getOAuthConsent(requestId: string): Promise<OAuthConsentPreview> {

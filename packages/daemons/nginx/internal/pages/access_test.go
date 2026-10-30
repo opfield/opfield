@@ -207,14 +207,20 @@ func TestPreviewAccessChecksOnTheAccessSocket(t *testing.T) {
 	}
 	config, _ := os.ReadFile(runtime.previewConfigPath("checked.pages.example"))
 	text := string(config)
+	// Every X-Opfield-Access-* header the socket reads is set by nginx in the locations a visitor reaches directly.
+	visitorHeaders := "        proxy_set_header X-Opfield-Access-List \"" + accessListID + "\";\n        proxy_set_header X-Opfield-Access-Host $host;\n" +
+		"        proxy_set_header X-Opfield-Access-Client-Ip $remote_addr;\n        proxy_set_header X-Opfield-Access-Uri \"\";\n" +
+		"        proxy_set_header X-Opfield-Access-Secure $https;\n        proxy_set_header X-Opfield-Access-Scheme $scheme;\n"
 	for _, want := range []string{
 		"    server_name checked.pages.example;\n    auth_request /_opfield/access/check;\n    error_page 401 = @opfield_access_challenge;\n",
-		"    location = /_opfield/access/check {\n        internal;\n        auth_request off;\n        proxy_pass http://unix:/run/nginx-daemon/access.sock:/check;\n        proxy_pass_request_body off;\n        proxy_set_header Content-Length \"\";\n        proxy_set_header X-Opfield-Access-List \"" + accessListID + "\";\n        proxy_set_header X-Opfield-Access-Host $host;\n        proxy_set_header X-Opfield-Access-Client-Ip $remote_addr;\n        proxy_set_header X-Opfield-Access-Uri $request_uri;\n        proxy_set_header X-Opfield-Access-Secure $https;\n    }\n",
+		"    location = /_opfield/access/check {\n        internal;\n        auth_request off;\n        proxy_pass http://unix:/run/nginx-daemon/access.sock:/check;\n        proxy_pass_request_body off;\n        proxy_set_header Content-Length \"\";\n        proxy_set_header X-Opfield-Access-List \"" + accessListID + "\";\n        proxy_set_header X-Opfield-Access-Host $host;\n        proxy_set_header X-Opfield-Access-Client-Ip $remote_addr;\n        proxy_set_header X-Opfield-Access-Uri $request_uri;\n        proxy_set_header X-Opfield-Access-Secure $https;\n        proxy_set_header X-Opfield-Access-Scheme $scheme;\n    }\n",
 		"    location = /_opfield/access/callback {\n        auth_request off;\n        access_log off;\n        proxy_pass http://unix:/run/nginx-daemon/access.sock:/callback;\n",
 		"    location @opfield_access_challenge {\n        auth_request off;\n        rewrite ^ /challenge break;\n        proxy_pass http://unix:/run/nginx-daemon/access.sock;\n",
 		"        auth_basic off;\n        auth_request off;\n",
 		// The preview's own sign-in page.
-		"    location ^~ /_opfield/access/ {\n        access_log off;\n        auth_request off;\n        proxy_pass http://unix:/run/nginx-daemon/access.sock:/ui/;\n        proxy_set_header X-Opfield-Access-List \"" + accessListID + "\";\n        proxy_set_header X-Opfield-Access-Host $host;\n        proxy_set_header X-Opfield-Access-Client-Ip $remote_addr;\n        proxy_set_header X-Opfield-Access-Scheme $scheme;\n",
+		"    location ^~ /_opfield/access/ {\n        access_log off;\n        auth_request off;\n        proxy_pass http://unix:/run/nginx-daemon/access.sock:/ui/;\n" + visitorHeaders + "    }\n",
+		// The old callback reads the scheme too; a visitor cannot send it.
+		"proxy_pass http://unix:/run/nginx-daemon/access.sock:/callback;\n" + visitorHeaders + "    }\n",
 	} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("missing %q:\n%s", want, text)

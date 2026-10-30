@@ -148,7 +148,7 @@ func TestCallback(t *testing.T) {
 	for _, cookie := range w.Result().Cookies() {
 		cookies[cookie.Name] = cookie
 	}
-	access, state := cookies[TokenCookie], cookies[StateCookie]
+	access, state := cookies[hostCookiePrefix+TokenCookie], cookies[StateCookie]
 	if access == nil || access.Value != token || !access.HttpOnly || !access.Secure || access.Path != "/" || access.MaxAge != 3600 {
 		t.Fatalf("access cookie %+v", access)
 	}
@@ -193,5 +193,27 @@ func TestFreshlySignedInRefusalIsNotRedirected(t *testing.T) {
 	header = http.Header{"Cookie": {TokenCookie + "=" + sign(old)}}
 	if w := serve(server, accessRequest("/challenge", testListID, "203.0.113.9", header)); w.Code != http.StatusFound {
 		t.Fatalf("older sign-in: %d", w.Code)
+	}
+}
+
+// /check accepts the __Host- access cookie and the bare one of earlier releases; a bare cookie a sibling subdomain set
+// never shadows the visitor's own __Host- one.
+func TestCheckAcceptsBothAccessCookieNames(t *testing.T) {
+	server, _, sign := testServer(t, true)
+	allowed, foreign := sign(testClaims("lena@acme.dev")), sign(testClaims("lena@gmail.com"))
+	for name, cookie := range map[string]string{
+		"__Host- cookie":      hostCookiePrefix + TokenCookie + "=" + allowed,
+		"bare cookie":         TokenCookie + "=" + allowed,
+		"tossed bare cookie":  TokenCookie + "=" + foreign + "; " + hostCookiePrefix + TokenCookie + "=" + allowed,
+		"tossed cookie first": TokenCookie + "=" + foreign + "; " + TokenCookie + "=x; " + hostCookiePrefix + TokenCookie + "=" + allowed,
+	} {
+		w := serve(server, accessRequest("/check", testListID, "203.0.113.9", http.Header{"Cookie": {cookie}}))
+		if w.Code != http.StatusOK {
+			t.Errorf("%s: %d", name, w.Code)
+		}
+	}
+	// The refused identity alone is refused, so the cases above did not read it.
+	if w := serve(server, accessRequest("/check", testListID, "203.0.113.9", http.Header{"Cookie": {TokenCookie + "=" + foreign}})); w.Code == http.StatusOK {
+		t.Fatal("the foreign identity must be refused")
 	}
 }

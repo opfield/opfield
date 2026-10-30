@@ -226,6 +226,13 @@ export interface AuthProvisioningSettings {
   };
 }
 
+/** An Opfield account sign-in to a protected route that the console user confirms (or cancels). */
+export interface AccessSignInConsent {
+  /** The route that asks. */
+  host: string;
+  account: { email: string; name: string | null };
+}
+
 export interface OAuthConsentPreview {
   requestId: string;
   client: {

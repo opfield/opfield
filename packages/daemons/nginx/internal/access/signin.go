@@ -24,7 +24,7 @@ const (
 	signOutPath          = signInPrefix + "sign-out"
 	startPathPrefix      = signInPrefix + "start/"
 	providerCallbackPath = signInPrefix + "provider-callback"
-	// CSRFCookie pairs with the hidden field of the page's forms.
+	// CSRFCookie pairs with the hidden field of the page's forms (__Host- on / over HTTPS, see flowCookieName).
 	CSRFCookie = "opfield_access_csrf"
 	// signInTimeout bounds one question to Opfield; the socket's write timeout is longer.
 	signInTimeout = 8 * time.Second
@@ -229,8 +229,8 @@ func (s *Server) servePasswordSignIn(w http.ResponseWriter, r *http.Request) {
 // methodKeyPattern is a method key a start link may carry.
 var methodKeyPattern = regexp.MustCompile(`^(opfield|idp:[A-Za-z0-9._-]{1,128})$`)
 
-// serveStartProvider starts an Opfield or identity provider sign-in: the state goes into a short-lived cookie of the
-// sign-in page's path, and the visitor to the provider.
+// serveStartProvider starts an Opfield or identity provider sign-in: the state goes into a short-lived cookie (on the
+// sign-in page's path over HTTP, __Host- on / over HTTPS), and the visitor to the provider.
 func (s *Server) serveStartProvider(w http.ResponseWriter, r *http.Request, key string) {
 	returnTo := signInReturnPath(r.URL.Query().Get("r"))
 	req := s.evaluate(r)
@@ -267,15 +267,7 @@ func (s *Server) serveStartProvider(w http.ResponseWriter, r *http.Request, key 
 		// A page too long to keep: the visitor returns to the start page.
 		value = reply.GetState() + "|" + base64.RawURLEncoding.EncodeToString([]byte("/"))
 	}
-	http.SetCookie(w, &http.Cookie{
-		Name:     StateCookie,
-		Value:    value,
-		Path:     signInPrefix,
-		MaxAge:   stateMaxAge,
-		HttpOnly: true,
-		Secure:   secureRequest(r),
-		SameSite: http.SameSiteLaxMode,
-	})
+	setFlowCookie(w, r, StateCookie, value, flowCookiePath(r), stateMaxAge, http.SameSiteLaxMode)
 	w.Header().Set("Location", reply.GetAuthorizeUrl())
 	w.WriteHeader(http.StatusFound)
 }
@@ -304,8 +296,9 @@ func startedSignIn(r *http.Request, state string) (string, bool) {
 	if !validState(state) {
 		return "", false
 	}
+	name := flowCookieName(r, StateCookie)
 	for _, cookie := range r.Cookies() {
-		if cookie.Name != StateCookie {
+		if cookie.Name != name {
 			continue
 		}
 		cookieState, encoded, ok := strings.Cut(cookie.Value, "|")
@@ -335,7 +328,7 @@ func (s *Server) serveProviderCallback(w http.ResponseWriter, r *http.Request) {
 		s.renderMethods(w, r, req.host, "/", pageState{failed: true, message: messageOtherBrowser}, http.StatusBadRequest)
 		return
 	}
-	http.SetCookie(w, &http.Cookie{Name: StateCookie, Value: "", Path: signInPrefix, MaxAge: -1, HttpOnly: true, Secure: secureRequest(r), SameSite: http.SameSiteLaxMode})
+	setFlowCookie(w, r, StateCookie, "", flowCookiePath(r), -1, http.SameSiteLaxMode)
 	client := s.signInClient()
 	if client == nil {
 		s.renderMethods(w, r, req.host, returnTo, pageState{failed: true, message: messageUnavailable}, http.StatusServiceUnavailable)
@@ -361,7 +354,8 @@ func (s *Server) serveProviderCallback(w http.ResponseWriter, r *http.Request) {
 	s.renderMethods(w, r, req.host, returnTo, pageState{failed: true, message: replyMessage(reply.GetMessage(), messageSignInFailed)}, replyStatus(reply.GetAllowed(), reply.GetErrorCode()))
 }
 
-// serveSignOut ends the visitor's sign-in on this route ("Use another account"); the methods show again.
+// serveSignOut ends the visitor's sign-in on this route ("Use another account"): the route's access cookie is expired
+// under both names, and the sign-in page then shows the methods.
 func (s *Server) serveSignOut(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, maxFormBytes)
 	if err := r.ParseForm(); err != nil {
@@ -370,7 +364,7 @@ func (s *Server) serveSignOut(w http.ResponseWriter, r *http.Request) {
 	}
 	returnTo := signInReturnPath(r.PostForm.Get("r"))
 	if validCSRF(r) {
-		http.SetCookie(w, &http.Cookie{Name: TokenCookie, Value: "", Path: "/", MaxAge: -1, HttpOnly: true, Secure: secureRequest(r), SameSite: http.SameSiteLaxMode})
+		clearAccessCookies(w, r)
 	}
 	redirectSeeOther(w, signInPagePath+"?r="+url.QueryEscape(returnTo))
 }
@@ -384,15 +378,7 @@ func (s *Server) finishSignIn(w http.ResponseWriter, r *http.Request, host, toke
 		s.warn("Opfield signed a visitor in with a token this node does not accept", "host", host, "error", err)
 		return false
 	}
-	http.SetCookie(w, &http.Cookie{
-		Name:     TokenCookie,
-		Value:    token,
-		Path:     "/",
-		MaxAge:   int(max(claims.ExpiresAt-now.Unix(), 1)),
-		HttpOnly: true,
-		Secure:   secureRequest(r),
-		SameSite: http.SameSiteLaxMode,
-	})
+	setAccessCookie(w, r, token, int(max(claims.ExpiresAt-now.Unix(), 1)))
 	redirectSeeOther(w, returnTo)
 	return true
 }
@@ -438,8 +424,9 @@ var csrfPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{43}$`)
 
 // ensureCSRF returns the visitor's CSRF token, issuing one when the request has none.
 func (s *Server) ensureCSRF(w http.ResponseWriter, r *http.Request) (string, error) {
+	name := flowCookieName(r, CSRFCookie)
 	for _, cookie := range r.Cookies() {
-		if cookie.Name == CSRFCookie && csrfPattern.MatchString(cookie.Value) {
+		if cookie.Name == name && csrfPattern.MatchString(cookie.Value) {
 			return cookie.Value, nil
 		}
 	}
@@ -447,21 +434,14 @@ func (s *Server) ensureCSRF(w http.ResponseWriter, r *http.Request) (string, err
 	if err != nil {
 		return "", err
 	}
-	http.SetCookie(w, &http.Cookie{
-		Name:     CSRFCookie,
-		Value:    token,
-		Path:     signInPrefix,
-		HttpOnly: true,
-		Secure:   secureRequest(r),
-		SameSite: http.SameSiteStrictMode,
-	})
+	setFlowCookie(w, r, CSRFCookie, token, flowCookiePath(r), 0, http.SameSiteStrictMode)
 	return token, nil
 }
 
 // validCSRF reports whether the form's token is the visitor's cookie.
 func validCSRF(r *http.Request) bool {
 	token := r.PostForm.Get("csrf")
-	return csrfPattern.MatchString(token) && hasCookieValue(r, CSRFCookie, token)
+	return csrfPattern.MatchString(token) && hasCookieValue(r, flowCookieName(r, CSRFCookie), token)
 }
 
 func (s *Server) randomToken(size int) (string, error) {
