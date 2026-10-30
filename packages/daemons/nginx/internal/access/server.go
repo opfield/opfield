@@ -236,6 +236,12 @@ func (s *Server) serveCheck(w http.ResponseWriter, r *http.Request) {
 	case Basic, Redirect:
 		w.WriteHeader(http.StatusUnauthorized)
 	default:
+		// A signed-in visitor the list turns away goes through the challenge to the sign-in page's denied view,
+		// where they can use another account; nginx would show its own 403 page.
+		if signedInIdentity(req) != nil {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
 		w.WriteHeader(http.StatusForbidden)
 	}
 }
@@ -270,6 +276,12 @@ func (s *Server) serveChallenge(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Cache-Control", "no-store")
+	if signedInIdentity(req) != nil {
+		// The sign-in page shows the denied view and never sends the visitor back here.
+		w.Header().Set("Location", signInPagePath+"?"+deniedParam+"=1&r="+url.QueryEscape(signInReturnPath(r.Header.Get(URIHeader))))
+		w.WriteHeader(http.StatusFound)
+		return
+	}
 	switch req.decision {
 	case Basic:
 		w.Header().Set("WWW-Authenticate", `Basic realm="`+strings.ReplaceAll(req.host, `"`, "")+`", charset="UTF-8"`)

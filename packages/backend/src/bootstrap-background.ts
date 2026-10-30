@@ -16,7 +16,11 @@ import { UpdateCheckJob } from '@/jobs/update-check.job.js';
 import { logger } from '@/lib/logger.js';
 import { repairDanglingResourceScopes } from '@/lib/resource-scope-cleanup.js';
 import { AppError } from '@/middleware/error-handler.js';
-import { runAccessSignInMaintenance } from '@/modules/access-signin/access-signin.registration.js';
+import {
+  runAccessSignInMaintenance,
+  withdrawLegacySignInRoute,
+} from '@/modules/access-signin/access-signin.registration.js';
+import { AccessSignInSettingsService } from '@/modules/access-signin/access-signin-settings.service.js';
 import { dockerArchiveTransferStore } from '@/modules/ai/ai.docker-archive-transfer.js';
 import { AppHealthService } from '@/modules/apps/app-health.service.js';
 import { AppIncidentRunner } from '@/modules/apps/app-incident-runner.js';
@@ -445,6 +449,8 @@ export async function initializeBackgroundServices(): Promise<void> {
   // Access sign-in: the token signing key rotates by itself, ended visitor sessions go, and every nginx node that
   // checks access lists itself gets the current policy again.
   scheduler.registerInterval('access-sign-in-maintenance', 15 * 60 * 1000, () => runAccessSignInMaintenance());
+  // The old sign-in domain route proxies to the console: withdraw it right after an update, not 15 minutes later.
+  if (container.isRegistered(AccessSignInSettingsService)) void withdrawLegacySignInRoute('startup');
   // Ingress groups converge without an operator: joining members are promoted, draining members cleaned up once
   // DNS moved, and routes or certificates that missed a connected member are delivered again.
   const ingressGroupConvergence = container.resolve(IngressGroupConvergence);

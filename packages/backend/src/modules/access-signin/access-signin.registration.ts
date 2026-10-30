@@ -62,6 +62,7 @@ export function registerAccessSignIn(deps: AccessSignInRegistration): void {
   container.registerInstance(AccessSignInExternalService, external);
 
   configureAccessPolicySync({ db, keys, registry: deps.nodeRegistry, dispatch: deps.nodeDispatch });
+  watchLegacySignInRoute(deps.eventBus, settings);
 
   // An Opfield account that is blocked, deleted, or changed its email or permission groups loses its visitor sessions
   // at once: their tokens carry the old identity. The next sign-in through the console carries the current one.
@@ -77,22 +78,59 @@ export function registerAccessSignIn(deps: AccessSignInRegistration): void {
   });
 }
 
+type LegacySignInRoute = Pick<AccessSignInSettingsService, 'removeLegacySystemRoute' | 'legacySystemRouteServedBy'>;
+
+let legacyWithdrawal: Promise<void> | null = null;
+
+/**
+ * Withdraws the sign-in domain route of an older installation (it proxies to the console). One run at a time; a
+ * failure (its node offline) is retried when that node connects and by the periodic job.
+ */
+export function withdrawLegacySignInRoute(
+  reason: string,
+  settings: Pick<LegacySignInRoute, 'removeLegacySystemRoute'> = container.resolve(AccessSignInSettingsService)
+): Promise<void> {
+  legacyWithdrawal ??= settings
+    .removeLegacySystemRoute()
+    .catch((error) => {
+      logger.warn('Could not withdraw the old access sign-in route; it is retried', {
+        reason,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    })
+    .finally(() => {
+      legacyWithdrawal = null;
+    });
+  return legacyWithdrawal;
+}
+
+/** A node that serves the old sign-in domain route has it withdrawn as soon as it connects, not on the next job run. */
+export function watchLegacySignInRoute(
+  eventBus: Pick<EventBusService, 'subscribe'>,
+  settings: LegacySignInRoute
+): void {
+  eventBus.subscribe('node.changed', (payload) => {
+    const event = payload as { id?: unknown; status?: unknown } | null;
+    if (event?.status !== 'online' || typeof event.id !== 'string') return;
+    const nodeId = event.id;
+    void settings
+      .legacySystemRouteServedBy(nodeId)
+      .then((served) => (served ? withdrawLegacySignInRoute('node connected', settings) : undefined))
+      .catch((error) =>
+        logger.warn('Could not check a connected node for the old access sign-in route', { nodeId, error })
+      );
+  });
+}
+
 /**
  * The periodic access sign-in job: rotates the signing key when due, deletes long-ended sessions, pushes the policy
  * when its content changed since every node last got it (a node that missed a change gets it here) and withdraws the
- * sign-in domain route of an older installation.
+ * sign-in domain route of an older installation (also once at startup and when a node serving it connects).
  */
 export async function runAccessSignInMaintenance(): Promise<void> {
   if (!container.isRegistered(AccessSigningKeyService)) return;
   await container.resolve(AccessSigningKeyService).rotateIfDue();
   await container.resolve(AccessSessionService).cleanup();
   await syncAccessPolicyNow({ onlyIfChanged: true });
-  await container
-    .resolve(AccessSignInSettingsService)
-    .removeLegacySystemRoute()
-    .catch((error) =>
-      logger.warn('Could not withdraw the old access sign-in route; the next run retries', {
-        error: error instanceof Error ? error.message : String(error),
-      })
-    );
+  await withdrawLegacySignInRoute('maintenance');
 }

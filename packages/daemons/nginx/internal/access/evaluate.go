@@ -285,6 +285,11 @@ func Evaluate(list *List, client netip.Addr, identity *Identity, source Source) 
 	return refused
 }
 
+// hasSignInPage reports whether the list signs visitors in on the route's sign-in page (any method but basic).
+func (l *List) hasSignInPage() bool {
+	return slices.ContainsFunc(l.SignInMethods, func(method string) bool { return method != MethodBasic })
+}
+
 // usable reports whether the list accepts an identity of its method at all; a service token only when an Include rule
 // names it.
 func (l *List) usable(identity *Identity) bool {

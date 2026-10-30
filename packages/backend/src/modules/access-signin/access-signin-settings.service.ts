@@ -1,6 +1,6 @@
-import { eq } from 'drizzle-orm';
+import { and, eq, or } from 'drizzle-orm';
 import type { DrizzleClient } from '@/db/client.js';
-import { settings } from '@/db/schema/index.js';
+import { proxyHostDomains, proxyHosts, settings } from '@/db/schema/index.js';
 import type { AuditService } from '@/modules/audit/audit.service.js';
 import type { ProxyService } from '@/modules/proxy/proxy.service.js';
 import {
@@ -96,5 +96,21 @@ export class AccessSignInSettingsService {
    */
   async removeLegacySystemRoute(): Promise<void> {
     await this.systemHosts?.disableBackendSystemHost('access_sign_in', null);
+  }
+
+  /** Whether the old sign-in domain route still exists and the node serves it (its node or an ingress group member). */
+  async legacySystemRouteServedBy(nodeId: string): Promise<boolean> {
+    const [row] = await this.db
+      .select({ id: proxyHosts.id })
+      .from(proxyHosts)
+      .leftJoin(proxyHostDomains, eq(proxyHostDomains.proxyHostId, proxyHosts.id))
+      .where(
+        and(
+          eq(proxyHosts.systemKind, 'access_sign_in'),
+          or(eq(proxyHosts.nodeId, nodeId), eq(proxyHostDomains.nodeId, nodeId))
+        )
+      )
+      .limit(1);
+    return !!row;
   }
 }

@@ -34,6 +34,7 @@ func previewPages() map[string]SignInPage {
 		"single-method":  single,
 		"denied":         {Nonce: "preview", Host: "grafana.acme.dev", Step: stepDenied, Account: "lena@gmail.com", CSRF: strings.Repeat("c", 43), Return: "/"},
 		"unavailable":    {Nonce: "preview", Host: "grafana.acme.dev", Step: stepNotice, Subtitle: "Sign-in is unavailable", Error: messageUnavailable},
+		"rate-limited":   {Nonce: "preview", Host: "grafana.acme.dev", Step: stepNotice, Subtitle: "Too many sign-in attempts", Error: messageRateLimited},
 	}
 }
 

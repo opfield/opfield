@@ -182,8 +182,13 @@ func (s *Server) renderMethods(w http.ResponseWriter, r *http.Request, host, ret
 	defer cancel()
 	reply, err := client.Context(ctx, &pb.AccessSignInContextRequest{Target: signInTarget(r, host)})
 	if err != nil {
+		message, code := callFailure(err)
+		if code == http.StatusTooManyRequests {
+			s.writePage(w, r, SignInPage{Host: host, Step: stepNotice, Subtitle: "Too many sign-in attempts", Error: message}, code)
+			return
+		}
 		s.warn("access sign-in methods could not be read from Opfield", "host", host, "error", err)
-		s.renderUnavailable(w, r, host, http.StatusBadGateway)
+		s.renderUnavailable(w, r, host, code)
 		return
 	}
 	var methods []SignInMethod

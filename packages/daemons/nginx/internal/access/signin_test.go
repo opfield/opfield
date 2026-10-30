@@ -12,6 +12,8 @@ import (
 	"testing"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
 )
@@ -207,8 +209,48 @@ func TestPasswordSignIn(t *testing.T) {
 	}
 
 	fake.err = errors.New("unavailable")
-	if w := serve(server, uiRequest(http.MethodPost, "/ui/sign-in", form(csrf.Value), csrf)); w.Code != http.StatusBadGateway {
+	if w := serve(server, uiRequest(http.MethodPost, "/ui/sign-in", form(csrf.Value), csrf)); w.Code != http.StatusServiceUnavailable || !strings.Contains(w.Body.String(), messageUnavailable) {
 		t.Fatalf("Opfield unreachable: %d", w.Code)
+	}
+}
+
+// A client over its budget is told to wait (429), never that sign-in is unavailable: as a refusal in the reply, and
+// as RESOURCE_EXHAUSTED (Opfield's answer to Context, which has no refusal field).
+func TestSignInRateLimited(t *testing.T) {
+	server, fake, _ := signInServer(t)
+	csrf := responseCookies(serve(server, uiRequest(http.MethodGet, "/ui/sign-in", nil)))[hostCookiePrefix+CSRFCookie]
+	form := url.Values{"kind": {"password"}, "username": {"lena"}, "password": {"pw"}, "csrf": {csrf.Value}}
+	limited := func(name string, w *httptest.ResponseRecorder) {
+		t.Helper()
+		if w.Code != http.StatusTooManyRequests || !strings.Contains(w.Body.String(), messageRateLimited) || strings.Contains(w.Body.String(), messageUnavailable) {
+			t.Fatalf("%s: %d", name, w.Code)
+		}
+	}
+	fake.password = &pb.AccessSignInReply{Allowed: false, ErrorCode: "ACCESS_RATE_LIMITED", Message: "Too many attempts. Wait a minute and try again."}
+	limited("password refusal", serve(server, uiRequest(http.MethodPost, "/ui/sign-in", form, csrf)))
+	fake.start = &pb.AccessSignInStartReply{ErrorCode: "ACCESS_RATE_LIMITED", Message: "Too many attempts. Wait a minute and try again."}
+	limited("start refusal", serve(server, uiRequest(http.MethodGet, "/ui/start/idp:g1", nil)))
+
+	fake.err = status.Error(codes.ResourceExhausted, "Too many requests, please try again later")
+	limited("page", serve(server, uiRequest(http.MethodGet, "/ui/sign-in", nil)))
+	limited("password call", serve(server, uiRequest(http.MethodPost, "/ui/sign-in", form, csrf)))
+	limited("start call", serve(server, uiRequest(http.MethodGet, "/ui/start/idp:g1", nil)))
+
+	// Other failures keep their own statuses.
+	fake.err = status.Error(codes.PermissionDenied, "Enrolled nginx node required")
+	if w := serve(server, uiRequest(http.MethodGet, "/ui/sign-in", nil)); w.Code != http.StatusForbidden || !strings.Contains(w.Body.String(), messageUnavailable) {
+		t.Fatalf("node refused: %d", w.Code)
+	}
+	fake.err = status.Error(codes.Unavailable, "Sign-in is unavailable")
+	if w := serve(server, uiRequest(http.MethodGet, "/ui/sign-in", nil)); w.Code != http.StatusServiceUnavailable {
+		t.Fatalf("Opfield unavailable: %d", w.Code)
+	}
+	fake.err = nil
+	for code, want := range map[string]int{"ACCESS_DENIED": 403, "ACCESS_METHOD_NOT_OFFERED": 404, "ACCESS_SIGN_IN_EXPIRED": 400, "ACCESS_SIGN_IN_FAILED": 401} {
+		fake.start = &pb.AccessSignInStartReply{ErrorCode: code, Message: "No."}
+		if w := serve(server, uiRequest(http.MethodGet, "/ui/start/idp:g1", nil)); w.Code != want {
+			t.Errorf("%s: %d, want %d", code, w.Code, want)
+		}
 	}
 }
 

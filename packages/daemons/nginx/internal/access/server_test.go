@@ -176,23 +176,42 @@ func TestCallback(t *testing.T) {
 	}
 }
 
-// A visitor the sign-in page let in moments ago but this list refuses (the two saw different addresses, say) is
-// denied instead of sent back to sign in, which would loop.
-func TestFreshlySignedInRefusalIsNotRedirected(t *testing.T) {
-	server, _, sign := testServer(t, true)
+// A signed-in visitor the list turns away (denied outright, as a sign-in moments ago that the list refuses is, or
+// refused by its rules) goes through the challenge to the sign-in page's denied view, never to nginx's 403 page; the
+// page shows that view even if it would let the visitor in, so the two never send the visitor back and forth.
+func TestSignedInRefusalShowsTheDeniedView(t *testing.T) {
+	server, _, sign := signInServer(t)
 	fresh := testClaims("lena@gmail.com")
 	fresh.IssuedAt = testNow.Add(-10 * time.Second).Unix()
-	header := http.Header{"Cookie": {TokenCookie + "=" + sign(fresh)}}
-	for _, path := range []string{"/check", "/challenge"} {
-		if w := serve(server, accessRequest(path, testListID, "203.0.113.9", header)); w.Code != http.StatusForbidden || w.Header().Get("Location") != "" {
-			t.Fatalf("%s: %d %v", path, w.Code, w.Header())
+	deniedLink := "/_opfield/access/sign-in?denied=1&r=%2Freports%3Fq%3D1"
+	// nginx proxies /_opfield/access/ to /ui/ of the socket.
+	deniedPage := strings.Replace(deniedLink, signInPrefix, "/ui/", 1)
+	for name, claims := range map[string]Claims{"fresh sign-in": fresh, "older sign-in": testClaims("lena@gmail.com")} {
+		header := http.Header{"Cookie": {TokenCookie + "=" + sign(claims)}}
+		if w := serve(server, accessRequest("/check", testListID, "203.0.113.9", header)); w.Code != http.StatusUnauthorized {
+			t.Fatalf("%s /check: %d", name, w.Code)
+		}
+		if w := serve(server, accessRequest("/challenge", testListID, "203.0.113.9", header)); w.Code != http.StatusFound || w.Header().Get("Location") != deniedLink {
+			t.Fatalf("%s /challenge: %d %v", name, w.Code, w.Header())
+		}
+		w := serve(server, uiRequest(http.MethodGet, deniedPage, nil, &http.Cookie{Name: TokenCookie, Value: sign(claims)}))
+		body := w.Body.String()
+		if w.Code != http.StatusForbidden || !strings.Contains(body, "You don&#39;t have access to this site") ||
+			!strings.Contains(body, "lena@gmail.com") || !strings.Contains(body, "Use another account") {
+			t.Fatalf("%s denied view: %d", name, w.Code)
 		}
 	}
-	// An older sign-in is sent to the sign-in page, which says there is no access.
-	old := testClaims("lena@gmail.com")
-	header = http.Header{"Cookie": {TokenCookie + "=" + sign(old)}}
-	if w := serve(server, accessRequest("/challenge", testListID, "203.0.113.9", header)); w.Code != http.StatusFound {
-		t.Fatalf("older sign-in: %d", w.Code)
+	// The page the challenge sent a visitor to does not send them back, even when it would let them in.
+	allowed := &http.Cookie{Name: hostCookiePrefix + TokenCookie, Value: sign(testClaims("lena@acme.dev"))}
+	if w := serve(server, uiRequest(http.MethodGet, deniedPage, nil, allowed)); w.Code != http.StatusForbidden || !strings.Contains(w.Body.String(), "Use another account") {
+		t.Fatalf("denied link, allowed visitor: %d %v", w.Code, w.Header())
+	}
+	// A visitor without a session (or with an invalid one) is still asked to sign in.
+	for name, header := range map[string]http.Header{"no session": nil, "invalid session": {"Cookie": {TokenCookie + "=nope"}}} {
+		if w := serve(server, accessRequest("/challenge", testListID, "203.0.113.9", header)); w.Code != http.StatusFound ||
+			w.Header().Get("Location") != "/_opfield/access/sign-in?r=%2Freports%3Fq%3D1" {
+			t.Fatalf("%s: %d %v", name, w.Code, w.Header())
+		}
 	}
 }
 

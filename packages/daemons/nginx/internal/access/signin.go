@@ -13,6 +13,9 @@ import (
 	"strings"
 	"time"
 
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+
 	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
 )
 
@@ -42,7 +45,12 @@ const (
 	messageExpired          = "This page expired. Try again."
 	messageOtherBrowser     = "This sign-in did not start in this browser. Try again."
 	messageNoMethods        = "This site does not sign visitors in here."
+	messageRateLimited      = "Too many attempts. Try again in a few minutes."
 )
+
+// deniedParam marks the sign-in page link the challenge sends a signed-in visitor the list turned away to: the page
+// shows the denied view and never sends them back (a loop when the page and /check see the request differently).
+const deniedParam = "denied"
 
 // signInClient wraps the client so it can be swapped atomically.
 type signInClient struct{ pb.AccessSignInClient }
@@ -140,6 +148,11 @@ func (s *Server) serveSignInPage(w http.ResponseWriter, r *http.Request) {
 		s.renderUnavailable(w, r, "", http.StatusServiceUnavailable)
 		return
 	}
+	// /check turned this signed-in visitor away: they are told so, whatever this request decides.
+	if query.Get(deniedParam) == "1" && req.source == SourceCookie && req.identity != nil && req.list.hasSignInPage() {
+		s.renderDenied(w, r, req.host, returnTo, req.identity)
+		return
+	}
 	// A visitor the list lets in, or one it asks for basic authentication, goes back to the page.
 	if req.decision == Allow || req.decision == Basic {
 		redirectSeeOther(w, returnTo)
@@ -156,10 +169,14 @@ func (s *Server) serveSignInPage(w http.ResponseWriter, r *http.Request) {
 	s.renderMethods(w, r, req.host, returnTo, pageState{step: query.Get("step")}, http.StatusOK)
 }
 
-// signedInIdentity is the identity of the visitor's access cookie when the list accepts its sign-in method but its
-// rules turn the visitor away; nil when the visitor should simply sign in.
+// signedInIdentity is the identity of the visitor's valid access cookie when the list turns the visitor away: denied
+// outright, or refused by its rules for a sign-in method it accepts. nil when the visitor should simply sign in (no
+// session, or one of a method the list no longer offers) and on lists without a sign-in page (basic only).
 func signedInIdentity(req *request) *Identity {
-	if req.decision == Allow || req.source != SourceCookie || req.identity == nil || !req.list.usable(req.identity) {
+	if req.decision == Allow || req.decision == Basic || req.source != SourceCookie || req.identity == nil || !req.list.hasSignInPage() {
+		return nil
+	}
+	if req.decision != Deny && !req.list.usable(req.identity) {
 		return nil
 	}
 	return req.identity
@@ -212,8 +229,9 @@ func (s *Server) servePasswordSignIn(w http.ResponseWriter, r *http.Request) {
 	reply, err := client.Password(ctx, &pb.AccessSignInPasswordRequest{Target: signInTarget(r, req.host), Kind: kind, Username: username, Password: password})
 	if err != nil {
 		s.warn("access sign-in could not be checked with Opfield", "host", req.host, "error", err)
-		state.message = messageUnavailable
-		s.renderMethods(w, r, req.host, returnTo, state, http.StatusBadGateway)
+		message, code := callFailure(err)
+		state.message = message
+		s.renderMethods(w, r, req.host, returnTo, state, code)
 		return
 	}
 	if reply.GetAllowed() && s.finishSignIn(w, r, req.host, reply.GetToken(), returnTo) {
@@ -222,6 +240,9 @@ func (s *Server) servePasswordSignIn(w http.ResponseWriter, r *http.Request) {
 	state.message = replyMessage(reply.GetMessage(), messageWrongCredentials)
 	if kind == MethodShared && reply.GetMessage() == "" {
 		state.message = messageWrongShared
+	}
+	if reply.GetErrorCode() == codeRateLimited {
+		state.message = messageRateLimited
 	}
 	s.renderMethods(w, r, req.host, returnTo, state, replyStatus(reply.GetAllowed(), reply.GetErrorCode()))
 }
@@ -252,14 +273,15 @@ func (s *Server) serveStartProvider(w http.ResponseWriter, r *http.Request, key 
 	reply, err := client.StartProvider(ctx, &pb.AccessSignInStartRequest{Target: signInTarget(r, req.host), MethodKey: key, CallbackUrl: providerCallbackURL(r, req.host)})
 	if err != nil {
 		s.warn("access sign-in could not be started with Opfield", "host", req.host, "error", err)
-		s.renderMethods(w, r, req.host, returnTo, pageState{failed: true, message: messageUnavailable}, http.StatusBadGateway)
+		message, code := callFailure(err)
+		s.renderMethods(w, r, req.host, returnTo, pageState{failed: true, message: message}, code)
 		return
 	}
 	if reply.GetErrorCode() != "" || !validState(reply.GetState()) || !validAuthorizeURL(reply.GetAuthorizeUrl()) {
 		if reply.GetErrorCode() == "" {
 			s.warn("Opfield started an access sign-in without a usable state or authorization URL", "host", req.host)
 		}
-		s.renderMethods(w, r, req.host, returnTo, pageState{failed: true, message: replyMessage(reply.GetMessage(), messageSignInFailed)}, replyStatus(false, reply.GetErrorCode()))
+		s.renderMethods(w, r, req.host, returnTo, pageState{failed: true, message: refusalMessage(reply.GetErrorCode(), reply.GetMessage())}, replyStatus(false, reply.GetErrorCode()))
 		return
 	}
 	value := reply.GetState() + "|" + base64.RawURLEncoding.EncodeToString([]byte(returnTo))
@@ -345,13 +367,14 @@ func (s *Server) serveProviderCallback(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		s.warn("access sign-in could not be finished with Opfield", "host", req.host, "error", err)
-		s.renderMethods(w, r, req.host, returnTo, pageState{failed: true, message: messageUnavailable}, http.StatusBadGateway)
+		message, code := callFailure(err)
+		s.renderMethods(w, r, req.host, returnTo, pageState{failed: true, message: message}, code)
 		return
 	}
 	if reply.GetAllowed() && s.finishSignIn(w, r, req.host, reply.GetToken(), returnTo) {
 		return
 	}
-	s.renderMethods(w, r, req.host, returnTo, pageState{failed: true, message: replyMessage(reply.GetMessage(), messageSignInFailed)}, replyStatus(reply.GetAllowed(), reply.GetErrorCode()))
+	s.renderMethods(w, r, req.host, returnTo, pageState{failed: true, message: refusalMessage(reply.GetErrorCode(), reply.GetMessage())}, replyStatus(reply.GetAllowed(), reply.GetErrorCode()))
 }
 
 // serveSignOut ends the visitor's sign-in on this route ("Use another account"): the route's access cookie is expired
@@ -397,18 +420,52 @@ func replyMessage(message, fallback string) string {
 	return message
 }
 
+// The error codes of Opfield's refusals.
+const (
+	codeRateLimited      = "ACCESS_RATE_LIMITED"
+	codeDenied           = "ACCESS_DENIED"
+	codeMethodNotOffered = "ACCESS_METHOD_NOT_OFFERED"
+	codeSignInExpired    = "ACCESS_SIGN_IN_EXPIRED"
+)
+
 // replyStatus is the status of a page that shows a refused sign-in.
 func replyStatus(allowed bool, code string) int {
 	switch {
 	case allowed:
 		// Allowed with a token this node does not accept.
 		return http.StatusBadGateway
-	case code == "ACCESS_RATE_LIMITED":
+	case code == codeRateLimited:
 		return http.StatusTooManyRequests
-	case code == "ACCESS_DENIED":
+	case code == codeDenied:
 		return http.StatusForbidden
+	case code == codeMethodNotOffered:
+		return http.StatusNotFound
+	case code == codeSignInExpired:
+		return http.StatusBadRequest
 	default:
 		return http.StatusUnauthorized
+	}
+}
+
+// refusalMessage is the page's sentence for a refused provider sign-in.
+func refusalMessage(code, message string) string {
+	if code == codeRateLimited {
+		return messageRateLimited
+	}
+	return replyMessage(message, messageSignInFailed)
+}
+
+// callFailure is the page's sentence and status when Opfield answered a sign-in call with an error instead of a
+// reply: a client over its budget (RESOURCE_EXHAUSTED) is told to wait (429), a node Opfield does not accept gets 403,
+// anything else means sign-in is unavailable right now (503).
+func callFailure(err error) (string, int) {
+	switch status.Code(err) {
+	case codes.ResourceExhausted:
+		return messageRateLimited, http.StatusTooManyRequests
+	case codes.PermissionDenied:
+		return messageUnavailable, http.StatusForbidden
+	default:
+		return messageUnavailable, http.StatusServiceUnavailable
 	}
 }
 
