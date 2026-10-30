@@ -5,6 +5,12 @@ import type {
   DockerComposeDispatchResult,
 } from './compose-dispatcher.js';
 
+/**
+ * The daemon's answer to a command still queued for a handler when its control session was renewed (shared/lifecycle
+ * session.go): the command never started, so it is a lost connection to retry, not a failure of the operation.
+ */
+const NOT_STARTED_BEFORE_SESSION_END = 'the control session ended before the command started';
+
 export class DockerComposeNodeDispatcher implements DockerComposeDispatcher {
   constructor(private nodeDispatch: NodeDispatchService) {}
 
@@ -31,6 +37,9 @@ export class DockerComposeNodeDispatcher implements DockerComposeDispatcher {
       volumeNames: input.options.volumeNames ?? [],
     });
 
+    if (!result.success && result.error?.includes(NOT_STARTED_BEFORE_SESSION_END)) {
+      throw new Error('The node connection changed before the Compose command started');
+    }
     return {
       success: result.success,
       message: result.error || undefined,
