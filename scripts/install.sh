@@ -147,7 +147,8 @@ fetch_release() {
 
 # The relay release a pinned Opfield release (--version) installs with: the relay of that very release when it has
 # one (a relay is released only when it changes), else the newest relay of its minor line, release candidates
-# included for a release candidate. The relay manifest's minimum Opfield version still has to accept the release.
+# included for a release candidate, else (a line with no relay release of its own) the newest stable relay not newer
+# than the release. The relay manifest's minimum Opfield version still has to accept the release.
 pinned_relay_tag() {
   local version="$1" line channel relay_json probe tag
   probe="$(mktemp)"
@@ -169,7 +170,20 @@ pinned_relay_tag() {
       head -n1 || true
   )"
   # The resolver answers with the next minor line when this one has no relay release: that one does not belong here.
-  [[ "${tag#v}" != "${line}."* ]] || printf '%s\n' "$tag"
+  if [[ "${tag#v}" == "${line}."* ]]; then
+    printf '%s\n' "$tag"
+    return 0
+  fi
+  relay_json="$(fetch_release relay "" stable)" || return 1
+  tag="$(
+    printf '%s' "$relay_json" |
+      grep -oE '"tag_name"[[:space:]]*:[[:space:]]*"[^"]+"' |
+      sed -E 's/^.*"([^"]+)"$/\1/' |
+      grep -E '^v?[0-9]+\.[0-9]+\.[0-9]+-relay$' |
+      sort -V |
+      tail -n1 || true
+  )"
+  [[ -z "$tag" ]] || version_is_newer "${tag%-relay}" "$version" || printf '%s\n' "$tag"
 }
 
 # Whether a terminal can really be opened: under cloud-init or cron /dev/tty exists and passes -r/-w but has no
@@ -1090,7 +1104,8 @@ Let's Encrypt account contact and is required with --domain.
 
 --version VERSION installs exactly that Opfield release (for example
 v2.12.1 or a release candidate such as v2.12.1-rc.5) on a fresh host, with the
-relay of that release (or the newest relay of its line). Off by default:
+relay of that release (or the newest relay of its line, or the newest stable
+relay when its line has none). Off by default:
 without it the installer takes the newest stable release. Release candidates
 are for testing; an installation updates from there through Opfield. Also
 read from OPFIELD_INSTALL_VERSION.

@@ -2368,13 +2368,15 @@ test('install.sh --version installs an exact release on a fresh host, with the r
       assert.match(result.stdout + result.stderr, message, args.join(' '));
     }
 
-    // The relay: the pinned release's own, else the newest of its line; never one of the next line.
-    const relay = (published, resolverTag) =>
+    // The relay: the pinned release's own, else the newest of its line, else the newest stable one not newer than the
+    // release; never one of the next line.
+    const relay = (published, resolverTag, stableTag = resolverTag) =>
       runShell(
         [
           'LOG_FILE=/dev/null',
           `download_release_artifact() { [[ " ${published.join(' ')} " == *" $2 "* ]]; }`,
-          `fetch_release() { echo "fetch $*" >&2; ${resolverTag ? `printf '{"target":{"tag_name":"%s"}}' '${resolverTag}'` : ':'}; }`,
+          `fetch_release() { echo "fetch $*" >&2; local tag='${resolverTag ?? ''}'; [[ -n "$2" ]] || tag='${stableTag ?? ''}'; [[ -z "$tag" ]] || printf '{"target":{"tag_name":"%s"}}' "$tag"; }`,
+          shellFunction(source, 'version_is_newer'),
           shellFunction(source, 'pinned_relay_tag'),
           'pinned_relay_tag v2.12.1-rc.5',
         ].join('\n')
@@ -2387,6 +2389,10 @@ test('install.sh --version installs an exact release on a fresh host, with the r
     const nextLine = relay([], 'v2.13.0-relay');
     assert.equal(nextLine.status, 0, nextLine.output);
     assert.doesNotMatch(nextLine.output, /v2\.13\.0-relay/);
+    // A line with no relay release of its own (2.13 kept the 2.12 relay) installs the newest stable relay.
+    const earlierLine = relay([], 'v2.13.0-relay', 'v2.11.4-relay');
+    assert.match(earlierLine.output, /fetch relay {2}stable/);
+    assert.match(earlierLine.output, /^v2\.11\.4-relay$/m);
   } finally {
     await rm(work, { recursive: true, force: true });
   }
