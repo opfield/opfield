@@ -1,4 +1,5 @@
 import { container } from '@/container.js';
+import { AppError } from '@/middleware/error-handler.js';
 import {
   CreateAccessListSchema,
   MoveAccessListIpRuleSchema,
@@ -15,6 +16,17 @@ export const ACCESS_LIST_TOOL_NAMES = new Set([
   'delete_access_list',
   'manage_access_list',
 ]);
+
+/** The create_access_list arguments of 2.12: any of them makes the call a legacy create (access-list-legacy.ts). */
+const LEGACY_CREATE_ARGUMENTS = ['allowIps', 'denyIps', 'ipRules', 'basicAuthEnabled', 'basicAuthUsers'] as const;
+
+function stringList(value: unknown): string[] {
+  if (value === undefined || value === null) return [];
+  if (!Array.isArray(value) || value.some((item) => typeof item !== 'string')) {
+    throw new AppError(400, 'VALIDATION_ERROR', 'allowIps and denyIps are arrays of IP addresses or CIDR ranges');
+  }
+  return value;
+}
 
 export interface AccessListToolContext {
   accessListService: AccessListService;
@@ -41,8 +53,25 @@ export async function executeAccessListTool(
         { allowedIds: allowedResourceIdsForScopes(user.scopes, 'acl:view') }
       );
     case 'create_access_list': {
-      // The same fields as POST /api/access-lists; the schema drops the tool's own arguments.
-      const input = CreateAccessListSchema.parse({ ...args, folderId: a.folderId ?? undefined });
+      // The same fields as POST /api/access-lists, and the arguments of agents written before sign-in based lists:
+      // allowIps and denyIps go after ipRules (allows, then denies), and basicAuthUsers turn basic authentication on.
+      const legacy = LEGACY_CREATE_ARGUMENTS.some((name) => a[name] !== undefined);
+      const { allowIps, denyIps, ...rest } = args;
+      const input = CreateAccessListSchema.parse({
+        ...rest,
+        ...(legacy
+          ? {
+              ipRules: [
+                ...(Array.isArray(a.ipRules) ? a.ipRules : []),
+                ...stringList(allowIps).map((value) => ({ value, type: 'allow' })),
+                ...stringList(denyIps).map((value) => ({ value, type: 'deny' })),
+              ],
+              basicAuthEnabled: a.basicAuthEnabled ?? !!a.basicAuthUsers?.length,
+              basicAuthUsers: a.basicAuthUsers ?? [],
+            }
+          : {}),
+        folderId: a.folderId ?? undefined,
+      });
       // Mirrors POST /access-lists: broad acl:create, or acl:create on the destination folder.
       await container.resolve(AccessListFolderService).assertCreateFolder(user.scopes, input.folderId);
       return context.accessListService.create(input, user.id);

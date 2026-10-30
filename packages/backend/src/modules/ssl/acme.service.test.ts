@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+import * as acme from 'acme-client';
+import { describe, expect, it, vi } from 'vitest';
 import { AppError } from '@/middleware/error-handler.js';
 import { ACMEService } from './acme.service.js';
 
@@ -18,5 +19,28 @@ describe('ACMEService errors', () => {
   it('keeps the coded errors it raises itself', async () => {
     const error = await new ACMEService().requestCertDNS01Start(['app.example.com']).catch((e) => e);
     expect(error).toMatchObject({ statusCode: 400, code: 'ACME_CONTACT_EMAIL_MISSING' });
+  });
+});
+
+describe('ACMEService challenge self-check', () => {
+  const authz = { identifier: { type: 'dns', value: 'app.example.com' } } as never;
+
+  async function budget(type: 'http-01' | 'dns-01') {
+    const seen: unknown[] = [];
+    const spy = vi.spyOn(acme.Client.prototype, 'verifyChallenge').mockImplementation(async function (this: any) {
+      seen.push(this.backoffOpts);
+      return true;
+    });
+    try {
+      await (new ACMEService() as any).selfCheck(Buffer.from('key'), true, authz, { type, token: 't' });
+    } finally {
+      spy.mockRestore();
+    }
+    return seen[0];
+  }
+
+  it('waits about three minutes for a DNS-01 record, as acme-client did, and 30 s for HTTP-01', async () => {
+    expect(await budget('dns-01')).toEqual({ attempts: 10, min: 5000, max: 30000 });
+    expect(await budget('http-01')).toEqual({ attempts: 3, min: 2000, max: 4000 });
   });
 });

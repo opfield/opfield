@@ -188,7 +188,11 @@ function AccessListFields({
 
         <PanelShell
           title="Sign-in methods"
-          description="Visitors pick one of these on the sign-in page."
+          description={
+            form.methods.length > 0
+              ? "Visitors pick one of these on the sign-in page."
+              : "No methods: only Skip sign-in addresses and service tokens get in. A list without either lets nobody in."
+          }
         >
           <div className="divide-y divide-border">
             {methodRows.map((method) => {

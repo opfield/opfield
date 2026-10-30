@@ -1,9 +1,11 @@
 import bcrypt from 'bcryptjs';
 import type { AccessListUser, AccessRule, AccessSignInMethod, accessLists } from '@/db/schema/access-lists.js';
 import { AppError } from '@/middleware/error-handler.js';
+import { fallbackAccess, nginxAccessListOf } from '@/modules/proxy/nginx-access-list.js';
 import type { AccessListUserInput, CreateAccessListInput, UpdateAccessListInput } from './access-list.schemas.js';
 import { LEGACY_ACCESS_LIST_FIELDS } from './access-list.schemas.js';
 import { type AccessListRules, legacyAccessFieldsOf, legacyAccessRules } from './access-list-legacy.js';
+import { analyzeAccessListIpRules } from './ip-rule-analysis.js';
 
 const BCRYPT_ROUNDS = 10;
 
@@ -139,14 +141,37 @@ function assertConsistent(model: AccessListModel, legacy: boolean): void {
 }
 
 /**
- * The API shape of a list: usernames only and whether a shared password is set (hashes never leave the server).
+ * The fields clients written before sign-in based lists read (2.12 responses): ipRules and basicAuthEnabled of a list
+ * the legacy fields express, with the warnings 2.12 gave for those rules. Any other list shows what nginx enforces of
+ * it by itself (on a node without the access socket, and in a custom template that reads these fields): the excluded
+ * addresses denied, the skip ranges allowed, everyone else denied, and basic authentication only for a basic-only
+ * list; it has no warnings. basicAuthUsers are the list users' usernames.
+ */
+function legacyView(model: AccessListModel) {
+  const exact = legacyAccessFieldsOf(model);
+  if (exact) {
+    return { ...exact, ipRuleWarnings: analyzeAccessListIpRules(exact.ipRules, 'index') };
+  }
+  const fallback = fallbackAccess(nginxAccessListOf({ id: '', ...model }), { basic: true });
+  return { ipRules: fallback.rules, basicAuthEnabled: fallback.basicAuth, ipRuleWarnings: [] };
+}
+
+/**
+ * The API shape of a list: usernames only and whether a shared password is set (hashes never leave the server), and
+ * the legacy fields next to the sign-in fields (legacyView).
  */
 export function presentAccessList(row: AccessListRow) {
   const { users, sharedPasswordHash, ...rest } = row;
+  const usernames = (users ?? []).map((user) => ({ username: user.username }));
+  const { ipRules, basicAuthEnabled, ipRuleWarnings } = legacyView(accessListModelOf(row));
   return {
     ...rest,
-    users: (users ?? []).map((user) => ({ username: user.username })),
+    users: usernames,
     sharedPasswordSet: !!sharedPasswordHash,
+    ipRules,
+    basicAuthEnabled,
+    basicAuthUsers: usernames,
+    ipRuleWarnings,
   };
 }
 

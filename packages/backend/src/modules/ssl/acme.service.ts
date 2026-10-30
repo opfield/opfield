@@ -11,11 +11,13 @@ export function dns01RecordNameForDomain(domain: string): string {
 }
 
 /**
- * The local check that a challenge is in place before the CA is asked to validate it. acme-client retries it for about
- * three minutes by default, which held the request open that long for a name the CA can never reach.
+ * The local check that a challenge is in place before the CA is asked to validate it. For HTTP-01 it gives up after
+ * 30 s: acme-client's default of about three minutes held the request open that long for a name the CA can never
+ * reach. DNS-01 keeps acme-client's default (10 attempts, 5-30 s apart, about three minutes): a new TXT record can take
+ * that long to show at the resolver, above all in automatic renewals.
  */
-const SELF_CHECK_BACKOFF = { backoffAttempts: 3, backoffMin: 2000, backoffMax: 4000 } as const;
-const SELF_CHECK_TIMEOUT_MS = 30_000;
+const HTTP01_SELF_CHECK_BACKOFF = { backoffAttempts: 3, backoffMin: 2000, backoffMax: 4000 } as const;
+const HTTP01_SELF_CHECK_TIMEOUT_MS = 30_000;
 
 type ChallengeCheckArgs = Parameters<acme.Client['verifyChallenge']>;
 
@@ -343,25 +345,33 @@ export class ACMEService {
     }
   }
 
-  /** Checks the challenge is in place, as the CA will see it, within a short budget. */
+  /** Checks the challenge is in place, as the CA will see it (HTTP-01 within a short budget, see above). */
   private async selfCheck(
     accountKey: Buffer,
     staging: boolean | undefined,
     authz: ChallengeCheckArgs[0],
     challenge: ChallengeCheckArgs[1]
   ): Promise<void> {
-    const checker = new acme.Client({ directoryUrl: this.getDirectoryUrl(staging), accountKey, ...SELF_CHECK_BACKOFF });
+    const http01 = challenge.type === 'http-01';
+    const checker = new acme.Client({
+      directoryUrl: this.getDirectoryUrl(staging),
+      accountKey,
+      ...(http01 ? HTTP01_SELF_CHECK_BACKOFF : {}),
+    });
     let timer: NodeJS.Timeout | undefined;
     try {
-      await Promise.race([
-        checker.verifyChallenge(authz, challenge),
-        new Promise<never>((_, reject) => {
-          timer = setTimeout(
-            () => reject(new Error(`no answer within ${SELF_CHECK_TIMEOUT_MS / 1000} s`)),
-            SELF_CHECK_TIMEOUT_MS
-          );
-        }),
-      ]);
+      const check = checker.verifyChallenge(authz, challenge);
+      await (http01
+        ? Promise.race([
+            check,
+            new Promise<never>((_, reject) => {
+              timer = setTimeout(
+                () => reject(new Error(`no answer within ${HTTP01_SELF_CHECK_TIMEOUT_MS / 1000} s`)),
+                HTTP01_SELF_CHECK_TIMEOUT_MS
+              );
+            }),
+          ])
+        : check);
     } catch (error) {
       const name = authz.identifier.value;
       const reason = error instanceof Error ? error.message : String(error);

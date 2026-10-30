@@ -28,6 +28,7 @@ import { effectiveMaintenance } from './effective-maintenance.js';
 import {
   NGINX_ACCESS_AUTH_CAPABILITY,
   NGINX_ACCESS_SIGNIN_CAPABILITY,
+  needsAccessSocket,
   nginxAccessListOf,
   usesFallbackBasicAuth,
 } from './nginx-access-list.js';
@@ -435,16 +436,20 @@ export abstract class ProxyServiceCore {
   }
 
   /**
-   * The htpasswd file of a list checked with basic authentication, for a node without the access socket (see
-   * nginx-access-list.ts); a node with it checks the users from the synced access policy.
+   * The htpasswd file of a list nginx checks with basic authentication itself (see nginx-access-list.ts): a list nginx
+   * decides by itself on every node, any other basic list on a node without the access socket. A node with the socket
+   * checks the users of the other lists from the synced access policy.
    */
   protected async deployAccessListCredentials(nodeId: string, accessListId?: string | null): Promise<void> {
-    if (!accessListId || (await this.nodeReports(nodeId, NGINX_ACCESS_AUTH_CAPABILITY))) return;
+    if (!accessListId) return;
 
     const list = await this.db.query.accessLists.findFirst({
       where: eq(accessLists.id, accessListId),
     });
-    if (!list || !usesFallbackBasicAuth(nginxAccessListOf(list))) return;
+    if (!list) return;
+    const policy = nginxAccessListOf(list);
+    if (!usesFallbackBasicAuth(policy)) return;
+    if (needsAccessSocket(policy) && (await this.nodeReports(nodeId, NGINX_ACCESS_AUTH_CAPABILITY))) return;
 
     const users = list.users ?? [];
     const content = `${users.map((user) => `${user.username}:${user.passwordHash}`).join('\n')}\n`;
@@ -733,11 +738,13 @@ export abstract class ProxyServiceCore {
     routeAccessList: ProxyHostConfig['accessList'],
     pagesRouteIncludePathOverride?: string
   ): Promise<string> {
-    // A node with the access socket checks requests there; an older one gets the fallback directives. Visitors sign
-    // in on the route's own page where the node's daemon serves it, else such a list answers 403.
+    // nginx decides a list of IP rules and basic authentication itself on every node. Any other list is checked at
+    // the access socket of a node that has one; an older node gets the fallback directives. Visitors sign in on the
+    // route's own page where the node's daemon serves it, else such a list answers 403.
     const accessList = routeAccessList && {
       ...routeAccessList,
-      authRequest: await this.nodeReports(host.nodeId, NGINX_ACCESS_AUTH_CAPABILITY),
+      authRequest:
+        needsAccessSocket(routeAccessList) && (await this.nodeReports(host.nodeId, NGINX_ACCESS_AUTH_CAPABILITY)),
       signInPage: await this.nodeReports(host.nodeId, NGINX_ACCESS_SIGNIN_CAPABILITY),
     };
     // Raw mode is an explicit user-owned escape hatch: only the node's file and nginx names in it follow the node

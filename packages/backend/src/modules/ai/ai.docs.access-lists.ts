@@ -10,6 +10,7 @@ An access list decides who may open the routes and Pages previews it is attached
 3. Anyone else needs an identity: a service token (headers Opfield-Access-Client-Id and Opfield-Access-Client-Secret), HTTP basic credentials of a list user (only when basic is a method), or a sign-in
 4. The identity must match no Exclude rule, every Require rule and at least one Include rule
 - Without an identity: a list without signInMethods denies, a list whose only method is basic asks for basic credentials, any other list sends the browser to the sign-in page
+- An empty list (no signInMethods, no skipIpRanges, no service token Include rule) lets nobody in; a create without any of these fields makes one. Everyone: skipIpRanges ["0.0.0.0/0", "::/0"]
 - A signed-in visitor the rules turn away sees "no access" on the sign-in page; a service token or basic credentials that do not pass get 403
 
 ## Sign-in Methods (signInMethods)
@@ -38,10 +39,11 @@ An access list decides who may open the routes and Pages previews it is attached
 ## Tool Argument Shapes
 - create_access_list and manage_access_list({ operation: "update", accessListId, ... }) take name, description and the fields above; an update keeps omitted fields, and an array replaces the whole array. create_access_list takes folderId for the destination access list folder (acl:create there is enough; omitted creates at the top level).
 - Access lists live in folders like other resource lists (folderId, sortOrder): list_resource_folders and manage_resource_folder with resourceType access_lists (folder changes need acl:folders:manage; moving a list also needs acl:edit on it and on the destination). acl:view, acl:edit and acl:delete also take a folder (\`<scope>:folder/<folderId>\`), covering every list in it and its subfolders.
-- The REST API still accepts the fields of lists before sign-in (ipRules, basicAuthEnabled, basicAuthUsers) on their own and converts them; responses carry only the fields above.
+- The fields of lists before sign-in still work on their own (not mixed with the fields above), in the REST API and the tools: ipRules (ordered { type: allow|deny, value }, IP, CIDR or all; the first match wins, an address that matches none is denied, no rules lets everyone in), basicAuthEnabled and basicAuthUsers ([{ username, password }]). create_access_list also takes allowIps and denyIps (string arrays, added after ipRules as allow then deny rules); manage_access_list move_rule moves one of those rules
+- Responses carry the legacy fields next to the fields above: ipRules and basicAuthEnabled (for a list that uses sign-in methods or identity rules: what nginx enforces of it by itself, i.e. excluded addresses denied, skip ranges allowed, everyone else denied), basicAuthUsers (usernames) and ipRuleWarnings (rules of ipRules that never match, shadowed with coveredByIndex, or deny rules with no effect; 0-based like move_rule)
 
 ## Usage
 - One access list can be shared across multiple routes and Pages projects; a change applies to all of them
-- Nodes check lists themselves, so access keeps working while Opfield is unreachable. A node whose nginx daemon is older renders IP rules and basic-only lists itself and denies every other sign-in until it is updated
+- Nodes check lists themselves, so access keeps working while Opfield is unreachable. A list of IP rules and basic authentication only (no other sign-in method, no service token) is rendered as nginx allow/deny and auth_basic on every node, so it also works while the node's nginx daemon is down; other lists are checked by the nginx daemon. A node whose nginx daemon is older denies every other sign-in until it is updated
 - An access list cannot be deleted while a route or a Pages project uses it; detach it first`,
 };

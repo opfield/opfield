@@ -177,9 +177,10 @@ export class AccessListService {
     }
 
     // 3. Commit, then re-apply every enabled host through the normal proxy
-    // build/apply path. A node with the access socket checks the synced policy;
-    // an older node gets the fallback config, and the apply deploys the list's
-    // htpasswd file to it before the config that references it.
+    // build/apply path. A list of IP rules and basic authentication is rendered
+    // natively on every node, and the apply deploys its htpasswd file before the
+    // config that references it; any other list is checked at the access socket
+    // of a node that has one, from the synced policy.
     const [updated] = await this.db.update(accessLists).set(updateData).where(eq(accessLists.id, id)).returning();
     await this.revokeSignIns(id, revokedSignIns(accessListModelOf(existing), model));
     scheduleAccessPolicySync();

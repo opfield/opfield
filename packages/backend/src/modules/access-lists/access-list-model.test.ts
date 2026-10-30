@@ -180,6 +180,59 @@ describe('sign-in fields', () => {
     expect(presented.sharedPasswordSet).toBe(true);
     expect(JSON.stringify(presented)).not.toContain('$2');
   });
+
+  it('answers with the legacy fields of 2.12 next to the sign-in fields', async () => {
+    const office = await create({
+      name: 'Office',
+      ipRules: [
+        { type: 'deny', value: '10.0.0.7' },
+        { type: 'allow', value: '10.0.0.0/8' },
+        { type: 'deny', value: '10.0.0.8' },
+      ],
+      basicAuthEnabled: true,
+      basicAuthUsers: [{ username: 'ops', password: 'one' }],
+    });
+    const presented = presentAccessList({ id: 'list', name: 'Office', ...office } as never);
+    expect(presented).toMatchObject({
+      ipRules: [
+        { type: 'deny', value: '10.0.0.7' },
+        { type: 'allow', value: '10.0.0.0/8' },
+      ],
+      basicAuthEnabled: true,
+      basicAuthUsers: [{ username: 'ops' }],
+      ipRuleWarnings: [],
+    });
+    expect(JSON.stringify(presented)).not.toContain('$2');
+    // A rule that changes nothing is named, with the 0-based index move_rule takes.
+    const denied = await create({ name: 'Denied', ipRules: [{ type: 'deny', value: '10.0.0.7' }] });
+    expect(presentAccessList({ id: 'list', name: 'Denied', ...denied } as never).ipRuleWarnings).toEqual([
+      expect.objectContaining({ index: 0, kind: 'no_effect' }),
+    ]);
+    // A sign-in list shows what nginx enforces of it by itself.
+    const team = await create({
+      name: 'Team',
+      signInMethods: ['opfield'],
+      skipIpRanges: ['203.0.113.0/24'],
+      includeRules: [{ selector: 'everyone' }],
+    });
+    expect(presentAccessList({ id: 'list', name: 'Team', ...team } as never)).toMatchObject({
+      ipRules: [
+        { type: 'allow', value: '203.0.113.0/24' },
+        { type: 'deny', value: 'all' },
+      ],
+      basicAuthEnabled: false,
+      basicAuthUsers: [],
+      ipRuleWarnings: [],
+    });
+  });
+
+  it('lets nobody in when created without any rule or method', async () => {
+    expect(await create({ name: 'Placeholder' })).toMatchObject({
+      signInMethods: [],
+      skipIpRanges: [],
+      includeRules: [],
+    });
+  });
 });
 
 describe('sign-ins a password change ends', () => {

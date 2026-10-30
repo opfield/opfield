@@ -1,12 +1,13 @@
 // The schema barrel first: loading the template service alone enters the schema import cycle mid-way.
 import '@/db/schema/index.js';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { ConfigValidatorService } from '@/services/config-validator.service.js';
 import type { ProxyHostConfig } from '@/services/nginx-config-generator.service.js';
 import { legacyAccessRules } from '../access-lists/access-list-legacy.js';
-import { fallbackAccess, type NginxAccessList } from './nginx-access-list.js';
+import { fallbackAccess, type NginxAccessList, needsAccessSocket } from './nginx-access-list.js';
 import { type NginxConfigDirective, parseNginxConfig } from './nginx-config-tree.js';
 import { NginxTemplateService } from './nginx-template.service.js';
+import { ProxyServiceCore } from './proxy.service.core.js';
 
 const HOST_ID = '11111111-1111-4111-8111-111111111111';
 const LIST_ID = '22222222-2222-4222-8222-222222222222';
@@ -213,13 +214,119 @@ describe('access list rendering on a node with the access socket', () => {
     expect(config).toContain('location = /_opfield/access/check {');
   });
 
-  it('denies what a template written for the old fields cannot check (no htpasswd file on this node)', async () => {
+  it('denies what a template written for the old fields cannot check (a list only the socket decides)', async () => {
     const config = await render(
-      { accessList: basicOnly },
+      { accessList: { ...basicOnly, signInMethods: ['basic', 'opfield'] } },
       LEGACY_CUSTOM_TEMPLATE.replace('{{#if accessList}}\n{{#each', '{{#if accessList}}\n# own\n{{#each')
     );
     expect(lines(locations(config).get('/'))).toEqual(expect.arrayContaining(['deny all']));
     expect(config).not.toContain('auth_basic');
+  });
+
+  it('repeats the headers a protected location inherited from the http level of the file', async () => {
+    const template = `proxy_set_header X-Operator "kept";
+
+${LEGACY_CUSTOM_TEMPLATE.replace('        proxy_set_header Host $host;\n', '')}`;
+    const config = await render({}, template);
+    expect(lines(locations(config).get('/'))).toEqual(
+      expect.arrayContaining(['proxy_set_header X-Operator "kept"', 'auth_request /_opfield/access/check'])
+    );
+  });
+});
+
+describe('lists nginx decides by itself (IP rules and basic authentication only)', () => {
+  const ipOnly = { ...signIn, signInMethods: [], includeRules: [] };
+
+  it('need the access socket only for sign-in page methods, service tokens or what auth_basic cannot combine', () => {
+    for (const fields of [
+      { ipRules: [], basicAuthEnabled: false },
+      { ipRules: [{ type: 'allow' as const, value: '10.0.0.0/8' }], basicAuthEnabled: false },
+      { ipRules: [{ type: 'allow' as const, value: '10.0.0.0/8' }], basicAuthEnabled: true },
+      {
+        ipRules: [
+          { type: 'deny' as const, value: '10.1.0.0/16' },
+          { type: 'allow' as const, value: '10.0.0.0/8' },
+        ],
+        basicAuthEnabled: true,
+      },
+      { ipRules: [], basicAuthEnabled: true },
+    ]) {
+      expect(needsAccessSocket({ ...legacyAccessRules(fields), hasUsers: true }), JSON.stringify(fields)).toBe(false);
+    }
+    expect(needsAccessSocket(ipOnly)).toBe(false);
+    expect(needsAccessSocket(signIn)).toBe(true);
+    expect(needsAccessSocket({ ...basicOnly, signInMethods: ['basic', 'password'] })).toBe(true);
+    expect(needsAccessSocket({ ...ipOnly, includeRules: [{ selector: 'service_token', values: [HOST_ID] }] })).toBe(
+      true
+    );
+    // A skip range lets an address in without the password: auth_basic cannot express that.
+    expect(needsAccessSocket({ ...basicOnly, skipIpRanges: ['10.0.0.0/8'] })).toBe(true);
+    expect(
+      needsAccessSocket({
+        ...basicOnly,
+        requireRules: [
+          { selector: 'ip', values: ['10.0.0.0/8'] },
+          { selector: 'ip', values: ['10.1.0.0/16'] },
+        ],
+      })
+    ).toBe(true);
+    expect(needsAccessSocket({ ...basicOnly, includeRules: [{ selector: 'ip', values: ['10.0.0.0/8'] }] })).toBe(true);
+  });
+
+  it('render allow/deny and auth_basic, with no auth_request, access headers or 401 page', async () => {
+    for (const accessList of [
+      { ...ipOnly, authRequest: false },
+      { ...basicOnly, authRequest: false },
+    ]) {
+      const config = await render({
+        accessList,
+        advancedConfig: 'location /api {\n    proxy_pass http://127.0.0.1:9000;\n}',
+      });
+      expect(config).not.toContain('auth_request');
+      expect(config).not.toContain('Opfield-Access-');
+      expect(config).not.toContain('@opfield_access_challenge');
+      const api = lines(locations(config).get('/api'));
+      expect(api.some((line) => line.startsWith('proxy_set_header'))).toBe(false);
+      expect(api.some((line) => /^(allow|deny|auth_basic) /.test(line))).toBe(true);
+    }
+  });
+
+  it('give a template written for the old fields the real rules and basic authentication', async () => {
+    const own = LEGACY_CUSTOM_TEMPLATE.replace('{{#if accessList}}\n{{#each', '{{#if accessList}}\n# own\n{{#each');
+    const basic = lines(locations(await render({ accessList: { ...basicOnly, authRequest: false } }, own)).get('/'));
+    expect(basic).toEqual(
+      expect.arrayContaining([
+        'auth_basic "Restricted Access"',
+        `auth_basic_user_file /etc/nginx/opfield/htpasswd/access-list-${LIST_ID}`,
+      ])
+    );
+    expect(basic).not.toContain('deny all');
+    const office = lines(
+      locations(
+        await render(
+          {
+            accessList: {
+              ...ipOnly,
+              ...legacyAccessRules({
+                ipRules: [
+                  { type: 'deny', value: '10.0.0.9' },
+                  { type: 'allow', value: '10.0.0.0/8' },
+                ],
+                basicAuthEnabled: false,
+              }),
+              authRequest: false,
+            },
+          },
+          own
+        )
+      ).get('/')
+    );
+    expect(office.filter((line) => /^(allow|deny) /.test(line))).toEqual([
+      'deny 10.0.0.9',
+      'allow 10.0.0.0/8',
+      'deny all',
+      'deny all',
+    ]);
   });
 });
 
@@ -246,7 +353,7 @@ describe('access list rendering on a node without the access socket', () => {
   it('keeps the outcome of lists migration 0279 converted', () => {
     const cases = [
       // Old rules, old basic auth, then the allow/deny nginx rendered and whether it asked for a password.
-      { ipRules: [], basic: false, rules: ['allow 0.0.0.0/0', 'allow ::/0', 'deny all'], basicAuth: false },
+      { ipRules: [], basic: false, rules: [], basicAuth: false },
       {
         ipRules: [{ type: 'allow' as const, value: '10.0.0.0/8' }],
         basic: true,
@@ -259,7 +366,7 @@ describe('access list rendering on a node without the access socket', () => {
           { type: 'allow' as const, value: 'all' },
         ],
         basic: false,
-        rules: ['deny 192.0.2.7', 'allow 0.0.0.0/0', 'allow ::/0', 'deny all'],
+        rules: ['deny 192.0.2.7', 'allow all'],
         basicAuth: false,
       },
       { ipRules: [], basic: true, rules: [], basicAuth: true },
@@ -270,5 +377,40 @@ describe('access list rendering on a node without the access socket', () => {
       expect(fallback.rules.map((rule) => `${rule.type} ${rule.value}`)).toEqual(rules);
       expect(fallback.basicAuth).toBe(basicAuth);
     }
+  });
+});
+
+describe('htpasswd files of lists nginx checks with basic authentication', () => {
+  const stored = {
+    id: LIST_ID,
+    signInMethods: ['basic'],
+    users: [{ username: 'ops', passwordHash: '$2a$10$hash' }],
+    skipIpRanges: [] as string[],
+    includeRules: [{ selector: 'everyone', values: [] }],
+    requireRules: [],
+    excludeRules: [],
+  };
+
+  async function deployed(list: typeof stored, accessSocket: boolean) {
+    const deployHtpasswd = vi.fn().mockResolvedValue({ success: true });
+    const self = {
+      db: { query: { accessLists: { findFirst: async () => list } } },
+      nodeDispatch: { deployHtpasswd },
+      nodeReports: async () => accessSocket,
+    };
+    await (ProxyServiceCore.prototype as any).deployAccessListCredentials.call(self, 'node-1', LIST_ID);
+    return deployHtpasswd.mock.calls;
+  }
+
+  it('go to every node for a basic-only list, also to nodes with the access socket', async () => {
+    for (const accessSocket of [false, true]) {
+      expect(await deployed(stored, accessSocket)).toEqual([['node-1', LIST_ID, 'ops:$2a$10$hash\n']]);
+    }
+  });
+
+  it('go only to nodes without the access socket for a list only the socket decides', async () => {
+    const withSkip = { ...stored, skipIpRanges: ['10.0.0.0/8'] };
+    expect(await deployed(withSkip, true)).toEqual([]);
+    expect(await deployed(withSkip, false)).toHaveLength(1);
   });
 });

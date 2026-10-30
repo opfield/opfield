@@ -4,16 +4,21 @@ import { type NginxConfigDirective, parseNginxConfig } from './nginx-config-tree
 /**
  * What a route's nginx config renders of its access list.
  *
- * A node whose daemon reports NGINX_ACCESS_AUTH_CAPABILITY decides every request at its access socket: each protected
- * location asks it through auth_request (accessListDirectives), and the server answers the sign-in challenge
- * (withAccessAuthLocations). The daemon checks the policy Opfield syncs to it, so a change of the list changes no
- * config. A list with sign-in page methods (opfield, password, shared, idp:) signs visitors in on the route itself:
- * `/_opfield/access/` goes to the daemon's sign-in page (NGINX_ACCESS_SIGNIN_CAPABILITY), which asks Opfield over the
- * node's gRPC channel. On a node whose daemon has no sign-in page such a list answers 403: nobody is sent anywhere else.
+ * A list nginx can decide by itself (needsAccessSocket false: IP rules and basic authentication only, every list of
+ * 2.12 and earlier) is rendered as allow/deny and auth_basic with an htpasswd file on every node, exactly as before
+ * sign-in based lists: it keeps working while the nginx daemon is down, and it adds no directive that changes what a
+ * location inherits.
  *
- * A node without it (an older daemon, during an update) gets allow/deny and basic authentication rendered from the
- * list instead (fallbackAccess): IP rules exactly, a list that only offers basic authentication with an htpasswd file,
- * and every other sign-in method as denied, so an older daemon never lets in a visitor it cannot check.
+ * Any other list, on a node whose daemon reports NGINX_ACCESS_AUTH_CAPABILITY, is decided at the node's access socket:
+ * each protected location asks it through auth_request (accessListDirectives), and the server answers the sign-in
+ * challenge (withAccessAuthLocations). The daemon checks the policy Opfield syncs to it. A list with sign-in page
+ * methods (opfield, password, shared, idp:) signs visitors in on the route itself: `/_opfield/access/` goes to the
+ * daemon's sign-in page (NGINX_ACCESS_SIGNIN_CAPABILITY), which asks Opfield over the node's gRPC channel. On a node
+ * whose daemon has no sign-in page such a list answers 403: nobody is sent anywhere else.
+ *
+ * A node without the access socket (an older daemon, during an update) gets allow/deny and basic authentication
+ * rendered from the list (fallbackAccess): IP rules exactly, a list that only offers basic authentication with an
+ * htpasswd file, and every other sign-in method as denied, so an older daemon never lets in a visitor it cannot check.
  */
 
 export const NGINX_ACCESS_AUTH_CAPABILITY = 'nginx_access_auth_v1';
@@ -35,7 +40,10 @@ export function hasSignInPageMethods(signInMethods: readonly string[]): boolean 
 
 export interface NginxAccessList {
   id: string;
-  /** The node checks requests at its access socket; false: the fallback directives. */
+  /**
+   * The node checks requests at its access socket (a list only the socket can decide, on a node that has it); false:
+   * allow/deny and basic authentication (fallbackAccess).
+   */
   authRequest: boolean;
   /** The node's daemon serves the route's sign-in page (NGINX_ACCESS_SIGNIN_CAPABILITY). */
   signInPage?: boolean;
@@ -84,6 +92,8 @@ function ipValues(rules: readonly AccessRule[]): string[][] {
   return rules.filter((rule) => rule.selector === 'ip').map((rule) => rule.values.map(ipValue).filter(Boolean));
 }
 
+const EVERY_ADDRESS = ['0.0.0.0/0', '::/0'];
+
 const matchesEveryBasicIdentity = (rule: AccessRule) =>
   rule.selector === 'everyone' || (rule.selector === 'method' && rule.values.includes('basic'));
 
@@ -99,6 +109,22 @@ function fallbackBasicRanges(list: AccessPolicy): string[] | null | false {
   const required = ipValues(list.requireRules);
   if (required.length > 1) return false;
   return required[0] ?? null;
+}
+
+/**
+ * Whether only the access socket can decide the list. nginx's own allow/deny and auth_basic decide it exactly as the
+ * daemon would when it has no sign-in page method and no service token, and when its basic authentication needs
+ * nothing nginx cannot combine with allow/deny (skip ranges, which let an address in without a password, more than one
+ * required network, or an Include ip rule that lets only some users in).
+ */
+export function needsAccessSocket(list: AccessPolicy): boolean {
+  if (list.includeRules.some((rule) => rule.selector === 'service_token')) return true;
+  if (list.signInMethods.length === 0) return false;
+  if (list.signInMethods.length > 1 || list.signInMethods[0] !== 'basic') return true;
+  if (ipValues(list.requireRules).length > 1) return true;
+  // Basic authentication that lets nobody in: the address rules decide, unless an Include ip rule lets some users in.
+  if (fallbackBasicRanges(list) === false) return list.includeRules.some((rule) => rule.selector === 'ip');
+  return list.skipIpRanges.length > 0;
 }
 
 /** Whether a node without the access socket checks the list with basic authentication (an htpasswd file). */
@@ -123,6 +149,11 @@ export function fallbackAccess(list: AccessPolicy, { basic }: { basic: boolean }
   const denies = ipValues(list.excludeRules).flat().map(deny);
   const basicRanges = basic ? fallbackBasicRanges(list) : false;
   if (basicRanges === false) {
+    // Skip ranges that cover every address let everyone in: no rules, or the denied addresses and then everyone, as
+    // the lists of 2.12 and earlier rendered.
+    if (EVERY_ADDRESS.every((range) => list.skipIpRanges.includes(range))) {
+      return { rules: denies.length > 0 ? [...denies, allow('all')] : [], basicAuth: false };
+    }
     return { rules: [...denies, ...list.skipIpRanges.map(ipValue).map(allow), deny('all')], basicAuth: false };
   }
   if (basicRanges === null) return { rules: denies.length > 0 ? [...denies, allow('all')] : [], basicAuth: true };
@@ -205,9 +236,11 @@ export function maintenanceAccessListDirectives(list: NginxAccessList | null | u
 
 /**
  * The `accessList` and `accessListHasIpRules` of a template's context. Templates written before sign-in based lists
- * read accessList.ipRules and accessList.basicAuthEnabled: they get the fallback rules (on a node with the access
- * socket without basic authentication, so such a template denies what it cannot check). The access list block of the
- * built-in templates becomes {{{accessListDirectives accessList}}} (upgradeLegacyAccessListBlocks).
+ * read accessList.ipRules and accessList.basicAuthEnabled: a list nginx decides by itself gives them its real rules
+ * and basic authentication on every node (the htpasswd file is deployed), so they render what they rendered before.
+ * A list only the access socket can decide gives them its address rules without basic authentication, so such a
+ * template denies what it cannot check. The access list block of the built-in templates becomes
+ * {{{accessListDirectives accessList}}} (upgradeLegacyAccessListBlocks).
  */
 export function accessListTemplateContext(list: NginxAccessList | null | undefined) {
   if (!list) return { accessList: null, accessListHasIpRules: false };
@@ -433,9 +466,12 @@ export function withAccessAuthLocations(rendered: string, list: NginxAccessList 
     if (!children.some((child) => child.name === 'location' && isAccessLocation(child))) {
       edits.push({ position: server.block.open + 1, text: accessLocations(list) });
     }
+    // A server without proxy_set_header or error_page of its own inherits the ones at the http level of the file.
+    const serverHeaders = own(rendered, children, 'proxy_set_header');
+    const serverPages = own(rendered, children, 'error_page');
     const outer = {
-      headers: own(rendered, children, 'proxy_set_header'),
-      errorPages: own(rendered, children, 'error_page'),
+      headers: serverHeaders.length > 0 ? serverHeaders : own(rendered, directives, 'proxy_set_header'),
+      errorPages: serverPages.length > 0 ? serverPages : own(rendered, directives, 'error_page'),
     };
     inheritanceEdits(rendered, children, outer, false, edits);
   }
