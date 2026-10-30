@@ -7,7 +7,6 @@ import {
   rejectImpersonation,
   requireAnyScopeBase,
   requireScope,
-  sessionOnly,
 } from '@/modules/auth/auth.middleware.js';
 import type { AppEnv } from '@/types.js';
 import { AccessIdentityProviderService } from './access-identity-providers.service.js';
@@ -103,10 +102,10 @@ accessIdentityProviderRoutes.openapi(
 
 export const accessServiceTokenRoutes = new OpenAPIHono<AppEnv>({ defaultHook: openApiValidationHook });
 accessServiceTokenRoutes.use('*', authMiddleware);
-// A token mints no lasting credential: a service token secret would outlive the API or OAuth token's expiry, IP
-// allowlist and revocation, so service tokens are created and changed from a browser session, never impersonating.
-accessServiceTokenRoutes.on('POST', '/', sessionOnly, rejectImpersonation);
-accessServiceTokenRoutes.on('PUT', '/:id', sessionOnly, rejectImpersonation);
+// API, OAuth and MCP callers with acl:edit manage service tokens like any other resource; a token made during an
+// impersonation outlives it, so only the subject creates or changes one.
+accessServiceTokenRoutes.on('POST', '/', rejectImpersonation);
+accessServiceTokenRoutes.on('PUT', '/:id', rejectImpersonation);
 const tokenId = requireUuidParam('id', 'ACCESS_SERVICE_TOKEN_NOT_FOUND', 'Service token not found');
 
 accessServiceTokenRoutes.openapi({ ...listAccessServiceTokensRoute, middleware: readTokens() }, async (c) =>

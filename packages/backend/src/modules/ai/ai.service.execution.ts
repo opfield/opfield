@@ -187,31 +187,6 @@ export abstract class AIServiceExecution extends AIServiceRuntimeSupport {
     if (toolDef.mcpOnly && options.source !== 'mcp') {
       return { error: `Tool ${toolName} is available only through remote MCP`, invalidateStores: [] };
     }
-    // A token mints no lasting credential: an inference key made through remote MCP would outlive the token's expiry,
-    // IP allowlist and revocation, so it is created and changed from a browser session only, as on REST.
-    if (
-      options.source === 'mcp' &&
-      toolName === 'manage_inference_token' &&
-      (args.operation === 'create' || args.operation === 'update')
-    ) {
-      return {
-        error: 'Inference keys are created and changed from a browser session; remote MCP can list and revoke them',
-        invalidateStores: [],
-      };
-    }
-    if (
-      options.source === 'mcp' &&
-      toolName === 'manage_access_sign_in' &&
-      args.resource === 'service_tokens' &&
-      (args.operation === 'create' || args.operation === 'update')
-    ) {
-      return {
-        error:
-          'Access service tokens are created and changed from a browser session; remote MCP can list and delete them',
-        invalidateStores: [],
-      };
-    }
-
     const activePlan =
       options.source !== 'mcp' && options.conversationId && this.planService
         ? await this.planService.getActivePlanSnapshot(user.id, options.conversationId)
