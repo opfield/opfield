@@ -145,7 +145,10 @@ func (r *Runtime) previewConfig(hostname, deploymentID, certificateID, certifica
 	}
 	// Every other page nginx answers with itself (a denied client, a refused method) is an Opfield page too.
 	if r.accessChecked(fallback.Access) {
-		// 401 goes to the access challenge, and the pages answer without a second check.
+		// 401 goes to the access challenge, and the pages answer without a second check. A check that fails while nginx
+		// already handles an error (the project's 404 page, a direct request for an internal access path) goes to the
+		// challenge too, instead of nginx's own 401 page.
+		lines = append(lines, "    recursive_error_pages on;")
 		if r.errorPages {
 			lines = append(lines, errorpages.AccessCheckedServerDirectives(404, 401)...)
 		}

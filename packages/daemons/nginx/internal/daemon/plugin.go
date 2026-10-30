@@ -411,6 +411,22 @@ func (p *NginxPlugin) Init(baseCfg *lifecycle.BaseConfig, logger *slog.Logger) e
 		globalConfigModified = true
 	}
 
+	// nginx's own pages and headers never name its version (nodes installed before the installer set it).
+	if previous, modified, err := nginx.EnsureServerTokensOff(p.cfg.Nginx.GlobalConfig); err != nil {
+		logger.Warn("failed to turn server_tokens off", "error", err)
+	} else if modified {
+		if valid, output := mgr.TestConfig(); valid {
+			logger.Info("turned server_tokens off in the global nginx configuration")
+			globalConfigModified = true
+		} else {
+			// An included file sets it too: leave the global configuration as it was.
+			if err := nginx.WriteAtomic(p.cfg.Nginx.GlobalConfig, previous); err != nil {
+				logger.Warn("failed to restore the global nginx configuration", "error", err)
+			}
+			logger.Warn("server_tokens could not be turned off in the global nginx configuration", "output", output)
+		}
+	}
+
 	if reloadPending {
 		// A change written before the previous process stopped may not run yet.
 		if valid, output := mgr.TestConfig(); valid {
