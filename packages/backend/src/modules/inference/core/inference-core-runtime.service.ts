@@ -335,7 +335,7 @@ export class InferenceCoreRuntimeService {
       const current = await this.requireStateRow();
       await this.transition(current, 'starting', null);
       await this.publishNow();
-      await this.repairContainer(current);
+      await this.repairContainer(current, operation.id);
       const after = await this.requireStateRow();
       await this.transition(after, 'ready', null);
       await this.operations.succeed(operation.id);
@@ -828,7 +828,7 @@ export class InferenceCoreRuntimeService {
   }
 
   /** Recreate or restart the recorded container at the recorded digest. */
-  private async repairContainer(row: InferenceCoreStateRow): Promise<void> {
+  private async repairContainer(row: InferenceCoreStateRow, operationId: string): Promise<void> {
     const layout = await this.discoverLayout();
     const artifact = {
       imageRef: row.installedImageRef!,
@@ -840,8 +840,10 @@ export class InferenceCoreRuntimeService {
       await this.docker.restartContainer(row.containerId!, 10);
     } else {
       if (existing) await this.docker.removeContainer(row.containerId!).catch(() => {});
+      // A repair that has to download the image again shows its progress like an install.
       if (!(await this.docker.imageExists(artifact.imageRef))) {
-        await this.docker.pullImageRef(artifact.imageRef);
+        await this.pullImage(operationId, artifact);
+        await this.operations.updatePhase(operationId, 'starting', null);
       }
       const credentials = this.openCredentials(row);
       await this.createCoreContainer(layout, artifact, credentials);
