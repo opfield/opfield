@@ -4,7 +4,12 @@ import { describe, expect, it, vi } from 'vitest';
 import { ConfigValidatorService } from '@/services/config-validator.service.js';
 import type { ProxyHostConfig } from '@/services/nginx-config-generator.service.js';
 import { legacyAccessRules } from '../access-lists/access-list-legacy.js';
-import { fallbackAccess, type NginxAccessList, needsAccessSocket } from './nginx-access-list.js';
+import {
+  fallbackAccess,
+  type NginxAccessList,
+  needsAccessSocket,
+  pagesPreviewFallbackAccess,
+} from './nginx-access-list.js';
 import { type NginxConfigDirective, parseNginxConfig } from './nginx-config-tree.js';
 import { NginxTemplateService } from './nginx-template.service.js';
 import { ProxyServiceCore } from './proxy.service.core.js';
@@ -377,6 +382,27 @@ describe('access list rendering on a node without the access socket', () => {
       expect(fallback.rules.map((rule) => `${rule.type} ${rule.value}`)).toEqual(rules);
       expect(fallback.basicAuth).toBe(basicAuth);
     }
+  });
+});
+
+describe('Pages preview access', () => {
+  it('keeps the explicit ranges of a list that lets everyone in (the daemon denies a preview without rules)', () => {
+    const everyone = { id: LIST_ID, users: [], ...legacyAccessRules({ ipRules: [], basicAuthEnabled: false }) };
+    expect(pagesPreviewFallbackAccess(everyone).ipRules).toEqual([
+      { type: 'allow', value: '0.0.0.0/0' },
+      { type: 'allow', value: '::/0' },
+      { type: 'deny', value: 'all' },
+    ]);
+    const basic = {
+      id: LIST_ID,
+      users: [{ username: 'ops', passwordHash: '$2a$10$hash' }],
+      ...legacyAccessRules({ ipRules: [], basicAuthEnabled: true }),
+    };
+    expect(pagesPreviewFallbackAccess(basic)).toMatchObject({
+      ipRules: [],
+      basicAuthEnabled: true,
+      htpasswd: 'ops:$2a$10$hash\n',
+    });
   });
 });
 

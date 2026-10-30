@@ -62,6 +62,13 @@ func (s *Store) HasList(id string) bool {
 	return ok
 }
 
+// ChecksList reports whether the applied policy has the list and only the access socket can decide it
+// (List.NeedsSocket); nginx checks any other list itself.
+func (s *Store) ChecksList(id string) bool {
+	list, ok := s.Policy().List(id)
+	return ok && list.NeedsSocket()
+}
+
 // Apply validates, persists and applies a command. A revision older than or equal to the applied one changes nothing
 // (applied false).
 func (s *Store) Apply(command *pb.SyncAccessPolicyCommand) (applied bool, err error) {

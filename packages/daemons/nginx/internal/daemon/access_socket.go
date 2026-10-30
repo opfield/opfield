@@ -122,10 +122,11 @@ func (p *NginxPlugin) startAccess(stateDir string) {
 	p.accessServer = server
 }
 
-// accessChecksAvailable reports whether nginx can ask this daemon about the list: Pages previews then check access
-// on the access socket instead of rendering the list's fallback directives.
+// accessChecksAvailable reports whether Pages previews with the list check access on the access socket: the daemon
+// has the list's policy and only the socket can decide it. A list of IP rules and basic authentication renders its
+// allow/deny and auth_basic directives, as before sign-in based lists, so it works while this daemon is down.
 func (p *NginxPlugin) accessChecksAvailable(accessListID string) bool {
-	return p.accessServer != nil && p.accessStore.HasList(accessListID)
+	return p.accessServer != nil && p.accessStore.ChecksList(accessListID)
 }
 
 func (h *Handler) handleSyncAccessPolicy(cmd *pb.SyncAccessPolicyCommand, result *pb.CommandResult) {

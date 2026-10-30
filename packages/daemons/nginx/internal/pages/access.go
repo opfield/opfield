@@ -21,9 +21,10 @@ type PreviewIPRule struct {
 	Value string `json:"value"`
 }
 
-// PreviewAccess protects every location of a preview with its access list, like a proxy host's. Once the daemon's
-// access socket has the list's policy (SetAccessChecks), nginx asks it about every request (auth_request). Until then
-// the fallback Opfield sends applies: ordered IP rules followed by `deny all`, and optional basic authentication from
+// PreviewAccess protects every location of a preview with its access list, like a proxy host's. A list only the
+// daemon's access socket can decide is checked there (auth_request) once the socket has its policy
+// (SetAccessChecks). A list of IP rules and basic authentication, and any list until then, gets the rules Opfield
+// sends: ordered IP rules followed by `deny all`, and optional basic authentication from
 // the list's deployed htpasswd file, both together (nginx `satisfy all`); a list with neither denies everyone.
 type PreviewAccess struct {
 	AccessListID string          `json:"accessListId"`

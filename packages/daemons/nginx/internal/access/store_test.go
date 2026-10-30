@@ -59,3 +59,39 @@ func TestStorePersistsAndFencesRevisions(t *testing.T) {
 		t.Fatalf("newer revision: %v %v", applied, err)
 	}
 }
+
+// Lists of IP rules and basic authentication are decided by nginx itself; only the others need the access socket
+// (needsAccessSocket in Opfield's nginx-access-list.ts: the same cases).
+func TestNeedsSocket(t *testing.T) {
+	everyone := []RuleSpec{{Selector: SelectorEveryone}}
+	cases := []struct {
+		name  string
+		spec  ListSpec
+		users bool
+		want  bool
+	}{
+		{"ip only", ListSpec{SkipIPRanges: []string{"10.0.0.0/8"}, ExcludeRules: []RuleSpec{{Selector: SelectorIP, Values: []string{"10.0.0.9"}}}}, false, false},
+		{"empty", ListSpec{}, false, false},
+		{"basic", ListSpec{SignInMethods: []string{MethodBasic}, IncludeRules: everyone}, true, false},
+		{"basic from one network", ListSpec{SignInMethods: []string{MethodBasic}, IncludeRules: everyone, RequireRules: []RuleSpec{{Selector: SelectorIP, Values: []string{"10.0.0.0/8"}}}}, true, false},
+		{"basic with a skip range", ListSpec{SignInMethods: []string{MethodBasic}, IncludeRules: everyone, SkipIPRanges: []string{"10.0.0.0/8"}}, true, true},
+		{"basic from two networks", ListSpec{SignInMethods: []string{MethodBasic}, IncludeRules: everyone, RequireRules: []RuleSpec{{Selector: SelectorIP, Values: []string{"10.0.0.0/8"}}, {Selector: SelectorIP, Values: []string{"10.1.0.0/16"}}}}, true, true},
+		{"basic for some addresses", ListSpec{SignInMethods: []string{MethodBasic}, IncludeRules: []RuleSpec{{Selector: SelectorIP, Values: []string{"10.0.0.0/8"}}}}, true, true},
+		{"opfield", ListSpec{SignInMethods: []string{MethodOpfield}, IncludeRules: everyone}, false, true},
+		{"basic and password", ListSpec{SignInMethods: []string{MethodBasic, MethodPassword}, IncludeRules: everyone}, true, true},
+		{"service token", ListSpec{IncludeRules: []RuleSpec{{Selector: SelectorServiceToken, Values: []string{"token-1"}}}}, false, true},
+	}
+	for _, c := range cases {
+		c.spec.ID = "list-1"
+		list, err := NewList(c.spec)
+		if err != nil {
+			t.Fatalf("%s: %v", c.name, err)
+		}
+		if c.users {
+			list.users = map[string]string{"ops": "$2a$10$hash"}
+		}
+		if got := list.NeedsSocket(); got != c.want {
+			t.Errorf("%s: NeedsSocket() = %v, want %v", c.name, got, c.want)
+		}
+	}
+}

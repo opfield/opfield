@@ -285,6 +285,51 @@ func Evaluate(list *List, client netip.Addr, identity *Identity, source Source) 
 	return refused
 }
 
+// NeedsSocket reports whether only the access socket can decide the list, the same rule as needsAccessSocket in
+// Opfield (nginx-access-list.ts). A list nginx decides by itself (no sign-in page method, no service token, and basic
+// authentication that allow/deny can express) is rendered as allow/deny and auth_basic, as before sign-in based lists,
+// so it keeps working while this daemon is down.
+func (l *List) NeedsSocket() bool {
+	if slices.ContainsFunc(l.Include, func(rule Rule) bool { return rule.Selector == SelectorServiceToken }) {
+		return true
+	}
+	if len(l.SignInMethods) == 0 {
+		return false
+	}
+	if len(l.SignInMethods) > 1 || l.SignInMethods[0] != MethodBasic {
+		return true
+	}
+	requiredNetworks := 0
+	for _, rule := range l.Require {
+		if rule.Selector == SelectorIP {
+			requiredNetworks++
+		}
+	}
+	if requiredNetworks > 1 {
+		return true
+	}
+	// Basic authentication that lets nobody in: the address rules decide, unless an Include ip rule lets some users in.
+	if !l.basicLetsUsersIn() {
+		return slices.ContainsFunc(l.Include, func(rule Rule) bool { return rule.Selector == SelectorIP })
+	}
+	return len(l.skipRanges) > 0
+}
+
+// basicLetsUsersIn reports whether every basic authentication user of the list gets in from its required network (the
+// rules ask nothing of a basic identity that allow/deny cannot check); fallbackBasicRanges in Opfield.
+func (l *List) basicLetsUsersIn() bool {
+	everyBasic := func(rule Rule) bool {
+		return rule.Selector == SelectorEveryone || (rule.Selector == SelectorMethod && slices.Contains(rule.Values, MethodBasic))
+	}
+	if len(l.users) == 0 || !slices.ContainsFunc(l.Include, everyBasic) {
+		return false
+	}
+	if slices.ContainsFunc(l.Exclude, func(rule Rule) bool { return rule.Selector != SelectorIP && everyBasic(rule) }) {
+		return false
+	}
+	return !slices.ContainsFunc(l.Require, func(rule Rule) bool { return rule.Selector != SelectorIP && !everyBasic(rule) })
+}
+
 // hasSignInPage reports whether the list signs visitors in on the route's sign-in page (any method but basic).
 func (l *List) hasSignInPage() bool {
 	return slices.ContainsFunc(l.SignInMethods, func(method string) bool { return method != MethodBasic })

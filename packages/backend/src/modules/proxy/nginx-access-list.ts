@@ -143,7 +143,10 @@ export interface FallbackAccess {
  * list asks for its users (from its required networks), and every other visitor is denied. Without `basic` (a node
  * that checks at its access socket, where no htpasswd file is kept) basic authentication is denied too.
  */
-export function fallbackAccess(list: AccessPolicy, { basic }: { basic: boolean }): FallbackAccess {
+export function fallbackAccess(
+  list: AccessPolicy,
+  { basic, everyoneAsRanges = false }: { basic: boolean; everyoneAsRanges?: boolean }
+): FallbackAccess {
   const deny = (value: string) => ({ type: 'deny' as const, value });
   const allow = (value: string) => ({ type: 'allow' as const, value });
   const denies = ipValues(list.excludeRules).flat().map(deny);
@@ -151,7 +154,9 @@ export function fallbackAccess(list: AccessPolicy, { basic }: { basic: boolean }
   if (basicRanges === false) {
     // Skip ranges that cover every address let everyone in: no rules, or the denied addresses and then everyone, as
     // the lists of 2.12 and earlier rendered.
-    if (EVERY_ADDRESS.every((range) => list.skipIpRanges.includes(range))) {
+    // everyoneAsRanges: the ranges themselves, for a Pages preview (the nginx daemon denies a preview whose list has
+    // neither rules nor basic authentication).
+    if (!everyoneAsRanges && EVERY_ADDRESS.every((range) => list.skipIpRanges.includes(range))) {
       return { rules: denies.length > 0 ? [...denies, allow('all')] : [], basicAuth: false };
     }
     return { rules: [...denies, ...list.skipIpRanges.map(ipValue).map(allow), deny('all')], basicAuth: false };
@@ -161,12 +166,13 @@ export function fallbackAccess(list: AccessPolicy, { basic }: { basic: boolean }
 }
 
 /**
- * A Pages preview's protection until the nginx daemon has the list's policy (PagesPreviewAccess ip_rules,
- * basic_auth_enabled and the htpasswd content): the same fallback as a route on a node without the access socket.
- * The preview always sends the list id; the daemon checks it at its access socket once the policy is synced.
+ * A Pages preview's allow/deny and basic authentication (PagesPreviewAccess ip_rules, basic_auth_enabled and the
+ * htpasswd content): the same rules as a route that nginx checks itself. The preview always sends the list id; the
+ * nginx daemon renders these rules for a list nginx decides by itself, and for any other list until it has the list's
+ * policy, then checks that list at its access socket.
  */
 export function pagesPreviewFallbackAccess(list: Parameters<typeof nginxAccessListOf>[0]) {
-  const fallback = fallbackAccess(nginxAccessListOf(list), { basic: true });
+  const fallback = fallbackAccess(nginxAccessListOf(list), { basic: true, everyoneAsRanges: true });
   const users = list.users ?? [];
   return {
     accessListId: list.id,
