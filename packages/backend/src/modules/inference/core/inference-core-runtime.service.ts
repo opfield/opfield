@@ -81,6 +81,8 @@ const ROLE_HELPER = 'helper';
 
 const BACKUP_DIR = '/var/lib/opfield/inference-core-backups';
 
+const PULL_PROGRESS_WRITE_INTERVAL_MS = 1000;
+
 /** Stage labels rendered by the UI; keep in sync with ui-contract.md. */
 const STAGE = {
   resolving: 'Resolving release',
@@ -532,14 +534,34 @@ export class InferenceCoreRuntimeService {
       await this.operations.updatePhase(operationId, 'pulling', { stage: STAGE.pulling });
       return;
     }
+    // Docker reports progress many times a second. A write per event, none awaited, took every database connection
+    // during a pull and other services timed out; one write at a time, at most once a second, keeps the latest.
+    let latest: InferenceCoreOperationProgress | null = null;
+    let writing: Promise<void> | null = null;
+    let lastWriteAt = 0;
+    const write = () => {
+      if (writing || !latest || Date.now() - lastWriteAt < PULL_PROGRESS_WRITE_INTERVAL_MS) return;
+      const update = latest;
+      latest = null;
+      lastWriteAt = Date.now();
+      writing = this.operations
+        .updatePhase(operationId, 'pulling', update)
+        .catch(() => {})
+        .finally(() => {
+          writing = null;
+        });
+    };
     await this.docker.pullImageRefStreaming(artifact.imageRef, (progress) => {
       const update: InferenceCoreOperationProgress = { stage: STAGE.pulling };
       if (progress.downloadedBytes !== undefined) update.downloadedBytes = progress.downloadedBytes;
       if (progress.totalBytes !== undefined) update.totalBytes = progress.totalBytes;
       if (progress.layersCompleted !== undefined) update.layersCompleted = progress.layersCompleted;
       if (progress.layersTotal !== undefined) update.layersTotal = progress.layersTotal;
-      void this.operations.updatePhase(operationId, 'pulling', update).catch(() => {});
+      latest = update;
+      write();
     });
+    await writing;
+    if (latest) await this.operations.updatePhase(operationId, 'pulling', latest).catch(() => {});
   }
 
   /** Fresh install: credentials, volumes, container. */
