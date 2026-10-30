@@ -267,6 +267,10 @@ func (s *Server) writePage(w http.ResponseWriter, r *http.Request, page SignInPa
 	header := w.Header()
 	header.Set("Content-Type", "text/html; charset=utf-8")
 	header.Set("Content-Security-Policy", "default-src 'none'; style-src 'nonce-"+nonce+"'; script-src 'nonce-"+nonce+"'; img-src data:; form-action 'self'; frame-ancestors 'none'; base-uri 'none'")
+	if status == http.StatusTooManyRequests {
+		// The sign-in limits count per minute.
+		header.Set("Retry-After", "60")
+	}
 	w.WriteHeader(status)
 	if r.Method != http.MethodHead {
 		_, _ = w.Write(body)

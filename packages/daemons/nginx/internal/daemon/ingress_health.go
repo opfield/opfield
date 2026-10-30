@@ -28,6 +28,11 @@ const (
 	ingressHealthObservationTTL = 2 * time.Minute
 )
 
+// publicIngressHealth is the body the reserved health paths answer: the status alone, the code says the rest.
+type publicIngressHealth struct {
+	Status string `json:"status"`
+}
+
 // ingressHealthStatus is what the reserved health paths (/.well-known/opfield-ingress-health and the pre-Opfield
 // the legacy health path) answer: serving only while nginx runs, runs the configuration of the daemon's
 // last successful reload, and — on a node that sources Secure Links — at least one relay transport is up. Everything
@@ -191,8 +196,10 @@ func (r *ingressHealthResponder) serveHealth(w http.ResponseWriter, req *http.Re
 	} else {
 		w.WriteHeader(http.StatusServiceUnavailable)
 	}
+	// Every visitor of every route can ask: the answer says only whether the node serves. The details (generations,
+	// relay transports, reasons) go to Opfield in the health report, never to the public.
 	if req.Method == http.MethodGet {
-		_ = json.NewEncoder(w).Encode(status)
+		_ = json.NewEncoder(w).Encode(publicIngressHealth{Status: status.Status})
 	}
 }
 
