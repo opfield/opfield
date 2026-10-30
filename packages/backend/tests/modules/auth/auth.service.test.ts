@@ -1367,7 +1367,7 @@ function createAuthServiceHarness(options: {
   };
 }
 
-describe('AuthService.updateUserAuthMethod second factors (R1-07)', () => {
+describe('AuthService.updateUserAuthMethod second factors', () => {
   function setup(existing: { totp: number; recoveryCodes: number; passkeys: number }) {
     const target = {
       id: '22222222-2222-4222-8222-222222222222',
@@ -1419,40 +1419,19 @@ describe('AuthService.updateUserAuthMethod second factors (R1-07)', () => {
     return { service, target, deleted, sessionService, cacheService, auditService };
   }
 
-  it('removes the TOTP factor, recovery codes and passkeys with the old method, and audits it', async () => {
-    const { service, target, deleted, sessionService, cacheService, auditService } = setup({
+  it('keeps the TOTP factor, recovery codes and passkeys when the sign-in method changes (2.12.8 behaviour)', async () => {
+    const { service, target, deleted, sessionService, auditService } = setup({
       totp: 1,
       recoveryCodes: 8,
       passkeys: 2,
     });
 
-    await service.updateUserAuthMethod(target.id, 'email_otp', { actorUserId: 'actor-1' });
+    await service.updateUserAuthMethod(target.id, 'email_otp');
 
-    expect(deleted).toEqual(expect.arrayContaining([userTotpFactors, userRecoveryCodes, userPasskeys]));
-    expect(cacheService.delete).toHaveBeenCalledWith(`mfa:totp:setup:${target.id}`);
+    expect(deleted).not.toContain(userTotpFactors);
+    expect(deleted).not.toContain(userRecoveryCodes);
+    expect(deleted).not.toContain(userPasskeys);
     expect(sessionService.destroyAllUserSessions).toHaveBeenCalledWith(target.id);
-    expect(auditService.log).toHaveBeenCalledWith(
-      expect.objectContaining({
-        userId: 'actor-1',
-        action: 'user.mfa_reset',
-        resourceId: target.id,
-        details: expect.objectContaining({
-          reason: 'auth_method_change',
-          previousAuthMethod: 'password',
-          authMethod: 'email_otp',
-          totpRemoved: true,
-          recoveryCodesRemoved: 8,
-          passkeysRemoved: 2,
-        }),
-      })
-    );
-  });
-
-  it('writes no MFA audit entry when the user had no second factor', async () => {
-    const { service, target, auditService } = setup({ totp: 0, recoveryCodes: 0, passkeys: 0 });
-
-    await service.updateUserAuthMethod(target.id, 'oidc');
-
-    expect(auditService.log).not.toHaveBeenCalled();
+    expect(auditService.log).not.toHaveBeenCalledWith(expect.objectContaining({ action: 'user.mfa_reset' }));
   });
 });

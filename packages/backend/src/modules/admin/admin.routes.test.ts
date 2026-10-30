@@ -325,42 +325,29 @@ describe('admin user email onboarding', () => {
     });
 
     expect(response.status).toBe(200);
-    expect(updateUserAuthMethod).toHaveBeenCalledWith(TARGET_USER.id, 'email_otp', { actorUserId: USER.id });
+    expect(updateUserAuthMethod).toHaveBeenCalledWith(TARGET_USER.id, 'email_otp');
     expect(sendEmailOtpOnboarding).toHaveBeenCalledWith(updatedUser.email);
   });
 
-  // L-01: the change removes the user's second factors, which only a system administrator may reset.
-  it('requires admin:system to change the sign-in method of a user with second factors', async () => {
-    const changeMethod = async (scopes: string[]) => {
-      registerSession(scopes);
-      registerMfaStatus({ passkeyCount: 1 });
-      const updateUserAuthMethod = vi.fn().mockResolvedValue({ ...TARGET_USER, authMethod: 'oidc' });
-      container.registerInstance(AuthService, {
-        getUserById: vi.fn().mockResolvedValue({ ...TARGET_USER, authMethod: 'password' }),
-        updateUserAuthMethod,
-      } as unknown as AuthService);
-      container.registerInstance(AuditService, {
-        log: vi.fn().mockResolvedValue(undefined),
-      } as unknown as AuditService);
-      const response = await createApp().request(`/api/admin/users/${TARGET_USER.id}/auth-method`, {
-        method: 'PATCH',
-        headers: sessionHeaders(),
-        body: JSON.stringify({ authMethod: 'oidc' }),
-      });
-      return { response, updateUserAuthMethod };
-    };
-
-    const delegated = await changeMethod(['admin:users', 'nodes:details:node-1']);
-    expect(delegated.response.status).toBe(403);
-    await expect(delegated.response.json()).resolves.toMatchObject({
-      code: 'FORBIDDEN',
-      message: 'Missing required scope: admin:system',
+  it('lets admin:users change the sign-in method of a user with second factors, as in 2.12.8', async () => {
+    registerSession(['admin:users', 'nodes:details:node-1']);
+    registerMfaStatus({ passkeyCount: 1, totpConfigured: true, recoveryCodeCount: 8 });
+    const updateUserAuthMethod = vi.fn().mockResolvedValue({ ...TARGET_USER, authMethod: 'oidc' });
+    container.registerInstance(AuthService, {
+      getUserById: vi.fn().mockResolvedValue({ ...TARGET_USER, authMethod: 'password' }),
+      updateUserAuthMethod,
+    } as unknown as AuthService);
+    container.registerInstance(AuditService, {
+      log: vi.fn().mockResolvedValue(undefined),
+    } as unknown as AuditService);
+    const response = await createApp().request(`/api/admin/users/${TARGET_USER.id}/auth-method`, {
+      method: 'PATCH',
+      headers: sessionHeaders(),
+      body: JSON.stringify({ authMethod: 'oidc' }),
     });
-    expect(delegated.updateUserAuthMethod).not.toHaveBeenCalled();
 
-    const system = await changeMethod(['admin:system', 'admin:users', 'nodes:details:node-1']);
-    expect(system.response.status).toBe(200);
-    expect(system.updateUserAuthMethod).toHaveBeenCalledWith(TARGET_USER.id, 'oidc', { actorUserId: USER.id });
+    expect(response.status).toBe(200);
+    expect(updateUserAuthMethod).toHaveBeenCalledWith(TARGET_USER.id, 'oidc');
   });
 });
 
@@ -1995,7 +1982,7 @@ describe('what a managed installation keeps', () => {
       body: JSON.stringify({ authMethod: 'password' }),
     });
     expect(response.status).toBe(200);
-    expect(updateUserAuthMethod).toHaveBeenCalledWith(TARGET_USER.id, 'password', { actorUserId: USER.id });
+    expect(updateUserAuthMethod).toHaveBeenCalledWith(TARGET_USER.id, 'password');
   });
 });
 
