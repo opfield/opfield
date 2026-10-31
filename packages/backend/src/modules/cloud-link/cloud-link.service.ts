@@ -78,6 +78,8 @@ export interface CloudConnectOptions {
   auditRetryableFailure?: boolean;
   /** PKCE verifier of a code the portal issued for a code challenge (the setup wizard's connect flow). */
   codeVerifier?: string;
+  /** The name to enrol under while the public URL is not saved yet (the setup wizard names it by its public URL). */
+  installationName?: string;
 }
 
 export class CloudLinkRequestError extends Error {
@@ -447,6 +449,7 @@ export class CloudLinkService {
         portalUrl,
         source === 'enroll-file',
         options.codeVerifier,
+        options.installationName,
         (enrolled, previous, answer) => {
           agentId = enrolled.agentId;
           accountEmail = enrolled.accountEmail || null;
@@ -488,6 +491,7 @@ export class CloudLinkService {
     portalUrl: string,
     managed: boolean,
     codeVerifier: string | undefined,
+    installationName: string | undefined,
     onEnrolled: (
       enrollment: StoredCloudEnrollment,
       previous: StoredCloudEnrollment | null,
@@ -496,6 +500,7 @@ export class CloudLinkService {
   ): Promise<void> {
     await this.serialized(async () => {
       const hello = await this.identity();
+      if (installationName) hello.name = installationName;
       const { status, body } = await this.portalRequest(
         `${portalUrl}/api/cloud/enroll`,
         {

@@ -108,7 +108,7 @@ describe('Opfield account in the setup wizard', () => {
     expect(target.origin + target.pathname).toBe('https://account.example.test/connect-installation');
     expect(target.searchParams.get('return_uri')).toBe('https://gw.example.com/setup/cloud-callback');
     expect(target.searchParams.get('code_challenge_method')).toBe('S256');
-    expect(target.searchParams.get('name')).toBe('Acme Opfield');
+    expect(target.searchParams.get('name')).toBe('gw.example.com');
     const state = target.searchParams.get('state')!;
     expect(state).toMatch(/^[\w-]{43}$/);
 
@@ -156,7 +156,7 @@ describe('Opfield account in the setup wizard', () => {
     expect(cloud.connectWithIssuer).toHaveBeenCalledWith(
       'CLD-7K3M-Q9TX',
       { userId: null },
-      { source: 'setup', codeVerifier: expect.stringMatching(/^[\w-]{64}$/) }
+      { source: 'setup', installationName: 'gw.example.com', codeVerifier: expect.stringMatching(/^[\w-]{64}$/) }
     );
     expect(db.rows.get(SETUP_OPFIELD_ACCOUNT_ADMIN_KEY)).toEqual({ email: 'ada@example.com', name: 'Ada Admin' });
     expect(cloud.requestSsoClient).toHaveBeenCalledWith('https://gw.example.com/auth/callback', { userId: null });
@@ -177,7 +177,11 @@ describe('Opfield account in the setup wizard', () => {
   it('takes a code entered by hand without a verifier', async () => {
     const { service, cloud } = setup();
     await service.finish('setup-session-1', { code: 'CLD-7K3M-Q9TX', publicUrl: 'https://gw.example.com' });
-    expect(cloud.connectWithIssuer).toHaveBeenCalledWith('CLD-7K3M-Q9TX', { userId: null }, { source: 'setup' });
+    expect(cloud.connectWithIssuer).toHaveBeenCalledWith(
+      'CLD-7K3M-Q9TX',
+      { userId: null },
+      { source: 'setup', installationName: 'gw.example.com' }
+    );
     expect(cloud.requestSsoClient).toHaveBeenCalledWith('https://gw.example.com/auth/callback', { userId: null });
   });
 

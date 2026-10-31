@@ -152,7 +152,8 @@ export class SetupCloudConnect {
     url.searchParams.set('state', state);
     url.searchParams.set('code_challenge', cloudPkceChallenge(codeVerifier));
     url.searchParams.set('code_challenge_method', 'S256');
-    url.searchParams.set('name', this.deps.installationName());
+    // Before the wizard saves the public URL, the installation is named by the one it was given.
+    url.searchParams.set('name', new URL(publicUrl).hostname || this.deps.installationName());
     return {
       url: url.toString(),
       expiresAt: new Date(Date.now() + SETUP_CLOUD_CONNECT_TTL_SECONDS * 1000).toISOString(),
@@ -189,7 +190,11 @@ export class SetupCloudConnect {
       ({ issuer } = await this.deps.cloud.connectWithIssuer(
         input.code,
         { userId: null },
-        { source: 'setup', ...(codeVerifier ? { codeVerifier } : {}) }
+        {
+          source: 'setup',
+          installationName: new URL(publicUrl).hostname || undefined,
+          ...(codeVerifier ? { codeVerifier } : {}),
+        }
       ));
     } catch (error) {
       throw setupCloudError(error, this.deps.cloud.configuredPortalUrl);
