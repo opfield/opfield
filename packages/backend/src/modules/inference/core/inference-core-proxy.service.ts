@@ -10,6 +10,7 @@ import {
   inferenceModels,
   inferenceProviderConnections,
 } from '@/db/schema/index.js';
+import { createChildLogger } from '@/lib/logger.js';
 import { getEnvironmentSettingsSnapshot } from '@/modules/settings/environment-settings.service.js';
 import type { AppEnv, User } from '@/types.js';
 import { latestPricingSnapshot, unitCharge } from '../accounting/inference-accounting.helpers.js';
@@ -36,6 +37,9 @@ import { CoreModelIdRewriter } from './inference-core-model-rewrite.js';
 import { CORE_ACCOUNT_METADATA_KEY } from './inference-core-provider-map.js';
 import { type ChatRelayObservation, relayCoreResponseBody } from './inference-core-response-relay.js';
 import type { CoreSseWire } from './inference-core-sse-observer.js';
+import { publicProviderError, publicProviderStatus } from './inference-public-error.js';
+
+const logger = createChildLogger('InferenceCoreProxy');
 
 type SourceCandidate = {
   source: typeof inferenceModelSources.$inferSelect;
@@ -351,7 +355,13 @@ export class InferenceCoreProxyService {
             // capacity" would hide the provider's real answer (auth, quota, dispatch refusal).
             const cause = lastProviderError ?? firstTransportError;
             if (cause && error instanceof InferenceProtocolError && error.code === 'provider_capacity_unavailable') {
-              throw cause;
+              // The client hears that the provider failed, not how; the provider's own answer goes to the log.
+              logger.warn('Inference provider attempts failed', {
+                status: cause.status,
+                code: cause.code,
+                message: cause.message,
+              });
+              throw publicProviderError(cause);
             }
             throw error;
           });
@@ -562,6 +572,18 @@ export class InferenceCoreProxyService {
       const headers = publicResponseHeaders(upstream.headers);
       try {
         const body = await readBoundedCoreErrorBody(upstream.body);
+        const providerFailure = publicProviderStatus(status);
+        if (providerFailure) {
+          // Recorded with the provider's own words; the client gets the neutral answer.
+          void finishRequest(
+            'failed',
+            new InferenceProtocolError(502, 'provider_error', providerErrorText(body, status))
+          );
+          return {
+            kind: 'response',
+            response: inferenceErrorResponse(c, providerFailure.status, providerFailure.code, providerFailure.message),
+          };
+        }
         void finishRequest('failed');
         return { kind: 'response', response: new Response(body, { status, headers }) };
       } catch (error) {
@@ -1014,6 +1036,12 @@ function exactCoreAccountId(selected: SourceCandidate): string {
 export async function shouldFailOverCoreResponse(response: Response): Promise<boolean> {
   if (![401, 408, 409, 429, 502, 503, 504].includes(response.status)) return false;
   return canFailOver(await coreResponseProviderError(response), false);
+}
+
+/** The provider's own error text of a core error body, for the server's records only. */
+function providerErrorText(body: Uint8Array, status: number): string {
+  const text = new TextDecoder().decode(body);
+  return `${status} ${text}`.trim().slice(0, 500);
 }
 
 /** The provider failure a core error response describes, keeping the core's code and message. */

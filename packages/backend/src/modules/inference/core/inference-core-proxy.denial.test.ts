@@ -130,4 +130,32 @@ describe('core admission refusals reach the client as Opfield refusals', () => {
     expect(response.headers.get('retry-after')).toBeNull();
     expect(await response.json()).toEqual({ error: { code: 'invalid_request_error', message: 'bad' } });
   });
+
+  it.each([
+    401, 403, 500,
+  ])('tells the client a provider %s failed without naming the provider or the fix', async (status) => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              error: {
+                type: 'authentication_error',
+                code: 'invalid_api_key',
+                message: 'Not logged in to anthropic. Run: ocx login anthropic',
+              },
+            }),
+            { status, headers: { 'content-type': 'application/json' } }
+          )
+      )
+    );
+    const { app, finalized } = forwardThrough(null);
+    const response = await app.request('/v1/chat/completions', { method: 'POST', body: '{}' });
+    expect(response.status).toBe(502);
+    const text = await response.text();
+    expect(text).toContain('provider_unavailable');
+    expect(text).not.toMatch(/anthropic|ocx|invalid_api_key/);
+    expect(finalized.length).toBe(1);
+  });
 });
