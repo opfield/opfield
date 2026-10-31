@@ -300,6 +300,7 @@ export function FilesTab({
   headerActions,
   description = "Browse and manage files in the selected container instance",
   onContainerUnavailable,
+  flushBottom = false,
 }: {
   nodeId: string;
   containerId?: string;
@@ -315,6 +316,8 @@ export function FilesTab({
   description?: string;
   /** The container ID is gone (a recreate replaced it): the page looks the container up again. */
   onContainerUnavailable?: () => void;
+  /** In a `fill` tab bar (components/ui/tabs.tsx) the page padding is the bottom gap: no own padding. */
+  flushBottom?: boolean;
 }) {
   const { hasScope } = useAuthStore();
   const onContainerUnavailableRef = useRef(onContainerUnavailable);
@@ -1016,7 +1019,7 @@ export function FilesTab({
   }
 
   return (
-    <div className="select-none pb-6">
+    <div className={flushBottom ? "select-none" : "select-none pb-6"}>
       <input
         ref={uploadInputRef}
         type="file"

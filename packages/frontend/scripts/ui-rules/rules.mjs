@@ -17,6 +17,9 @@ const FLOATING_LAYER_TAG_RE = /(?:Menu|Popover|Select|Tooltip|HoverCard|Command)
 const DATE_LOCALE_METHODS = new Set(["toLocaleDateString", "toLocaleTimeString"]);
 const STANDARD_BUTTON_SIZES = new Set(["default", "icon", "inline"]);
 const SIZE_EXCEPTION_RE = /size-exception:\s*\S/;
+const PAGE_FLEX_GROW_CLASS_RE = /(?:^|\s)flex-1(?=\s|$)/;
+const MIN_HEIGHT_ZERO_CLASS_RE = /(?:^|\s)min-h-0(?=\s|$)/;
+const BOTTOM_PADDING_CLASS_RE = /(?:^|\s)(?:[^\s:]+:)*p[by]?-\d+(?=\s|$)/;
 
 export function tagName(opening) {
   return opening.tagName.getText();
@@ -454,6 +457,43 @@ export const RULES = [
         ts.forEachChild(current, visit);
       };
       for (const child of node.children) visit(child);
+    },
+  },
+  {
+    id: "page-tabs-fill",
+    source: "owner report 2026-10-31 (Pages Deployments: last row flush with the window edge)",
+    description:
+      "A tab bar that takes the rest of the page is `<Tabs fill>`, and a panel that scrolls inside is `<TabsContent fill>`: the bar is held to the page height only while such a panel is open, so a panel that just grows keeps the page's bottom padding. Panels in a fill bar add no bottom padding or height classes of their own.",
+    visit(node, report) {
+      const opening = openingOf(node);
+      if (!opening || tagName(opening) !== "Tabs") return;
+      if (!attribute(opening, "fill")) {
+        const initializer = attribute(opening, "className")?.initializer;
+        if (
+          initializer &&
+          ts.isStringLiteral(initializer) &&
+          PAGE_FLEX_GROW_CLASS_RE.test(initializer.text) &&
+          MIN_HEIGHT_ZERO_CLASS_RE.test(initializer.text)
+        ) {
+          report(node, "holds every tab to the page height; use <Tabs fill> and <TabsContent fill>");
+        }
+        return;
+      }
+      const visit = (current) => {
+        if (current !== node && isNamed(current, "Tabs")) return;
+        const currentOpening = openingOf(current);
+        if (currentOpening && tagName(currentOpening) === "TabsContent") {
+          const classes = classNameStrings(currentOpening).join(" ");
+          if (PAGE_FLEX_GROW_CLASS_RE.test(classes) || MIN_HEIGHT_ZERO_CLASS_RE.test(classes)) {
+            report(current, "sizes a panel of a fill tab bar by class; use <TabsContent fill>");
+          }
+          if (BOTTOM_PADDING_CLASS_RE.test(classes)) {
+            report(current, "pads a panel of a fill tab bar; the page padding is the bottom gap");
+          }
+        }
+        ts.forEachChild(current, visit);
+      };
+      if (ts.isJsxElement(node)) for (const child of node.children) visit(child);
     },
   },
   {

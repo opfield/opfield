@@ -68,7 +68,6 @@ export function EnvironmentTab({
   serviceSaveDescription,
   databaseTargetType = "container",
   databaseTargetResourceId,
-  flushBottom = false,
 }: {
   nodeId: string;
   containerId: string;
@@ -99,7 +98,6 @@ export function EnvironmentTab({
   serviceSaveDescription?: string;
   databaseTargetType?: ManagedDatabaseBindingTargetType;
   databaseTargetResourceId?: string;
-  flushBottom?: boolean;
 }) {
   const { hasScope, hasScopedAccess } = useAuthStore();
   const invalidate = useDockerStore((s) => s.invalidate);
@@ -864,7 +862,7 @@ export function EnvironmentTab({
   );
 
   return (
-    <div className={`${flushBottom ? "" : "pb-6 "}space-y-4`}>
+    <div className="space-y-4">
       {(showDatabaseLinks || showStorageLinks || containerLinksEnabled) && (
         <LinksPanel
           description={

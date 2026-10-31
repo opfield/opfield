@@ -89,7 +89,7 @@ export function ComposeVariablesTab({
   };
 
   return (
-    <div className="space-y-4 pb-6">
+    <div className="space-y-4">
       {(managedDatabaseLinksEnabled || containerLinksEnabled) && (
         <LinksPanel
           description={
@@ -152,7 +152,6 @@ export function ComposeVariablesTab({
               ? "Saving variables creates and applies a new immutable revision. Running services will be recreated and experience brief downtime. Continue?"
               : "Saving variables creates a new immutable revision for this stopped project."
           }
-          flushBottom
         />
       ) : beforeFirstRevision ? (
         <PanelShell

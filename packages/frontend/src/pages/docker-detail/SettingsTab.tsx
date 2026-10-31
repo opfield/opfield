@@ -965,7 +965,7 @@ export function SettingsTab({
   return (
     <fieldset
       disabled={recreateLoading || !!transition}
-      className={`space-y-6 pb-6 ${recreateLoading || !!transition ? "pointer-events-none opacity-60" : ""}`}
+      className={`space-y-6 ${recreateLoading || !!transition ? "pointer-events-none opacity-60" : ""}`}
     >
       {/* ─── Runtime Settings + Execution (side by side) ────────── */}
       <div className="grid grid-cols-1 gap-6 min-[1044px]:grid-cols-2">

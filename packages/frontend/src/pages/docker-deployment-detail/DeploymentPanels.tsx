@@ -71,7 +71,7 @@ export function DeploymentOverview({
     sourceImageReference
   );
   return (
-    <div className="space-y-4 pb-6">
+    <div className="space-y-4">
       <AvailabilitySummary
         resource={{ type: "deployment", deploymentId: deployment.id }}
         runtimeState={serviceState}
@@ -241,7 +241,7 @@ export function DeploymentSlots({
     .filter((slot): slot is DockerDeploymentSlot => Boolean(slot));
 
   return (
-    <div className="space-y-4 pb-6">
+    <div className="space-y-4">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {orderedSlots.map((slot) => {
           const inspect = slotInspects?.[slot.slot];

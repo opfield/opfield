@@ -681,11 +681,7 @@ export function PageProjectDetail({
           />
         )}
 
-        <Tabs
-          value={visibleTab}
-          onValueChange={setActiveTab}
-          className="flex min-h-0 flex-1 flex-col"
-        >
+        <Tabs value={visibleTab} onValueChange={setActiveTab} fill>
           <TabsList className="shrink-0">
             <TabsTrigger value="deployments" className="gap-1.5">
               Deployments
@@ -712,10 +708,10 @@ export function PageProjectDetail({
               Configuration
             </TabsTrigger>
           </TabsList>
-          <TabsContent value="deployments" className="pb-0">
+          <TabsContent value="deployments">
             <PageDeploymentsTab projectId={project.id} previewsEnabled={previewsEnabled} />
           </TabsContent>
-          <TabsContent value="source" className="pb-6">
+          <TabsContent value="source">
             <DockerResourceGitTabs
               target={{
                 kind: "pages_project",
@@ -727,7 +723,7 @@ export function PageProjectDetail({
               canBuild={canDeploy}
             />
           </TabsContent>
-          <TabsContent value="builds" className="flex min-h-0 flex-1 flex-col pb-0">
+          <TabsContent value="builds" fill>
             <DockerResourceGitTabs
               target={{
                 kind: "pages_project",
@@ -737,15 +733,15 @@ export function PageProjectDetail({
               view="builds"
             />
           </TabsContent>
-          <TabsContent value="tags" className="pb-0">
+          <TabsContent value="tags">
             <PageTagsTab projectId={project.id} />
           </TabsContent>
           {canManageTokens && (
-            <TabsContent value="tokens" className="pb-0">
+            <TabsContent value="tokens">
               <PageTokensTab projectId={project.id} />
             </TabsContent>
           )}
-          <TabsContent value="configuration" className="flex min-h-0 flex-1 flex-col pb-0">
+          <TabsContent value="configuration" fill>
             <PageRuntimeConfigTab projectId={project.id} />
           </TabsContent>
         </Tabs>

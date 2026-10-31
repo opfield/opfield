@@ -323,7 +323,7 @@ export function MultiContainerMonitoring({
     .map((instance) => processesById[instance.id]?.titles)
     .find((titles) => titles && titles.length > 0) ?? ["COMMAND"];
   return (
-    <div className="space-y-4 pb-6">
+    <div className="space-y-4">
       {groups.map((group) => (
         <section key={group.id} className="space-y-4">
           {group.title && (

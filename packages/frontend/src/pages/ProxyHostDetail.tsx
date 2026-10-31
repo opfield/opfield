@@ -1198,7 +1198,7 @@ export function ProxyHostDetail({
             setActiveTab(v);
             if (v === "raw" && !isRawMode) loadRenderedConfig();
           }}
-          className="flex flex-col flex-1 min-h-0"
+          fill
         >
           <TabsList className="shrink-0">
             {visibleTabs.includes("details") && (
@@ -1233,14 +1233,14 @@ export function ProxyHostDetail({
 
           {/* ── Details Tab ────────────────────────────────────── */}
           {visibleTabs.includes("details") && (
-            <TabsContent value="details" className="pb-6">
+            <TabsContent value="details">
               <DetailsTab host={host} />
             </TabsContent>
           )}
 
           {/* ── Settings Tab ────────────────────────────────────── */}
           {visibleTabs.includes("settings") && (
-            <TabsContent value="settings" className="pb-6">
+            <TabsContent value="settings">
               <SettingsTab
                 host={host}
                 secureLinkRemovalDisabledReason={incidentHold.kept}
@@ -1309,7 +1309,7 @@ export function ProxyHostDetail({
 
           {/* ── Advanced Tab ───────────────────────────────────── */}
           {visibleTabs.includes("advanced") && (
-            <TabsContent value="advanced" className="flex flex-col flex-1 min-h-0">
+            <TabsContent value="advanced" fill>
               <AdvancedTab
                 advancedConfig={advancedConfig}
                 setAdvancedConfig={setAdvancedConfig}
@@ -1325,14 +1325,14 @@ export function ProxyHostDetail({
           )}
 
           {visibleTabs.includes("secure-link") && (
-            <TabsContent value="secure-link" className="pb-6">
+            <TabsContent value="secure-link">
               <SecureLinkTab hostId={id!} />
             </TabsContent>
           )}
 
           {/* ── Raw Config Tab ─────────────────────────────────── */}
           {visibleTabs.includes("raw") && (
-            <TabsContent value="raw" className="flex flex-col flex-1 min-h-0">
+            <TabsContent value="raw" fill>
               <RawConfigTab
                 key={id}
                 hasLoadedRendered={hasLoadedRendered}
@@ -1354,7 +1354,7 @@ export function ProxyHostDetail({
           )}
 
           {/* ── Logs Tab ───────────────────────────────────────── */}
-          <TabsContent value="logs" className="flex flex-col flex-1 min-h-0">
+          <TabsContent value="logs" fill>
             <LogsTab hostId={id!} />
           </TabsContent>
         </Tabs>

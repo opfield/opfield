@@ -418,11 +418,7 @@ export function HostingIntegrationDetail({
         {resourceError && <EmptyState message={resourceError} />}
         {operationError && <EmptyState message={operationError} />}
 
-        <Tabs
-          value={activeTab}
-          onValueChange={setActiveTab}
-          className="flex min-h-0 flex-1 flex-col"
-        >
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col">
           <TabsList className="shrink-0">
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="resources">Virtual machines</TabsTrigger>

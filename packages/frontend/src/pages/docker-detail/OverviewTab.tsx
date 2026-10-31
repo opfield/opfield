@@ -139,7 +139,7 @@ export function OverviewTab({
   });
 
   return (
-    <div className="space-y-4 pb-6">
+    <div className="space-y-4">
       <AvailabilitySummary
         resource={{ type: "container", nodeId, containerName }}
         policy={availabilityPolicy}

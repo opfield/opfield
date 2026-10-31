@@ -1285,11 +1285,7 @@ export function DockerComposeProjectDetail() {
           </Notice>
         )}
         <AvailabilityProgress policy={availabilityPolicy} fallbackOperation={currentOperation} />
-        <Tabs
-          value={activeTab}
-          onValueChange={setActiveTab}
-          className="flex min-h-0 flex-1 flex-col"
-        >
+        <Tabs value={activeTab} onValueChange={setActiveTab} fill>
           <TabsList className="shrink-0">
             <TabsTrigger value="overview" className="gap-1.5">
               Overview
@@ -1326,7 +1322,7 @@ export function DockerComposeProjectDetail() {
             {availabilitySettingsVisible && <TabsTrigger value="settings">Settings</TabsTrigger>}
           </TabsList>
 
-          <TabsContent value="overview" className="pb-6">
+          <TabsContent value="overview">
             <div className="space-y-4">
               <AvailabilitySummary resource={{ type: "compose", composeProjectId: project.id }} />
               <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -1439,7 +1435,7 @@ export function DockerComposeProjectDetail() {
             </div>
           </TabsContent>
 
-          <TabsContent value="services" className="flex min-h-0 flex-1 flex-col pb-0">
+          <TabsContent value="services" fill>
             <PanelShell
               title="Services"
               description="Observed services and owned containers. Use a new revision to remove a service; direct container mutations are disabled."
@@ -1464,7 +1460,7 @@ export function DockerComposeProjectDetail() {
             </PanelShell>
           </TabsContent>
 
-          <TabsContent value="source" className="pb-6">
+          <TabsContent value="source">
             <DockerResourceGitTabs
               target={{
                 kind: "compose_project",
@@ -1477,7 +1473,7 @@ export function DockerComposeProjectDetail() {
             />
           </TabsContent>
 
-          <TabsContent value="builds" className="flex min-h-0 flex-1 flex-col pb-0">
+          <TabsContent value="builds" fill>
             <DockerResourceGitTabs
               target={{
                 kind: "compose_project",
@@ -1488,11 +1484,11 @@ export function DockerComposeProjectDetail() {
             />
           </TabsContent>
 
-          <TabsContent value="monitoring" className="pb-0">
+          <TabsContent value="monitoring">
             <MultiContainerMonitoring instances={composeMonitoringInstances} />
           </TabsContent>
 
-          <TabsContent value="configuration" className="flex min-h-0 flex-1 flex-col pb-0">
+          <TabsContent value="configuration" fill>
             <PanelShell
               title="Active immutable configuration"
               description="Opfield-stored Compose YAML for the active revision. Editing creates a new immutable revision."
@@ -1525,7 +1521,7 @@ export function DockerComposeProjectDetail() {
             </PanelShell>
           </TabsContent>
 
-          <TabsContent value="variables" className="pb-0">
+          <TabsContent value="variables">
             <ComposeVariablesTab
               project={project}
               canManage={canManage}
@@ -1534,7 +1530,7 @@ export function DockerComposeProjectDetail() {
             />
           </TabsContent>
           {availabilitySettingsVisible && (
-            <TabsContent value="settings" className="pb-6">
+            <TabsContent value="settings">
               <AvailabilitySection
                 resource={{ type: "compose", composeProjectId: project.id }}
                 canManage
@@ -1542,7 +1538,7 @@ export function DockerComposeProjectDetail() {
             </TabsContent>
           )}
 
-          <TabsContent value="logs" className="flex min-h-0 flex-1 flex-col pb-0">
+          <TabsContent value="logs" fill>
             {availabilityActive && availabilityLogSources.length > 0 ? (
               <LogsTab
                 {...(selectedLogsPlacementId === ALL_AVAILABILITY_INSTANCES

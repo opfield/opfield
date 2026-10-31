@@ -1297,11 +1297,7 @@ export function DockerDeploymentDetail({
         )}
 
         <AvailabilityProgress policy={availabilityPolicy} />
-        <Tabs
-          value={activeTab}
-          onValueChange={setActiveTab}
-          className="flex flex-col flex-1 min-h-0"
-        >
+        <Tabs value={activeTab} onValueChange={setActiveTab} fill>
           <TabsList className="shrink-0">
             <TabsTrigger value="overview" className="gap-1.5">
               Overview
@@ -1350,7 +1346,7 @@ export function DockerDeploymentDetail({
               </TabsTrigger>
             )}
           </TabsList>
-          <TabsContent value="overview" className="pb-0">
+          <TabsContent value="overview">
             <DeploymentOverview
               deployment={deployment}
               active={active}
@@ -1360,13 +1356,13 @@ export function DockerDeploymentDetail({
               sourceImageReference={availabilityPolicy?.sourceImageReference}
             />
           </TabsContent>
-          <TabsContent value="source" className="pb-6">
+          <TabsContent value="source">
             <DockerResourceGitTabs
               target={{ kind: "deployment", nodeId, deploymentId }}
               view="source"
             />
           </TabsContent>
-          <TabsContent value="builds" className="flex min-h-0 flex-1 flex-col pb-0">
+          <TabsContent value="builds" fill>
             <DockerResourceGitTabs
               target={{ kind: "deployment", nodeId, deploymentId }}
               view="builds"
@@ -1377,7 +1373,7 @@ export function DockerDeploymentDetail({
             availabilityManaged !== null &&
             runtimeContainerId &&
             (!unavailable || Boolean(availabilityManaged)) && (
-              <TabsContent value="logs" className="flex flex-col flex-1 min-h-0 pb-0">
+              <TabsContent value="logs" fill>
                 {availabilityManaged && servingPlacements.length > 1 ? (
                   <LogsTab
                     {...(selectedLogsPlacementId === ALL_AVAILABILITY_INSTANCES
@@ -1413,7 +1409,7 @@ export function DockerDeploymentDetail({
             availabilityManaged !== null &&
             runtimeContainerId &&
             (!unavailable || Boolean(availabilityManaged)) && (
-              <TabsContent value="console" className="flex flex-col flex-1 min-h-0">
+              <TabsContent value="console" fill>
                 <ConsoleTab
                   nodeId={runtimeNodeId}
                   containerId={runtimeContainerId}
@@ -1437,8 +1433,9 @@ export function DockerDeploymentDetail({
             availabilityManaged !== null &&
             runtimeContainerId &&
             (!unavailable || Boolean(availabilityManaged)) && (
-              <TabsContent value="files" className="pb-0">
+              <TabsContent value="files">
                 <FilesTab
+                  flushBottom
                   nodeId={runtimeNodeId}
                   containerId={runtimeContainerId}
                   scopeResourceId={deploymentId}
@@ -1461,12 +1458,12 @@ export function DockerDeploymentDetail({
             availabilityManaged !== null &&
             runtimeContainerId &&
             (!unavailable || Boolean(availabilityManaged)) && (
-              <TabsContent value="stats" className="pb-0">
+              <TabsContent value="stats">
                 <MultiContainerMonitoring instances={monitoringInstances} />
               </TabsContent>
             )}
           {canUseEnvironment && (!unavailable || Boolean(availabilityManaged)) && (
-            <TabsContent value="environment" className="pb-0">
+            <TabsContent value="environment">
               <EnvironmentTab
                 nodeId={nodeId}
                 containerId={deployment.id}
@@ -1487,7 +1484,7 @@ export function DockerDeploymentDetail({
               />
             </TabsContent>
           )}
-          <TabsContent value="slots" className="pb-0">
+          <TabsContent value="slots">
             <DeploymentSlots
               deployment={deployment}
               nodeId={nodeId}
@@ -1501,7 +1498,7 @@ export function DockerDeploymentDetail({
             />
           </TabsContent>
           {canEdit && (!unavailable || availabilityManaged) && (
-            <TabsContent value="settings" className="pb-0">
+            <TabsContent value="settings">
               <DeploymentSettings
                 deployment={deployment}
                 nodeId={nodeId}

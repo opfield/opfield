@@ -1855,11 +1855,7 @@ export function DockerContainerDetail({
 
         {/* Tabs */}
         <AvailabilityProgress policy={runtimePolicy} />
-        <Tabs
-          value={activeTab}
-          onValueChange={setActiveTab}
-          className="flex flex-col flex-1 min-h-0"
-        >
+        <Tabs value={activeTab} onValueChange={setActiveTab} fill>
           <TabsList className="shrink-0">
             <TabsTrigger value="overview">Overview</TabsTrigger>
             {gitTabsVisible && (
@@ -1903,7 +1899,7 @@ export function DockerContainerDetail({
               </TabsTrigger>
             )}
           </TabsList>
-          <TabsContent value="overview" className="pb-0">
+          <TabsContent value="overview">
             <OverviewTab
               nodeId={nodeId!}
               containerId={containerId!}
@@ -1921,20 +1917,20 @@ export function DockerContainerDetail({
               availabilityLoading={!availabilityLoaded}
             />
           </TabsContent>
-          <TabsContent value="source" className="pb-6">
+          <TabsContent value="source">
             <DockerResourceGitTabs
               target={{ kind: "container", nodeId: nodeId!, containerName: routeContainerName }}
               view="source"
             />
           </TabsContent>
-          <TabsContent value="builds" className="flex min-h-0 flex-1 flex-col pb-0">
+          <TabsContent value="builds" fill>
             <DockerResourceGitTabs
               target={{ kind: "container", nodeId: nodeId!, containerName: routeContainerName }}
               view="builds"
             />
           </TabsContent>
           {canViewContainer && !isTabDisabled("logs") && (
-            <TabsContent value="logs" className="flex flex-col flex-1 min-h-0 pb-0">
+            <TabsContent value="logs" fill>
               {availabilityManaged && servingPlacements.length > 1 ? (
                 <LogsTab
                   {...(selectedLogsPlacementId === ALL_AVAILABILITY_INSTANCES
@@ -1968,7 +1964,7 @@ export function DockerContainerDetail({
             </TabsContent>
           )}
           {canUseConsole && !currentTransition && (!unavailable || availabilityManaged) && (
-            <TabsContent value="console" className="flex flex-col flex-1 min-h-0">
+            <TabsContent value="console" fill>
               <ConsoleTab
                 nodeId={runtimeNodeId}
                 containerId={runtimeContainerId}
@@ -1989,8 +1985,9 @@ export function DockerContainerDetail({
             </TabsContent>
           )}
           {canReadFiles && !currentTransition && (!unavailable || availabilityManaged) && (
-            <TabsContent value="files" className="pb-0">
+            <TabsContent value="files">
               <FilesTab
+                flushBottom
                 nodeId={runtimeNodeId}
                 containerId={runtimeContainerId}
                 scopeResourceId={scopeResourceId}
@@ -2011,14 +2008,14 @@ export function DockerContainerDetail({
             </TabsContent>
           )}
           {canViewContainer && (!unavailable || availabilityManaged) && (
-            <TabsContent value="stats" className="pb-0">
+            <TabsContent value="stats">
               <MultiContainerMonitoring instances={monitoringInstances} />
             </TabsContent>
           )}
           {(canUseEnvironment || canUseSecrets) &&
             (!unavailable || availabilityManaged) &&
             !composeManaged && (
-              <TabsContent value="environment" className="flex flex-col flex-1 min-h-0 pb-0">
+              <TabsContent value="environment">
                 <EnvironmentTab
                   nodeId={managementNodeId}
                   containerId={managementContainerId}
@@ -2036,7 +2033,7 @@ export function DockerContainerDetail({
             )}
           {(canEdit || (composeManaged && canViewContainer)) &&
             (!unavailable || availabilityManaged) && (
-              <TabsContent value="settings" className="pb-0">
+              <TabsContent value="settings">
                 <SettingsTab
                   nodeId={managementNodeId}
                   containerId={managementContainerId}

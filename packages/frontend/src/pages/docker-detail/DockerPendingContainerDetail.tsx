@@ -145,7 +145,7 @@ export function DockerPendingContainerDetail({
               : "The container will be created by the first successful deployment. You can edit the security policy in Source and retry failed or blocked builds. Runtime actions become available after deployment."
           }
         />
-        <Tabs value={tab} onValueChange={setTab} className="flex min-h-0 min-w-0 flex-1 flex-col">
+        <Tabs value={tab} onValueChange={setTab} fill className="min-w-0">
           <TabsList className="shrink-0">
             <TabsTrigger value="source" className="gap-1.5">
               Source
@@ -160,7 +160,7 @@ export function DockerPendingContainerDetail({
               Volumes
             </TabsTrigger>
           </TabsList>
-          <TabsContent value="source" className="pb-6">
+          <TabsContent value="source">
             <DockerResourceGitTabs
               target={{ kind: "container", nodeId, containerName }}
               view="source"
@@ -169,7 +169,7 @@ export function DockerPendingContainerDetail({
               canBuild={canBuild}
             />
           </TabsContent>
-          <TabsContent value="builds" className="flex min-h-0 flex-1 flex-col pb-0">
+          <TabsContent value="builds" fill>
             <DockerResourceGitTabs
               target={{ kind: "container", nodeId, containerName }}
               view="builds"
@@ -178,7 +178,7 @@ export function DockerPendingContainerDetail({
             />
           </TabsContent>
           <TabsContent value="environment">
-            <div className="space-y-4 pb-6">
+            <div className="space-y-4">
               <PendingContainerLinks
                 nodeId={nodeId}
                 containerName={containerName}
@@ -191,7 +191,7 @@ export function DockerPendingContainerDetail({
               />
             </div>
           </TabsContent>
-          <TabsContent value="volumes" className="pb-6">
+          <TabsContent value="volumes">
             <PendingContainerVolumes
               nodeId={nodeId}
               containerName={containerName}
@@ -302,7 +302,6 @@ function PendingContainerEnvironment({
       secretsDescription="Applied when the first build creates the container"
       serviceSaveLabel="Save"
       serviceSaveDescription="Environment changes are saved and apply when the first build creates the container. Continue?"
-      flushBottom
     />
   );
 }
