@@ -1,0 +1,39 @@
+{
+  "probes": [
+    {
+      "id": "mcp-inference-key-update",
+      "kind": "mcp",
+      "tool": "manage_inference_token",
+      "arguments": { "operation": "update", "tokenId": "00000000-0000-4000-8000-00000000ad1f", "name": "access-diff-probe" },
+      "note": "2.13.0 refused remote MCP changing opfi_ keys after argument validation; valid arguments on a key that does not exist reach that check and change nothing."
+    },
+    {
+      "id": "mcp-access-service-token-update",
+      "kind": "mcp",
+      "tool": "manage_access_sign_in",
+      "arguments": {
+        "resource": "service_tokens",
+        "operation": "update",
+        "tokenId": "00000000-0000-4000-8000-00000000ad1f",
+        "payload": { "name": "access-diff-probe" }
+      },
+      "note": "2.13.0 refused remote MCP changing access service tokens after argument validation."
+    },
+    {
+      "id": "rest-access-service-token-update",
+      "kind": "rest",
+      "method": "PUT",
+      "path": "/api/access-service-tokens/00000000-0000-4000-8000-00000000ad1f",
+      "body": { "name": "access-diff-probe" },
+      "note": "2.13.0 took a browser session only for changing access service tokens."
+    },
+    {
+      "id": "rest-inference-key-update",
+      "kind": "rest",
+      "method": "PATCH",
+      "path": "/api/inference/tokens/00000000-0000-4000-8000-00000000ad1f",
+      "body": { "name": "access-diff-probe" },
+      "note": "Changing an opfi_ key: only an impersonation session is refused."
+    }
+  ]
+}

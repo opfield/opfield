@@ -1,0 +1,35 @@
+{
+  "file_name": "6qbj21w5_access_diff",
+  "edges": [
+    {
+      "from_id": "6qbj21w5",
+      "to_id": "123u7vfm",
+      "relation": "same_area",
+      "weight": 0.91,
+      "reason": "Both define and verify OAuth, API credential, and MCP token access semantics.",
+      "source": "auto",
+      "created_at": 1793402967516,
+      "updated_at": 1793402967516
+    },
+    {
+      "from_id": "6qbj21w5",
+      "to_id": "xg6y81q3",
+      "relation": "same_workflow",
+      "weight": 0.86,
+      "reason": "The access diff validates the MCP tool exposure and delegated-scope behavior described here.",
+      "source": "auto",
+      "created_at": 1793402967516,
+      "updated_at": 1793402967516
+    },
+    {
+      "from_id": "6qbj21w5",
+      "to_id": "lvklfxgs",
+      "relation": "same_workflow",
+      "weight": 0.63,
+      "reason": "Both are release-validation workflows that catch regressions before or during stable upgrades.",
+      "source": "auto",
+      "created_at": 1793402967516,
+      "updated_at": 1793402967516
+    }
+  ]
+}
