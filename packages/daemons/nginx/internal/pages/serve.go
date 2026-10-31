@@ -189,12 +189,11 @@ func (r *Runtime) previewConfig(hostname, deploymentID, certificateID, certifica
 // UpgradeErrorPages gives the preview configs an earlier daemon wrote the codes the error pages gained since
 // (errorpages.UpgradeServerDirectives), so they answer those with the Opfield pages too. It writes the files without
 // testing them and returns what each changed one held before: the caller tests the configuration once and, when
-// nginx refuses it, takes every change back (RestoreConfigs). Nothing changes without the page variables.
+// nginx refuses it, takes every change back (RestoreConfigs). The error pages change only on a node that keeps the page
+// variables. A preview whose access block an earlier daemon wrote (2.13.0, before sign-in moved onto the preview itself)
+// gets the current one (upgradePreviewAccess): its visitors would otherwise be sent to a sign-in page it does not serve.
 func (r *Runtime) UpgradeErrorPages() (map[string][]byte, error) {
 	previous := map[string][]byte{}
-	if !r.errorPages {
-		return previous, nil
-	}
 	paths, err := filepath.Glob(filepath.Join(r.configDir, "pages-preview-*.conf"))
 	if err != nil {
 		return previous, err
@@ -204,8 +203,12 @@ func (r *Runtime) UpgradeErrorPages() (map[string][]byte, error) {
 		if err != nil {
 			return previous, err
 		}
-		upgraded, changed := errorpages.UpgradeServerDirectives(string(content))
-		if !changed {
+		upgraded, accessChanged := upgradePreviewAccess(string(content))
+		pagesChanged := false
+		if r.errorPages {
+			upgraded, pagesChanged = errorpages.UpgradeServerDirectives(upgraded)
+		}
+		if !accessChanged && !pagesChanged {
 			continue
 		}
 		if err := writeAtomic(path, []byte(upgraded), 0o640); err != nil {

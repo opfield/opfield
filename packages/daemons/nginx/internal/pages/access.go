@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/opfield/opfield/nginx-daemon/internal/naming"
@@ -234,4 +235,34 @@ func (r *Runtime) UsesAccessList(accessListID string) bool {
 		}
 	}
 	return false
+}
+
+// earlierAccessListHeader finds the access list a preview's access block asks the socket about.
+var earlierAccessListHeader = regexp.MustCompile(`X-Opfield-Access-List "([0-9a-fA-F-]{36})"`)
+
+// upgradePreviewAccess replaces the access block of a preview an earlier daemon wrote without the sign-in location
+// (2.13.0) by the current previewAccessCheckDirectives of the same list. That daemon's challenge sent visitors to a
+// sign-in domain; this one sends them to the sign-in page on the preview's own host, which only the new block serves.
+// Previews already in the current form, and previews without an access check, are left as they are.
+func upgradePreviewAccess(text string) (string, bool) {
+	start := strings.Index(text, "    auth_request "+accessCheckPath+";\n")
+	if start < 0 || strings.Contains(text, "    location ^~ "+accessSignInPrefix+" {") {
+		return text, false
+	}
+	challenge := strings.Index(text[start:], "    location "+accessChallengeLocation+" {\n")
+	if challenge < 0 {
+		return text, false
+	}
+	challenge += start
+	closing := strings.Index(text[challenge:], "\n    }\n")
+	if closing < 0 {
+		return text, false
+	}
+	end := challenge + closing + len("\n    }\n")
+	match := earlierAccessListHeader.FindStringSubmatch(text[start:end])
+	if match == nil {
+		return text, false
+	}
+	block := strings.Join(previewAccessCheckDirectives(strings.ToLower(match[1])), "\n") + "\n"
+	return text[:start] + block + text[end:], true
 }
