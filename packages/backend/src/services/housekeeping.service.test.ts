@@ -4,6 +4,10 @@ import { settings } from '@/db/schema/settings.js';
 import { LEGACY_HOUSEKEEPING_PROTECTED_LABEL, LEGACY_IMAGE_REPOSITORY } from '@/lib/legacy-compat.js';
 import { HousekeepingService } from './housekeeping.service.js';
 
+/** Relay generations run on every pass; these tests look at the categories they set up. */
+const withoutRelayGenerations = <T extends { category: string }>(categories: T[]) =>
+  categories.filter(({ category }) => category !== 'Relay Generations');
+
 describe('HousekeepingService system certificate cleanup', () => {
   it('cleans only obsolete unused Opfield connector images on online Docker nodes', async () => {
     const db = {
@@ -178,7 +182,8 @@ describe('HousekeepingService system certificate cleanup', () => {
     expect(deleted).toEqual(
       expect.arrayContaining(['docker_compose_operations', 'hosting_operations', 'oauth_clients'])
     );
-    expect(result.categories).toEqual([
+    expect(result.categories).toContainEqual(expect.objectContaining({ category: 'Relay Generations', success: true }));
+    expect(withoutRelayGenerations(result.categories)).toEqual([
       // 4 tasks, then one row from each of the 16 history tables.
       expect.objectContaining({ category: 'Operation History', success: true, itemsCleaned: 4 + 16 }),
       expect.objectContaining({ category: 'Expired OAuth Grants', success: true, itemsCleaned: 4 }),
@@ -284,7 +289,7 @@ describe('HousekeepingService system certificate cleanup', () => {
       enabled: true,
       maxSizeBytes: 512 * 1024 ** 2,
     });
-    expect(result.categories).toEqual([
+    expect(withoutRelayGenerations(result.categories)).toEqual([
       expect.objectContaining({
         category: 'ClickHouse Internals',
         success: true,
@@ -325,13 +330,14 @@ describe('HousekeepingService system certificate cleanup', () => {
     const result = await service.runAll('manual');
 
     expect(run).toHaveBeenCalledOnce();
-    expect(result.categories).toEqual([
+    expect(withoutRelayGenerations(result.categories)).toEqual([
       expect.objectContaining({ category: 'Pages', itemsCleaned: 2, spaceFreedBytes: 4096 }),
     ]);
   });
 
   it('always runs internal registry GC with the configured retention count', async () => {
-    const service = new HousekeepingService({} as any, {} as any, {} as any, {} as any);
+    const db = { execute: vi.fn(async () => ({ rowCount: 0 })) };
+    const service = new HousekeepingService(db as any, {} as any, {} as any, {} as any);
     const runGarbageCollection = vi.fn().mockResolvedValue({
       progress: { candidateArtifactIds: ['artifact-1', 'artifact-2'] },
     });
@@ -366,7 +372,7 @@ describe('HousekeepingService system certificate cleanup', () => {
       requestedById: 'user-1',
       reason: 'housekeeping run by a user',
     });
-    expect(result.categories).toEqual([
+    expect(withoutRelayGenerations(result.categories)).toEqual([
       expect.objectContaining({ category: 'Internal Registry', success: true, itemsCleaned: 2 }),
     ]);
 
@@ -374,7 +380,7 @@ describe('HousekeepingService system certificate cleanup', () => {
     runGarbageCollection.mockRejectedValueOnce(Object.assign(new Error('busy'), { code: 'REGISTRY_MAINTENANCE_BUSY' }));
     const busy = await service.runAll('low-disk');
     expect(busy.overallSuccess).toBe(true);
-    expect(busy.categories).toEqual([
+    expect(withoutRelayGenerations(busy.categories)).toEqual([
       expect.objectContaining({
         category: 'Internal Registry',
         success: true,

@@ -2,6 +2,7 @@ import { eq } from 'drizzle-orm';
 import type { DrizzleClient, DrizzleTransaction } from '@/db/client.js';
 import { hostingFirewalls, hostingNodeBindings, hostingResources, nodes } from '@/db/schema/index.js';
 import { LEGACY_RELAY_SUPERVISOR } from '@/lib/legacy-compat.js';
+import { createChildLogger } from '@/lib/logger.js';
 import { hasScope } from '@/lib/permissions.js';
 import { AppError } from '@/middleware/error-handler.js';
 import type { AuditService } from '@/modules/audit/audit.service.js';
@@ -33,6 +34,8 @@ import type { HostingAction, HostingProviderAdapter, HostingResourceSnapshot } f
 import { isHostedNodeReady } from './hosting-readiness.js';
 import { HostingSnapshotsService } from './hosting-snapshots.service.js';
 import { reserveProxmoxQuota } from './proxmox-quota.js';
+
+const logger = createChildLogger('HostingManagement');
 
 const SERVICES: Record<string, string> = {
   nginx: 'nginx-daemon',
@@ -728,6 +731,10 @@ export class HostingManagementService {
         }
       } catch (error) {
         if (error instanceof AppError && error.code === 'HOSTING_OPERATION_LEASE_LOST') continue;
+        // Clients get a neutral message for anything but an AppError; the cause stays here.
+        if (!(error instanceof AppError)) {
+          logger.error('Hosting VM operation failed', { operationId: row.id, action: row.action, error });
+        }
         try {
           if (error instanceof AppError && error.code === 'HOSTING_RESOURCE_OBSERVATION_CHANGED') {
             // Keep the dispatch boundary intact. The next pass must obtain fresh provider evidence.

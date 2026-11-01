@@ -89,8 +89,13 @@ const SAFETY_CATEGORIES = new Set([
   'Inference Usage',
   'Expired OAuth Grants',
   'Expired Tokens',
+  'Relay Generations',
   'Opfield Host Files',
 ]);
+/** Never-served relay generations stay this long for diagnosis. */
+const RETIRED_RELAY_GENERATION_RETENTION_DAYS = 7;
+/** A backlog clears over several runs, so one run stays short. */
+const RETIRED_RELAY_GENERATIONS_PER_RUN = 50_000;
 const LOGGING_SETTINGS_KEY = 'logging:clickhouse';
 const NGINX_LOG_BUDGET_CAPABILITY = 'nginx_log_budget_v1';
 
@@ -788,6 +793,11 @@ export class HousekeepingService {
           enabled: !!config.expiredTokens?.enabled,
           run: () => this.cleanExpiredTokens(config.expiredTokens.retentionDays),
         },
+        {
+          name: 'Relay Generations',
+          enabled: true,
+          run: () => this.cleanRetiredRelayGenerations(),
+        },
         { name: 'Opfield Host Files', enabled: config.hostFiles.enabled, run: () => this.cleanHostFiles() },
       ];
 
@@ -1093,6 +1103,28 @@ export class HousekeepingService {
   setTokenCleanupServices(auditService: Pick<AuditService, 'log'>, eventBus: Pick<EventBusService, 'publish'>) {
     this.auditService = auditService;
     this.eventBus = eventBus;
+  }
+
+  /**
+   * Generations that never served: an offline node gets one on every deferred retry, and nothing else removes them.
+   * The newest of an endpoint stays, because the next generation number is counted from it.
+   */
+  private async cleanRetiredRelayGenerations(): Promise<{ itemsCleaned: number }> {
+    const result = await this.db.execute(sql`
+      DELETE FROM relay_endpoint_assignment_generations
+      WHERE id IN (
+        SELECT g.id FROM relay_endpoint_assignment_generations g
+        WHERE g.state = 'retired'
+          AND g.activated_at IS NULL
+          AND g.retired_at < now() - make_interval(days => ${RETIRED_RELAY_GENERATION_RETENTION_DAYS})
+          AND g.generation < (
+            SELECT max(newest.generation) FROM relay_endpoint_assignment_generations newest
+            WHERE newest.endpoint_id = g.endpoint_id
+          )
+        LIMIT ${RETIRED_RELAY_GENERATIONS_PER_RUN}
+      )
+    `);
+    return { itemsCleaned: result.rowCount ?? 0 };
   }
 
   private async cleanExpiredTokens(retentionDays: number): Promise<{ itemsCleaned: number }> {
