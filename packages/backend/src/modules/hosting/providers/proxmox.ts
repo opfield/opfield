@@ -1,6 +1,7 @@
 import { X509Certificate } from 'node:crypto';
 import { isAlwaysBlockedOutboundIp, normalizeIp } from '@/lib/ip-cidr.js';
 import { AppError } from '@/middleware/error-handler.js';
+import { assertHostingActionPreconditions } from '../hosting-action-preconditions.js';
 import { HOSTING_INSTALL_RESULT_FILE } from '../hosting-bootstrap.js';
 import {
   type HostingHttp,
@@ -1209,10 +1210,8 @@ export class ProxmoxHostingAdapter implements HostingProviderAdapter {
     if (input.action === 'recover')
       throw new AppError(400, 'HOSTING_RECOVERY_SCRIPT_REQUIRED', 'Use the role-specific recovery operation');
     if (input.action === 'resize') {
-      if (resource.powerState !== 'stopped')
-        throw new AppError(409, 'HOSTING_VM_MUST_STOP', 'Shut down the VM before resizing');
-      if (input.diskGb !== undefined && (resource.diskGb === null || input.diskGb < resource.diskGb))
-        throw new AppError(400, 'HOSTING_DISK_SHRINK_UNSUPPORTED', 'Disk size must be known and cannot decrease');
+      // A container grows its disk while it runs; CPU/RAM changes and every QEMU VM resize need a stopped guest.
+      assertHostingActionPreconditions({ provider: 'proxmox', live: resource, bound: [], canBootstrap: false }, input);
       const config = await this.request<PveConfig>(`${base}/config`);
       const disk = resource.kind === 'ct' ? 'rootfs' : diskKey(config);
       if (input.diskGb !== undefined && !disk)

@@ -34,6 +34,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useHostingOperationOutcome } from "@/hooks/use-hosting-operation-outcome";
 import { useRetainedDialogValue } from "@/hooks/use-retained-dialog-value";
 import { toastApiError } from "@/lib/api-error-toast";
 import { createClientUuid } from "@/lib/client-id";
@@ -197,6 +198,9 @@ export function HostingResourcesTab({
   const { hasScope, hasScopedAccess } = useAuthStore();
   const [localOperations, setLocalOperations] = useState<Record<string, HostingOperation>>({});
   const [pending, setPending] = useState<string | null>(null);
+  // A 202 only queued the operation: its outcome is shown when the refreshed list says it ended.
+  const { watch: watchOutcome, observe: observeOutcome } = useHostingOperationOutcome();
+  useEffect(() => observeOutcome(operations), [operations, observeOutcome]);
   const [retryTarget, setRetryTarget] = useState<{
     resource: HostingResource;
     operation: HostingOperation;
@@ -314,10 +318,16 @@ export function HostingResourcesTab({
         ...extra,
       });
       setLocalOperations((current) => ({ ...current, [resource.id]: operation }));
-      if (operation.phase === "unknown") toast.info("Waiting for provider confirmation");
-      else if (operation.phase === "failed")
+      if (operation.phase === "failed")
         toast.error(operation.errorMessage || "Provider action failed");
-      else toast.success(`${LABELS[action]} requested`);
+      else {
+        toast.info(
+          operation.phase === "unknown"
+            ? "Waiting for provider confirmation"
+            : `${LABELS[action]} started`
+        );
+        watchOutcome(operation);
+      }
       onChanged?.();
     } catch (error) {
       toastApiError(error, "Provider action failed");
@@ -614,6 +624,7 @@ export function HostingResourcesTab({
         catalog={catalog}
         onClose={() => setResizeResource(null)}
         onChanged={(operation) => {
+          watchOutcome(operation);
           if (operation.resourceId)
             setLocalOperations((current) => ({ ...current, [operation.resourceId!]: operation }));
           onChanged?.();

@@ -118,6 +118,8 @@ export interface HostingCapability {
   available: boolean;
   reason?: string;
   reasonCode?: 'permission_denied' | 'temporarily_unavailable' | 'unsupported';
+  /** Resize only, while the guest runs: the action stays available, but this part of it needs the guest stopped. */
+  stopRequired?: 'always' | 'cpu_memory';
 }
 export type HostingCapabilities = Record<
   HostingAction | 'create' | 'finance' | 'topup' | 'guestIdentity' | 'bootstrap',

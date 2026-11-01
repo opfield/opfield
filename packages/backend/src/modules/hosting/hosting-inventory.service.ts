@@ -18,6 +18,7 @@ import type { NodeDispatchService } from '@/services/node-dispatch.service.js';
 import type { ResourceSnapshotStore } from '@/services/resource-snapshot.store.js';
 import type { User } from '@/types.js';
 import { monthlyVmExpenses } from './hosting-account-summary.js';
+import { advertisedHostingCapabilities } from './hosting-action-preconditions.js';
 import type { HostingConnectorRow, HostingConnectorsService } from './hosting-connectors.service.js';
 import {
   evaluateHostingAdoption,
@@ -36,6 +37,13 @@ import {
   type HostingResourceSnapshot,
 } from './hosting-provider.types.js';
 import { reserveProxmoxQuota, withoutProxmoxLimits } from './proxmox-quota.js';
+
+function advertisedSnapshot(
+  provider: Parameters<typeof advertisedHostingCapabilities>[0],
+  snapshot: HostingResourceSnapshot
+): HostingResourceSnapshot {
+  return { ...snapshot, capabilities: advertisedHostingCapabilities(provider, snapshot) };
+}
 
 export const HOSTING_RESOURCE_SNAPSHOT = 'hosting-resources';
 export const HOSTING_CATALOG_SNAPSHOT = 'hosting-catalog';
@@ -478,13 +486,14 @@ export class HostingInventoryService {
       .where(eq(hostingNodeBindings.resourceId, resource.id));
     const snapshot = resource.snapshot;
     const [activeOperation] = await this.db
-      .select({ action: hostingOperations.action, phase: hostingOperations.phase })
+      .select({ id: hostingOperations.id, action: hostingOperations.action, phase: hostingOperations.phase })
       .from(hostingOperations)
       .where(
         and(eq(hostingOperations.resourceId, resource.id), notInArray(hostingOperations.phase, ['ready', 'failed']))
       )
       .orderBy(desc(hostingOperations.createdAt))
       .limit(1);
+    const lastOperation = activeOperation ? null : await this.lastFinishedOperation(resource.id, connector, user);
     const identityConflict = !resource.incarnation || resource.incarnation !== snapshot.incarnation;
     const unavailable = awaitingBinding
       ? 'Node enrollment has not completed'
@@ -495,9 +504,10 @@ export class HostingInventoryService {
           : identityConflict
             ? 'Provider VM identity changed; management is disabled'
             : null;
+    const capabilities = advertisedHostingCapabilities(resource.provider, snapshot);
     const actions = Object.fromEntries(
       (['start', 'shutdown', 'reboot', 'resize', 'delete', 'recover'] as const).map((action) => {
-        let capability = snapshot.capabilities[action];
+        let capability = capabilities[action];
         try {
           assertHostingResourceAction(
             user.scopes,
@@ -544,7 +554,42 @@ export class HostingInventoryService {
         : {}),
       identityConflict,
       operation: activeOperation ?? (awaitingBinding ? pendingNodeOperation : null),
+      lastOperation,
       actions,
+    };
+  }
+
+  /**
+   * The newest operation of the VM when it is a finished power, resize, recovery or destroy action, with the error it
+   * ended with. Null once any newer operation exists, and for a caller who could not read that operation itself
+   * (the rule of `HostingOperationsService.get`). A failed create or install has its own state on the node page.
+   */
+  private async lastFinishedOperation(resourceId: string, connector: { id: string } | null, user: User) {
+    if (!connector) return null;
+    const [latest] = await this.db
+      .select()
+      .from(hostingOperations)
+      .where(eq(hostingOperations.resourceId, resourceId))
+      .orderBy(desc(hostingOperations.createdAt))
+      .limit(1);
+    if (
+      !latest ||
+      !['start', 'shutdown', 'reboot', 'resize', 'delete', 'recover'].includes(latest.action) ||
+      !['ready', 'failed'].includes(latest.phase)
+    )
+      return null;
+    if (
+      !hasScope(user.scopes, `integrations:hosting:view:${connector.id}`) ||
+      (latest.actorId !== user.id && !hasScope(user.scopes, `integrations:hosting:manage:${connector.id}`))
+    )
+      return null;
+    return {
+      id: latest.id,
+      action: latest.action,
+      phase: latest.phase,
+      errorCode: latest.errorCode,
+      errorMessage: latest.errorMessage,
+      updatedAt: latest.updatedAt,
     };
   }
 
@@ -601,9 +646,12 @@ export class HostingInventoryService {
         id: resource.id,
         connectorId,
         origin: resource.origin,
-        ...(cached?.data.resources.find(
-          (item) => item.id === resource.id && item.observedAt === resource.observedAt.toISOString()
-        )?.snapshot ?? resource.snapshot),
+        ...advertisedSnapshot(
+          resource.provider,
+          cached?.data.resources.find(
+            (item) => item.id === resource.id && item.observedAt === resource.observedAt.toISOString()
+          )?.snapshot ?? resource.snapshot
+        ),
         price: canViewHostingFinance(user.scopes, connectorId) ? resource.snapshot.price : undefined,
         incarnation: resource.incarnation,
         missingSince: resource.missingSince,

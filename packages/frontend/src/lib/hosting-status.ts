@@ -15,6 +15,19 @@ export function hostingPowerActionUnavailableReason(
   return undefined;
 }
 
+const ACTION_TITLES: Partial<Record<HostingOperation["action"], string>> = {
+  start: "Power on",
+  shutdown: "Shutdown",
+  reboot: "Reboot",
+  resize: "Resize",
+  delete: "Destroy VM",
+  recover: "Restart daemon",
+};
+/** The name of a VM action in a toast or notice. */
+export function hostingActionTitle(action: HostingOperation["action"]): string {
+  return ACTION_TITLES[action] ?? "Hosting operation";
+}
+
 type Operation = Pick<HostingOperation, "action" | "phase"> &
   Partial<Pick<HostingOperation, "errorCode">>;
 export function hostingOperationPending(operation: Operation | null | undefined): boolean {

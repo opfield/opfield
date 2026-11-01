@@ -2,6 +2,7 @@ import { Server } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { confirm } from "@/components/common/ConfirmDialog";
+import { Notice } from "@/components/common/Notice";
 import { PanelShell } from "@/components/common/PanelShell";
 import { SettingsControlRow } from "@/components/common/SettingsControlRow";
 import { Button } from "@/components/ui/button";
@@ -82,6 +83,7 @@ export function HostingResizeDialog({
     provider === "proxmox" &&
     !!form.diskGb &&
     (displayed?.diskGb == null || Number(form.diskGb) < displayed.diskGb);
+  const stopRequired = displayed?.capabilities.resize?.stopRequired;
   const submit = async () => {
     if (!resource?.incarnation || sending.current || shrink) return;
     const target = resource;
@@ -136,7 +138,8 @@ export function HostingResizeDialog({
       onChanged?.(operation);
       closed = true;
       onClose();
-      toast.success("Resize requested");
+      // The request only queued the operation; its outcome is reported when it ends.
+      toast.info("Resize started");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Resize failed");
     } finally {
@@ -156,11 +159,21 @@ export function HostingResizeDialog({
         <DialogHeader>
           <DialogTitle>Resize Provider Resource</DialogTitle>
         </DialogHeader>
-        <DialogDescription>
-          Configure the VM resources. Shut down the VM before resizing; disks can only grow.
-        </DialogDescription>
+        <DialogDescription>Configure the VM resources. Disks can only grow.</DialogDescription>
         {displayed && (
           <div className="space-y-4">
+            {stopRequired && (
+              <Notice
+                tone="warning"
+                title={
+                  stopRequired === "always"
+                    ? "Shut down the VM first"
+                    : "CPU and memory changes need a shut down"
+                }
+              >
+                {displayed?.capabilities.resize?.reason}
+              </Notice>
+            )}
             <PanelShell
               title={displayed.name}
               icon={<Server className="h-4 w-4" />}

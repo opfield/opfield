@@ -22,7 +22,7 @@ import { confirm } from "@/components/common/ConfirmDialog";
 import { ContentLoading } from "@/components/common/ContentLoading";
 import { DetailPageSkeleton } from "@/components/common/DetailPageSkeleton";
 import { EmptyState } from "@/components/common/EmptyState";
-import { Notice } from "@/components/common/Notice";
+import { Notice, NoticeAction } from "@/components/common/Notice";
 import { PageBackButton } from "@/components/common/PageBackButton";
 import { PageHeader } from "@/components/common/PageHeader";
 import { PageTransition } from "@/components/common/PageTransition";
@@ -45,6 +45,7 @@ import {
 import { HealthBars } from "@/components/ui/health-bars";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useHostingOperationOutcome } from "@/hooks/use-hosting-operation-outcome";
 import { useLeavePage } from "@/hooks/use-navigation-trail";
 import { useRealtime } from "@/hooks/use-realtime";
 import { useStableNavigate } from "@/hooks/use-stable-navigate";
@@ -53,6 +54,7 @@ import { toastApiError } from "@/lib/api-error-toast";
 import { getForcedDaemonUpdateForNode } from "@/lib/dev-force-updates";
 import { performHostingAction } from "@/lib/hosting-intents";
 import {
+  hostingActionTitle,
   hostingNodeLabel,
   hostingOperationPending,
   hostingPowerActionUnavailableReason,
@@ -258,6 +260,18 @@ export function AdminNodeDetail({
     };
   }, [refreshHosting]);
   useRealtime("integration.connector.changed", refreshHosting);
+  // A hosting action answers 202 when queued; the outcome comes with the refreshed projection.
+  const { watch: watchHostingOutcome, observe: observeHostingOutcome } =
+    useHostingOperationOutcome();
+  const lastHostingOperation = hosting?.lastOperation;
+  useEffect(() => {
+    if (lastHostingOperation) observeHostingOutcome([lastHostingOperation]);
+  }, [lastHostingOperation, observeHostingOutcome]);
+  const [dismissedFailure, setDismissedFailure] = useState<string | null>(null);
+  const hostingFailure =
+    lastHostingOperation?.phase === "failed" && lastHostingOperation.id !== dismissedFailure
+      ? lastHostingOperation
+      : null;
   const hostingAction = async (action: HostingAction) => {
     if (
       hostingActionPending.current ||
@@ -290,7 +304,8 @@ export function AdminNodeDetail({
         expectedIncarnation: hosting.incarnation,
         confirmed: true,
       });
-      setHosting((current) => (current ? { ...current, operation } : current));
+      watchHostingOutcome(operation);
+      setHosting((current) => (current ? { ...current, operation, lastOperation: null } : current));
     } catch (cause) {
       toastApiError(cause, "Hosting action failed");
     } finally {
@@ -1166,8 +1181,31 @@ export function AdminNodeDetail({
           catalog={resizeContext?.catalog}
           provider={hosting?.provider ?? "proxmox"}
           onClose={() => setResizeContext(null)}
-          onChanged={refreshHosting}
+          onChanged={(operation) => {
+            watchHostingOutcome(operation);
+            refreshHosting();
+          }}
         />
+        {hostingFailure && (
+          <Notice
+            tone="destructive"
+            role="alert"
+            className="shrink-0"
+            title={`${hostingActionTitle(hostingFailure.action)} failed`}
+            actions={
+              <NoticeAction
+                tone="destructive"
+                muted
+                arrow={false}
+                onClick={() => setDismissedFailure(hostingFailure.id)}
+              >
+                Dismiss
+              </NoticeAction>
+            }
+          >
+            {hostingFailure.errorMessage || "The operation failed. Check the hosting account."}
+          </Notice>
+        )}
 
         {/* Health bars */}
         <HealthBars history={healthHistory} currentStatus={node.status} />

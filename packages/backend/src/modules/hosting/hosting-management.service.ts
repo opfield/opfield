@@ -1,7 +1,6 @@
 import { eq } from 'drizzle-orm';
 import type { DrizzleClient, DrizzleTransaction } from '@/db/client.js';
 import { hostingFirewalls, hostingNodeBindings, hostingResources, nodes } from '@/db/schema/index.js';
-import { LEGACY_RELAY_SUPERVISOR } from '@/lib/legacy-compat.js';
 import { createChildLogger } from '@/lib/logger.js';
 import { hasScope } from '@/lib/permissions.js';
 import { AppError } from '@/middleware/error-handler.js';
@@ -17,7 +16,11 @@ import type { NodeDispatchService } from '@/services/node-dispatch.service.js';
 import type { ResourceSnapshotStore } from '@/services/resource-snapshot.store.js';
 import type { User } from '@/types.js';
 import { type HostingActionInput, HostingActionSchema } from './hosting.schemas.js';
-import { shellArgument } from './hosting-bootstrap.js';
+import {
+  assertHostingActionPreconditions,
+  assertHostingPowerAction,
+  hostingDeleteStopsFirst,
+} from './hosting-action-preconditions.js';
 import type { HostingConnectorRow, HostingConnectorsService } from './hosting-connectors.service.js';
 import { compareHostingDecimal } from './hosting-decimal.js';
 import { lockHostingDeletion, unenrolledHostingNodeIds } from './hosting-deletion-guard.js';
@@ -32,68 +35,13 @@ import {
 import { assertHostingResourceAction } from './hosting-permissions.js';
 import type { HostingAction, HostingProviderAdapter, HostingResourceSnapshot } from './hosting-provider.types.js';
 import { isHostedNodeReady } from './hosting-readiness.js';
+import { hostingRecoveryScript } from './hosting-recovery-script.js';
 import { HostingSnapshotsService } from './hosting-snapshots.service.js';
 import { reserveProxmoxQuota } from './proxmox-quota.js';
 
 const logger = createChildLogger('HostingManagement');
 
-const SERVICES: Record<string, string> = {
-  nginx: 'nginx-daemon',
-  docker: 'docker-daemon',
-  builder: 'docker-daemon',
-  databases: 'docker-daemon',
-  storage: 'docker-daemon',
-  monitoring: 'monitoring-daemon',
-  relay: 'opfield-relay-supervisor',
-};
-
-// legacy-name: the legacy relay supervisor unit — a relay installed before 2.12.1 keeps running under it until its next
-// start. The new unit refuses to start while the old one is enabled, and a moved relay keeps the old unit file, disabled,
-// until its cleanup; remove once every relay reports none.
-const LEGACY_SERVICES: Record<string, string> = { 'opfield-relay-supervisor': LEGACY_RELAY_SUPERVISOR };
-export function hostingRecoveryScript(roles: string[]): string {
-  const services = [...new Set(roles.map((role) => SERVICES[role]))];
-  if (!services.length || services.some((service) => !service))
-    throw new AppError(
-      409,
-      'HOSTING_RECOVERY_UNSUPPORTED',
-      'No known service restart is available for these node roles'
-    );
-  const candidates = services.map((service) => [LEGACY_SERVICES[service as string], service].filter(Boolean).join(':'));
-  return `#!/bin/bash
-set -eu
-unit_exists() {
-  if command -v systemctl >/dev/null 2>&1; then
-    systemctl cat "$1" >/dev/null 2>&1
-  else
-    [ -e "/etc/init.d/$1" ]
-  fi
-}
-# The old unit still owns the host while it runs or is enabled: the new unit's guard refuses to start then.
-unit_in_charge() {
-  if command -v systemctl >/dev/null 2>&1; then
-    systemctl is-active --quiet "$1" || systemctl is-enabled --quiet "$1"
-  else
-    rc-service "$1" status >/dev/null 2>&1 || ls /etc/runlevels/*/"$1" >/dev/null 2>&1
-  fi
-}
-for names in ${candidates.map(shellArgument).join(' ')}; do
-  service=\${names##*:}
-  legacy=\${names%%:*}
-  if [ "$legacy" != "$service" ] && unit_exists "$legacy" && { unit_in_charge "$legacy" || ! unit_exists "$service"; }; then
-    service=$legacy
-  fi
-  if command -v systemctl >/dev/null 2>&1; then
-    systemctl restart "$service"
-  elif command -v rc-service >/dev/null 2>&1; then
-    rc-service "$service" restart
-  else
-    echo 'No supported service manager; refusing VM reboot or reinstall' >&2
-    exit 1
-  fi
-done
-`;
-}
+export { hostingRecoveryScript };
 
 export function hostingActionFinished(
   action: HostingAction,
@@ -242,7 +190,19 @@ export class HostingManagementService {
     // Refuse before anything is destroyed when a node of this VM cannot be removed afterwards (typed 409).
     if (input.action === 'delete')
       for (const binding of bound) await assertNodeRemovableBeforeDestroy(this.db, binding.nodeId);
-    await this.validateResize(this.connectors.adapter(connector), resource.snapshot, input);
+    const adapter = this.connectors.adapter(connector);
+    await this.validateResize(adapter, resource.snapshot, input);
+    // What the stored observation already rules out is refused now, not by the worker after a 202.
+    assertHostingPowerAction(resource.snapshot, input);
+    assertHostingActionPreconditions(
+      {
+        provider: adapter.provider,
+        live: resource.snapshot,
+        bound: bound.map((binding) => ({ nodeId: binding.nodeId, type: binding.type })),
+        canBootstrap: !!adapter.bootstrap,
+      },
+      input
+    );
     const reserved = await this.operations.reserve(
       {
         connectorId: connector.id,
@@ -590,25 +550,19 @@ export class HostingManagementService {
         }
         if (row.phase === 'pending') {
           await this.validateResize(adapter, live, input);
-          if (input.action === 'resize') {
-            if (live.powerState !== 'stopped')
-              throw new AppError(409, 'HOSTING_VM_MUST_STOP', 'Shut down the VM before resizing');
-            if (input.diskGb !== undefined && (live.diskGb === null || input.diskGb < live.diskGb))
-              throw new AppError(400, 'HOSTING_DISK_SHRINK_UNSUPPORTED', 'Shrinking disks is not supported');
-            if (proxmoxResize)
-              row = await this.operations.update(row, { result: { ...row.result, resizeStage: 'not_started' } });
-          }
+          // The request checked the stored observation; the VM may have changed since, so check the live read too.
+          assertHostingActionPreconditions(
+            {
+              provider: adapter.provider,
+              live,
+              bound: bound.map((binding) => ({ nodeId: binding.nodeId, type: binding.type })),
+              canBootstrap: !!adapter.bootstrap,
+            },
+            input
+          );
+          if (input.action === 'resize' && proxmoxResize)
+            row = await this.operations.update(row, { result: { ...row.result, resizeStage: 'not_started' } });
           if (input.action === 'recover') {
-            if (!adapter.bootstrap || !live.capabilities.recover.available)
-              throw new AppError(
-                409,
-                'HOSTING_RECOVERY_UNAVAILABLE',
-                'No independent daemon recovery channel is available'
-              );
-            if (live.powerState !== 'running')
-              throw new AppError(409, 'HOSTING_VM_STOPPED', 'Start the VM before restarting its daemon');
-            if (!bound.length)
-              throw new AppError(409, 'HOSTING_NODE_BINDING_REQUIRED', 'No Opfield node is associated with this VM');
             row = await this.operations.update(row, {
               result: {
                 ...row.result,
@@ -619,13 +573,7 @@ export class HostingManagementService {
             });
           }
           if (input.action === 'delete') {
-            const stopping = connector.provider === 'proxmox' && live.powerState !== 'stopped';
-            if (stopping && !live.capabilities.shutdown.available)
-              throw new AppError(
-                403,
-                'HOSTING_STOP_UNAVAILABLE',
-                live.capabilities.shutdown.reason ?? 'VM shutdown permission is required before destruction'
-              );
+            const stopping = hostingDeleteStopsFirst(adapter.provider, live);
             // Remove the VM's node records first, while the server still runs: a node that cannot be removed (typed
             // 409: routes, links, Pages, an undrained relay, ...) fails this operation with nothing destroyed. After
             // the destroy the node would be offline, and some removals (a relay) are then refused for days.

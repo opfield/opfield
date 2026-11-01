@@ -106,6 +106,8 @@ export interface HostingCapability {
   available: boolean;
   reason?: string;
   reasonCode?: "permission_denied" | "temporarily_unavailable" | "unsupported";
+  /** Resize only, while the guest runs: still available, but this part of it needs the guest stopped. */
+  stopRequired?: "always" | "cpu_memory";
 }
 export interface HostingSettings {
   kind: "hosting";
@@ -352,7 +354,12 @@ export interface HostingNodeProjection {
   price?: HostingMoney;
   observedAt: string;
   identityConflict: boolean;
-  operation?: Pick<HostingOperation, "action" | "phase"> | null;
+  operation?: (Pick<HostingOperation, "action" | "phase"> & { id?: string }) | null;
+  /** The newest operation of the VM when it is a finished power, resize, recovery or destroy action. */
+  lastOperation?: Pick<
+    HostingOperation,
+    "id" | "action" | "phase" | "errorCode" | "errorMessage" | "updatedAt"
+  > | null;
   actions: Partial<Record<HostingAction, HostingCapability>>;
 }
 
