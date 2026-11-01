@@ -76,6 +76,14 @@ describe('codexModelsResponse', () => {
     expect(codexModelsResponse(models, [upstream], undefined).models).toHaveLength(2);
   });
 
+  it('lets Codex load tools on demand on every model with tools, with or without a provider entry', () => {
+    const glm = { ...model, id: 'glm', upstreamModelIds: ['glm-5.3'] };
+    expect(codexModelsResponse([glm], [], undefined).models[0]).toMatchObject({ supports_search_tool: true });
+    expect(codexModelsResponse([gpt], [upstream], undefined).models[0]).toMatchObject({ supports_search_tool: true });
+    const noTools = { ...model, capabilities: { tools: false } };
+    expect(codexModelsResponse([noTools], [], undefined).models[0]).toMatchObject({ supports_search_tool: false });
+  });
+
   it('turns tools off for a model without them, whatever the provider entry says', () => {
     const [entry] = codexModelsResponse([{ ...gpt, capabilities: { tools: false } }], [upstream], undefined).models;
     expect(entry).toMatchObject({ shell_type: 'disabled', apply_patch_tool_type: null, tool_mode: null });

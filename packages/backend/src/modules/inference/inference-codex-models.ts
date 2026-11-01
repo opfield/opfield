@@ -115,6 +115,8 @@ function publishedFields(model: CodexCatalogModel, index: number, upstream: Upst
       supports_image_detail_original: model.input_modalities.includes('image'),
       // Responses Lite is private to the Codex backend: the compact tool protocol it switches on does not survive routing.
       use_responses_lite: false,
+      // Without it Codex sends its whole tool catalog on every turn. The core relays tool_search for every provider.
+      supports_search_tool: tools,
       ...(tools
         ? {}
         : { shell_type: 'disabled', apply_patch_tool_type: null, tool_mode: null, multi_agent_version: null }),
@@ -138,7 +140,6 @@ function ownEntry(model: CodexCatalogModel, index: number) {
     truncation_policy: { mode: 'tokens', limit: TOOL_OUTPUT_TOKENS },
     comp_hash: null,
     experimental_supported_tools: [],
-    supports_search_tool: tools && model.capabilities.search === true,
     auto_review_model_override: null,
     tool_mode: null,
     multi_agent_version: null,
