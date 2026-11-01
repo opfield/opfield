@@ -120,8 +120,20 @@ export async function validateRelayRemoval(tx: DrizzleTransaction, instanceId: s
     ? await tx
         .select()
         .from(relayEndpointAssignmentGenerations)
+        // A subquery: a pool can hold more generations than a statement can bind parameters.
         .where(
-          inArray(relayEndpointAssignmentGenerations.id, [...new Set(assignments.map((a) => a.assignmentGenerationId))])
+          inArray(
+            relayEndpointAssignmentGenerations.id,
+            tx
+              .select({ id: relayEndpointAssignments.assignmentGenerationId })
+              .from(relayEndpointAssignments)
+              .where(
+                inArray(
+                  relayEndpointAssignments.relayInstanceId,
+                  instances.map((i) => i.id)
+                )
+              )
+          )
         )
         .orderBy(asc(relayEndpointAssignmentGenerations.id))
         .for('update')
