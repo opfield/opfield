@@ -26,6 +26,7 @@ import {
   coreProviderRef,
 } from '../core/inference-core-provider-map.js';
 import type { InferenceCatalogEventsService } from '../inference-catalog-events.service.js';
+import type { CodexCatalogModel } from '../inference-codex-models.js';
 import { hasTokenPrices, INFERENCE_PRICE_MISSING_WARNING } from '../inference-pricing.js';
 import { InferenceProtocolError } from '../protocol/inference-protocol.error.js';
 import type { InferenceProviderRegistry } from '../providers/inference-provider.registry.js';
@@ -441,17 +442,48 @@ export class InferenceModelService {
   }
 
   async listForUser(user: User) {
+    const { models, apiUsageEnabled } = await this.modelsForUser(user);
+    const data = await Promise.all(models.map((model) => this.publicModel(model, apiUsageEnabled)));
+    return { object: 'list', data };
+  }
+
+  /** The same models and order as listForUser, with the upstream ids a Codex catalog looks them up by. */
+  async listCodexModelsForUser(user: User): Promise<CodexCatalogModel[]> {
+    const { models, apiUsageEnabled } = await this.modelsForUser(user);
+    if (!models.length) return [];
+    const sources = await this.db
+      .select({ modelId: inferenceModelSources.modelId, upstreamModelId: inferenceModelSources.upstreamModelId })
+      .from(inferenceModelSources)
+      .where(
+        and(
+          inArray(
+            inferenceModelSources.modelId,
+            models.map((model) => model.id)
+          ),
+          eq(inferenceModelSources.enabled, true)
+        )
+      );
+    return Promise.all(
+      models.map(async (model) => ({
+        ...(await this.publicModel(model, apiUsageEnabled)),
+        upstreamModelIds: sources
+          .filter((source) => source.modelId === model.id)
+          .map((source) => source.upstreamModelId),
+      }))
+    );
+  }
+
+  private async modelsForUser(user: User) {
     const allowed = await this.access.allowedModelIds(user);
-    if (!allowed.size) return { object: 'list', data: [] };
+    if (!allowed.size) return { models: [], apiUsageEnabled: true };
     const availability = await this.modelAvailabilityForUser(user.id, [...allowed]);
-    if (!availability.modelIds.length) return { object: 'list', data: [] };
+    if (!availability.modelIds.length) return { models: [], apiUsageEnabled: true };
     const models = await this.db
       .select()
       .from(inferenceModels)
       .where(and(eq(inferenceModels.enabled, true), inArray(inferenceModels.id, availability.modelIds)))
       .orderBy(asc(inferenceModels.sortOrder), asc(inferenceModels.publicId));
-    const data = await Promise.all(models.map((model) => this.publicModel(model, availability.apiUsageEnabled)));
-    return { object: 'list', data };
+    return { models, apiUsageEnabled: availability.apiUsageEnabled };
   }
 
   async resolveForUser(user: User, publicId: string) {

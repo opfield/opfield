@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { OpenAPIHono } from '@hono/zod-openapi';
 import type { Context } from 'hono';
 import { container } from '@/container.js';
@@ -6,6 +7,7 @@ import { InferenceUsageService } from './accounting/inference-usage.service.js';
 import { type CoreProxyOperation, InferenceCoreProxyService } from './core/inference-core-proxy.service.js';
 import { inferenceDataPlaneUsageRoute } from './inference.docs.js';
 import { inferenceAuthMiddleware } from './inference-auth.middleware.js';
+import { codexCatalogEntries, codexModelsResponse } from './inference-codex-models.js';
 import { inferenceErrorResponse } from './inference-error.js';
 import { inferenceConcurrencyMiddleware, inferenceRateLimitMiddleware } from './inference-limit.middleware.js';
 import { InferenceModelService } from './models/inference-model.service.js';
@@ -14,8 +16,8 @@ import { inferenceProtocolError } from './protocol/inference-protocol.error.js';
 /**
  * The single stable public data plane (plan T5): /api/inference/v1 with the
  * standard route set. Opfield middleware keeps auth/limits; handlers proxy to
- * the managed core verbatim. Harness-specific prefixes and client-version
- * catalogs are gone.
+ * the managed core verbatim. Harness-specific prefixes are gone; /codex/models
+ * is the one client-specific catalog, for Codex connected directly.
  */
 export const inferenceDataPlaneRoutes = new OpenAPIHono<AppEnv>();
 
@@ -52,6 +54,22 @@ inferenceDataPlaneRoutes.get('/models', async (c) => {
   const user = c.get('user');
   if (!user) return inferenceErrorResponse(c, 401, 'invalid_api_key', 'Authentication required');
   return c.json(await container.resolve(InferenceModelService).listForUser(user));
+});
+
+// The Codex catalog behind `model_catalog_url`: same models as /models, in the shape Codex reads.
+inferenceDataPlaneRoutes.get('/codex/models', async (c) => {
+  const user = c.get('user');
+  if (!user) return inferenceErrorResponse(c, 401, 'invalid_api_key', 'Authentication required');
+  const clientVersion = c.req.query('client_version');
+  const [models, catalog] = await Promise.all([
+    container.resolve(InferenceModelService).listCodexModelsForUser(user),
+    container.resolve(InferenceCoreProxyService).coreCodexCatalog(clientVersion),
+  ]);
+  const body = codexModelsResponse(models, catalog ? codexCatalogEntries(catalog) : [], clientVersion);
+  const etag = `"${createHash('sha256').update(JSON.stringify(body)).digest('base64url')}"`;
+  c.header('ETag', etag);
+  if (c.req.header('If-None-Match') === etag) return c.body(null, 304);
+  return c.json(body);
 });
 
 const PROXY_PATHS: ReadonlyArray<{ path: string; operation: CoreProxyOperation }> = [

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { CopyCodeBlock } from "@/components/common/CopyCodeBlock";
 import { CopyValueField } from "@/components/common/CopyValueField";
 import { Notice, NoticeAction } from "@/components/common/Notice";
 import { PanelShell } from "@/components/common/PanelShell";
@@ -29,6 +30,22 @@ const DEEPSEEK_HARNESS_URL = "https://www.deepseek.com/en/harness/";
 /** OpenAI-compatible clients take this as the base URL. */
 function openAiBaseUrl() {
   return `${window.location.origin}/api/inference/v1`;
+}
+
+/**
+ * `~/.codex/config.toml` for Codex connected directly. The token sits in the file because Codex Desktop, started
+ * from the desktop, does not see shell variables; `model` is only the default, the catalog lists the rest.
+ */
+function codexConfig(model: string, token: string) {
+  return `model = "${model}"
+model_provider = "opfield"
+
+[model_providers.opfield]
+name = "Opfield"
+base_url = "${openAiBaseUrl()}"
+wire_api = "responses"
+experimental_bearer_token = "${token}"
+model_catalog_url = "${openAiBaseUrl()}/codex/models"`;
 }
 
 /** Anthropic-compatible clients add /v1/messages to this base URL themselves. */
@@ -270,6 +287,13 @@ export function InferenceHarnessDialog({
           >
             Paste these values into its provider settings.
           </Notice>
+          <CopyCodeBlock
+            label="Codex Desktop: add to ~/.codex/config.toml, keeping the top two lines above any [section]"
+            value={codexConfig(
+              model || "MODEL",
+              key.status === "created" ? key.token : "INFERENCE_TOKEN"
+            )}
+          />
         </div>
 
         <DialogFooter>

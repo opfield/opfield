@@ -55,6 +55,8 @@ type ResolvedCoreTarget = {
 };
 
 /** Endpoint classes the proxy distinguishes (billing/rewrite behavior differ). */
+const CORE_CODEX_CATALOG_TIMEOUT_MS = 3_000;
+
 export type CoreProxyOperation =
   | 'responses'
   | 'responses/compact'
@@ -251,6 +253,21 @@ export class InferenceCoreProxyService {
   /** Core base URL + data credential as a stable Opfield error when unavailable. */
   async dataPlaneTarget(): Promise<CoreDataPlaneTarget> {
     return this.coreTarget();
+  }
+
+  /** The core's Codex catalog for a client version, or null when it cannot answer: Opfield then describes the models itself. */
+  async coreCodexCatalog(clientVersion: string | undefined): Promise<unknown> {
+    try {
+      const target = await this.coreTarget();
+      const query = clientVersion ? `?client_version=${encodeURIComponent(clientVersion)}` : '?client_version=0.0.0';
+      const response = await fetch(`${target.baseUrl}/v1/models${query}`, {
+        headers: { 'x-opencodex-api-key': target.credential },
+        signal: AbortSignal.timeout(CORE_CODEX_CATALOG_TIMEOUT_MS),
+      });
+      return response.ok ? await response.json() : null;
+    } catch {
+      return null;
+    }
   }
 
   async markAffinityActive(affinityKey: string): Promise<void> {

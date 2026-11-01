@@ -68,6 +68,22 @@ To connect a harness, open **Set up a harness** on the Inference usage panel or 
 
 The recommended harness is [DeepSeek harness](https://www.deepseek.com/en/harness/): add Opfield as a provider in its settings with these values. Any other harness or tool that accepts an OpenAI- or Anthropic-compatible provider works the same way.
 
+To connect Codex Desktop or the Codex CLI directly, with no local proxy, use the configuration the dialog shows, in `~/.codex/config.toml`:
+
+```toml
+model = "your-model-id"
+model_provider = "opfield"
+
+[model_providers.opfield]
+name = "Opfield"
+base_url = "https://opfield.example.com/api/inference/v1"
+wire_api = "responses"
+experimental_bearer_token = "opfi_..."
+model_catalog_url = "https://opfield.example.com/api/inference/v1/codex/models"
+```
+
+`model` is the default model; every other model available to you loads from the catalog. The two top-level lines go above any `[section]` in the file. The token is in the file because Codex Desktop does not read shell variables when started from the desktop; on the CLI, `env_key` works instead. `GET /api/inference/v1/codex/models?client_version=<version>` serves the Codex `ModelsResponse` catalog, filtered to your access; `GET /api/inference/v1/models` stays OpenAI-compatible.
+
 Each opening of the dialog creates a token named `Harness — <date>` and revokes earlier dialog tokens that no client has used. Tokens a harness has used are kept. To create a token without the dialog, use **Profile > Authorizations > Inference API tokens**; the `opfi_` secret is also shown once.
 
 All clients use the same base URLs:
