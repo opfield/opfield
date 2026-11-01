@@ -830,8 +830,12 @@ export class InferenceCoreAccountingService {
       const completedAttempt = topLevelAttempts.find((attempt) => attempt.status === 'completed');
       const failedAttempt = topLevelAttempts.find((attempt) => attempt.status === 'failed');
       const cancelledAttempt = topLevelAttempts.find((attempt) => attempt.status === 'cancelled');
+      // The stream can end before its attempt settles: a failed sibling then says nothing about the request.
+      const unsettledAttempt = topLevelAttempts.some(
+        (attempt) => attempt.status === 'pending' || attempt.status === 'running'
+      );
       const effectiveOutcome =
-        outcome === 'completed' && !completedAttempt
+        outcome === 'completed' && !completedAttempt && !unsettledAttempt
           ? failedAttempt
             ? 'failed'
             : cancelledAttempt
