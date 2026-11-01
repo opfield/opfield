@@ -44,6 +44,7 @@ export function InferenceProviderConnectDialog({
   open,
   catalog,
   initialProviderId,
+  initialName = "",
   onOpenChange,
   onConnected,
   locked = false,
@@ -53,6 +54,7 @@ export function InferenceProviderConnectDialog({
   open: boolean;
   catalog: InferenceProviderCatalogItem[];
   initialProviderId?: string;
+  initialName?: string;
   onOpenChange: (open: boolean) => void;
   onConnected: () => void | Promise<void>;
   locked?: boolean;
@@ -101,20 +103,20 @@ export function InferenceProviderConnectDialog({
       return;
     }
     if (!initial) return;
-    const draftKey = initialProviderId ?? "default";
+    const draftKey = `${initialProviderId ?? "default"}:${initialName}`;
     if (initializedDraftRef.current === draftKey) return;
     initializedDraftRef.current = draftKey;
     setProviderId(initial.id);
     setAuthType(
       initial.authTypes.includes("oauth") ? "oauth" : (initial.authTypes[0] ?? "api_key")
     );
-    setName("");
+    setName(initialName);
     setApiKey("");
     setBaseUrl(initial.baseUrl);
     setAllowPrivateNetwork(false);
     setOAuth(null);
     setCallback("");
-  }, [initial, initialProviderId, open]);
+  }, [initial, initialName, initialProviderId, open]);
 
   const selectProvider = (id: string) => {
     const provider = catalog.find((item) => item.id === id);

@@ -162,6 +162,7 @@ export function InferenceProvidersPanel({
   );
   const [loading, setLoading] = useState(!hasCachedData);
   const [connectOpen, setConnectOpen] = useState(false);
+  const [reconnecting, setReconnecting] = useState<InferenceProviderConnection | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [syncingId, setSyncingId] = useState<string | null>(null);
   const [reordering, setReordering] = useState(false);
@@ -458,7 +459,12 @@ export function InferenceProvidersPanel({
         description="Connected accounts and API credentials. Sequential follows connection order; Balanced weights new threads by remaining quota."
         actions={
           canManage ? (
-            <Button onClick={() => setConnectOpen(true)}>
+            <Button
+              onClick={() => {
+                setReconnecting(null);
+                setConnectOpen(true);
+              }}
+            >
               <Plus />
               Connect provider
             </Button>
@@ -532,6 +538,8 @@ export function InferenceProvidersPanel({
       <InferenceProviderConnectDialog
         open={connectOpen}
         catalog={catalog}
+        initialProviderId={reconnecting?.providerId}
+        initialName={reconnecting?.name}
         onOpenChange={setConnectOpen}
         onConnected={connected}
       />
@@ -545,6 +553,12 @@ export function InferenceProvidersPanel({
           if (!open) setSelectedId(null);
         }}
         onChanged={changed}
+        onReconnect={(connection) => {
+          // Signing in to the same account updates this row, so its models stay.
+          setSelectedId(null);
+          setReconnecting(connection);
+          setConnectOpen(true);
+        }}
       />
     </>
   );

@@ -40,6 +40,7 @@ interface Props {
   canManage: boolean;
   onOpenChange: (open: boolean) => void;
   onChanged: () => Promise<void>;
+  onReconnect: (connection: InferenceProviderConnection) => void;
 }
 
 const QUOTA_WINDOWS = [
@@ -55,6 +56,7 @@ export function InferenceProviderDialog({
   canManage,
   onOpenChange,
   onChanged,
+  onReconnect,
 }: Props) {
   const [enabled, setEnabled] = useState(true);
   const [name, setName] = useState("");
@@ -97,6 +99,12 @@ export function InferenceProviderDialog({
 
   // close-reset-ok: the connection is retained once shown, so this is null only before the first opening
   if (!displayedConnection) return null;
+
+  const canReconnect =
+    canManage &&
+    displayedProvider?.subscription === true &&
+    displayedConnection.authType === "oauth" &&
+    ["stale", "reauth_required"].includes(displayedConnection.status);
 
   const subscription = displayedProvider?.subscription === true;
   const parsedMinimumRemainingPercent = parseMinimumRemainingPercent(minimumRemainingPercent);
@@ -287,7 +295,19 @@ export function InferenceProviderDialog({
             />
           </SettingsControlRow>
           <SettingsControlRow title="Status">
-            <HealthBadge status={enabled ? displayedConnection.status : "disabled"} />
+            <div className="flex items-center gap-3">
+              {canReconnect && (
+                <Button
+                  type="button"
+                  variant="link"
+                  className="h-auto p-0"
+                  onClick={() => onReconnect(displayedConnection)}
+                >
+                  Reconnect
+                </Button>
+              )}
+              <HealthBadge status={enabled ? displayedConnection.status : "disabled"} />
+            </div>
           </SettingsControlRow>
           <SettingsControlRow title="Enabled" description="Allow Opfield to route requests here">
             <Switch
