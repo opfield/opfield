@@ -791,10 +791,15 @@ export class InferenceCoreProxyService {
       : ((body.reasoning && typeof body.reasoning === 'object'
           ? (body.reasoning as Record<string, unknown>).effort
           : undefined) ?? body.reasoning_effort);
+    // The core allowlists these values; a beta changes what the provider accepts, so only Messages carries it.
+    const anthropicBeta = isMessages ? c.req.header('anthropic-beta') : undefined;
     return {
       publicModelId: model,
       units,
-      headers: { 'content-type': 'application/json' },
+      headers: {
+        'content-type': 'application/json',
+        ...(anthropicBeta ? { 'anthropic-beta': anthropicBeta } : {}),
+      },
       ...(typeof body.service_tier === 'string' ? { serviceTier: body.service_tier } : {}),
       ...(typeof reasoningEffort === 'string' ? { reasoningEffort } : {}),
       ...(typeof body.idempotency_key === 'string' ? { idempotencyKey: body.idempotency_key } : {}),
@@ -1203,7 +1208,13 @@ function ambiguousImageResponse(): Response {
 
 function publicResponseHeaders(headers: Headers): Headers {
   const output = new Headers({ 'Cache-Control': 'no-store', 'X-Accel-Buffering': 'no' });
-  for (const name of ['content-type', 'content-disposition']) {
+  for (const name of [
+    'content-type',
+    'content-disposition',
+    // Why Anthropic refused replayed thinking, and that the core dropped conversation state on an account change.
+    'anthropic-thinking-prefix-mismatch',
+    'x-inference-conversation-state',
+  ]) {
     const value = headers.get(name);
     if (value) output.set(name, value);
   }
