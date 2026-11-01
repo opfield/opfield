@@ -135,6 +135,8 @@ export const inferenceRequestAttempts = pgTable(
     usageEstimated: boolean('usage_estimated'),
     latencyMs: integer('latency_ms'),
     ...usageColumns,
+    cacheWrite1hTokens: bigint('cache_write_1h_tokens', { mode: 'number' }).notNull().default(0),
+    webSearchRequests: bigint('web_search_requests', { mode: 'number' }).notNull().default(0),
     startedAt: timestamp('started_at', { withTimezone: true }).notNull().defaultNow(),
     completedAt: timestamp('completed_at', { withTimezone: true }),
   },

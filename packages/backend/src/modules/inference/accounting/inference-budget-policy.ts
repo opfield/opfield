@@ -372,6 +372,10 @@ export function subscriptionCredits(
 
 const SUBSCRIPTION_CACHE_READ_WEIGHT = 0.1;
 const SUBSCRIPTION_CACHE_WRITE_WEIGHT = 1.25;
+/** A one-hour cache write costs twice the input price, where a five-minute one costs 1.25 times. */
+const CACHE_WRITE_1H_INPUT_MULTIPLIER = 2;
+/** Anthropic's published search price, for pricing snapshots that predate per-search settlement. */
+const DEFAULT_WEB_SEARCH_MICRODOLLARS = 10_000;
 
 function inputTokenClasses(usage: { inputTokens: number; cachedInputTokens: number; cacheWriteTokens: number }): {
   uncachedInputTokens: number;
@@ -420,6 +424,8 @@ export function apiMicrodollars(
     cacheWriteTokens: number;
     outputTokens: number;
     reasoningTokens: number;
+    cacheWrite1hTokens?: number;
+    webSearchRequests?: number;
   },
   pricing: {
     inputMicrodollarsPerMillion: number | null;
@@ -435,16 +441,24 @@ export function apiMicrodollars(
     throw new InferenceProtocolError(503, 'pricing_unavailable', 'API pricing is unavailable');
   }
   const input = inputTokenClasses(usage);
+  const cacheWriteRate =
+    effectivePricing.cacheWriteMicrodollarsPerMillion ?? effectivePricing.inputMicrodollarsPerMillion;
+  const cacheWrite1hTokens = Math.min(Math.max(0, usage.cacheWrite1hTokens ?? 0), input.cacheWriteTokens);
+  const cacheWrite1hRate = Math.max(
+    cacheWriteRate,
+    effectivePricing.inputMicrodollarsPerMillion * CACHE_WRITE_1H_INPUT_MULTIPLIER
+  );
   const cost =
     input.uncachedInputTokens * effectivePricing.inputMicrodollarsPerMillion +
     input.cachedInputTokens *
       (effectivePricing.cachedInputMicrodollarsPerMillion ?? effectivePricing.inputMicrodollarsPerMillion) +
-    input.cacheWriteTokens *
-      (effectivePricing.cacheWriteMicrodollarsPerMillion ?? effectivePricing.inputMicrodollarsPerMillion) +
+    (input.cacheWriteTokens - cacheWrite1hTokens) * cacheWriteRate +
+    cacheWrite1hTokens * cacheWrite1hRate +
     usage.outputTokens * effectivePricing.outputMicrodollarsPerMillion +
     usage.reasoningTokens *
       (effectivePricing.reasoningMicrodollarsPerMillion ?? effectivePricing.outputMicrodollarsPerMillion);
-  return Math.ceil(cost / 1_000_000);
+  const searchPrice = pricing.otherUnitPrices?.web_search_query ?? DEFAULT_WEB_SEARCH_MICRODOLLARS;
+  return Math.ceil(cost / 1_000_000) + Math.max(0, usage.webSearchRequests ?? 0) * searchPrice;
 }
 
 export function calendarMonthWindow(now: Date, timezone: string): { start: Date; end: Date } {

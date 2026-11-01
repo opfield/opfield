@@ -254,8 +254,12 @@ export const inferenceCoreUsageSchema = z
     uncachedInputTokens: z.number().int().nonnegative(),
     cachedInputTokens: z.number().int().nonnegative(),
     cacheWriteTokens: z.number().int().nonnegative(),
+    // The part of cacheWriteTokens written with a one-hour lifetime, which costs more to write.
+    cacheWrite1hTokens: z.number().int().nonnegative().optional(),
     outputTokens: z.number().int().nonnegative(),
     reasoningTokens: z.number().int().nonnegative(),
+    // Searches the provider ran and bills per search, on top of the tokens.
+    webSearchRequests: z.number().int().nonnegative().optional(),
   })
   .strict();
 export type InferenceCoreUsage = z.infer<typeof inferenceCoreUsageSchema>;

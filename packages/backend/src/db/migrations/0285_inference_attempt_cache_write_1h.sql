@@ -1,0 +1,2 @@
+ALTER TABLE "inference_request_attempts" ADD COLUMN "cache_write_1h_tokens" bigint DEFAULT 0 NOT NULL;--> statement-breakpoint
+ALTER TABLE "inference_request_attempts" ADD COLUMN "web_search_requests" bigint DEFAULT 0 NOT NULL;

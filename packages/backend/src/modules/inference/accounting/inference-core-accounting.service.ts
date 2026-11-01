@@ -92,7 +92,10 @@ function coreEstimateUsage(estimate: InferenceCoreAdmissionRequest['estimate']):
   };
 }
 
-function coreSettlementUsage(input: InferenceCoreSettlement['usage'], estimated: boolean): InferenceUsage {
+function coreSettlementUsage(
+  input: InferenceCoreSettlement['usage'],
+  estimated: boolean
+): InferenceUsage & { cacheWrite1hTokens: number; webSearchRequests: number } {
   const inputTokens = input.uncachedInputTokens + input.cachedInputTokens + input.cacheWriteTokens;
   return {
     inputTokens,
@@ -102,6 +105,8 @@ function coreSettlementUsage(input: InferenceCoreSettlement['usage'], estimated:
     reasoningTokens: input.reasoningTokens,
     totalTokens: inputTokens + input.outputTokens + input.reasoningTokens,
     estimated,
+    cacheWrite1hTokens: input.cacheWrite1hTokens ?? 0,
+    webSearchRequests: input.webSearchRequests ?? 0,
   };
 }
 
@@ -633,6 +638,8 @@ export class InferenceCoreAccountingService {
           attempt.uncachedInputTokens === input.usage.uncachedInputTokens &&
           attempt.cachedInputTokens === input.usage.cachedInputTokens &&
           attempt.cacheWriteTokens === input.usage.cacheWriteTokens &&
+          attempt.cacheWrite1hTokens === (input.usage.cacheWrite1hTokens ?? 0) &&
+          attempt.webSearchRequests === (input.usage.webSearchRequests ?? 0) &&
           attempt.reasoningTokens === input.usage.reasoningTokens;
         if (!identical) {
           throw new AppError(409, 'core_settlement_conflict', 'Settlement payload differs from the recorded one');
@@ -662,7 +669,10 @@ export class InferenceCoreAccountingService {
             )
           : 0;
       const tokenCost =
-        budgetType === 'api' && pricing && tokenPricing(pricing) && usage.totalTokens > 0
+        budgetType === 'api' &&
+        pricing &&
+        tokenPricing(pricing) &&
+        (usage.totalTokens > 0 || usage.webSearchRequests > 0)
           ? apiMicrodollars(usage, pricing)
           : 0;
       const cost = costUnknown ? 0 : fixedApiMicrodollars + tokenCost;
@@ -678,8 +688,10 @@ export class InferenceCoreAccountingService {
           uncachedInputTokens: input.usage.uncachedInputTokens,
           cachedInputTokens: input.usage.cachedInputTokens,
           cacheWriteTokens: input.usage.cacheWriteTokens,
+          cacheWrite1hTokens: usage.cacheWrite1hTokens,
           outputTokens: input.usage.outputTokens,
           reasoningTokens: input.usage.reasoningTokens,
+          webSearchRequests: usage.webSearchRequests,
           costUnknown,
           latencyMs,
           completedAt: new Date(input.completedAt),
@@ -714,6 +726,8 @@ export class InferenceCoreAccountingService {
             connectionId: attempt.connectionId,
             coreAttemptId: input.attemptId,
             attemptKind: input.attemptKind,
+            ...(usage.cacheWrite1hTokens ? { cacheWrite1hTokens: usage.cacheWrite1hTokens } : {}),
+            ...(usage.webSearchRequests ? { webSearchRequests: usage.webSearchRequests } : {}),
             ...(costUnknown ? { priceMissing: true } : {}),
           },
         });
