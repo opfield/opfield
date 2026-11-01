@@ -664,6 +664,10 @@ export const HOST_MCP_REST_COVERAGE: McpRestCoverageMap = {
   'POST /api/inference/v1/live': INFERENCE_DATA_PLANE,
   'POST /api/inference/v1/messages': INFERENCE_DATA_PLANE,
   'POST /api/inference/v1/messages/count_tokens': INFERENCE_DATA_PLANE,
+  'GET /api/inference/v1/codex/models': excluded(
+    'machine',
+    'Inference data plane model list called by clients with their inference key.'
+  ),
   'GET /api/inference/v1/models': excluded(
     'machine',
     'Inference data plane model list called by clients with their inference key.'
