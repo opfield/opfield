@@ -467,9 +467,14 @@ export class InferenceUsageService {
   }
 
   async removeUser(userId: string, targetUserId: string): Promise<void> {
-    await this.db
+    const removed = await this.db
       .delete(inferenceLimitPolicies)
-      .where(and(eq(inferenceLimitPolicies.policyType, 'user'), eq(inferenceLimitPolicies.userId, targetUserId)));
+      .where(and(eq(inferenceLimitPolicies.policyType, 'user'), eq(inferenceLimitPolicies.userId, targetUserId)))
+      .returning({ id: inferenceLimitPolicies.id });
+    // A user without an override stays a no-op; an id that names no account is a caller's mistake.
+    if (removed.length === 0 && !(await this.db.query.users.findFirst({ where: eq(users.id, targetUserId) }))) {
+      throw new AppError(404, 'INFERENCE_LIMIT_USER_NOT_FOUND', 'User not found');
+    }
     await this.audit.log({
       userId,
       action: 'inference.limit.delete',
