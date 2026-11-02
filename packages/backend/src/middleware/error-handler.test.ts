@@ -34,17 +34,47 @@ describe('errorHandler PostgreSQL uuid errors', () => {
     }
   });
 
-  it('leaves other 22P02 cases and other errors as 500', async () => {
+  it('answers a value that is no uuid problem as a validation error, and anything else as 500', async () => {
     const other22P02 = drizzleWrapped(pgError('22P02', 'invalid input syntax for type integer: "x"'));
-    const otherCode = drizzleWrapped(pgError('23505', 'invalid input syntax for type uuid'));
     // The wrapper text mentions uuid but the driver error does not.
     const wrapperOnly = Object.assign(new Error('Failed query: uuid'), {
       cause: pgError('22P02', 'invalid input syntax for type json'),
     });
-    for (const error of [other22P02, otherCode, wrapperOnly, new Error('boom')]) {
+    for (const error of [other22P02, wrapperOnly]) {
       const res = await appThrowing(error).request('/boom');
-      expect(res.status).toBe(500);
+      expect(res.status).toBe(400);
     }
+    expect((await appThrowing(new Error('boom')).request('/boom')).status).toBe(500);
+    expect((await appThrowing(drizzleWrapped(pgError('53300', 'too many clients'))).request('/boom')).status).toBe(500);
+  });
+});
+
+describe('errorHandler statements PostgreSQL refused', () => {
+  const STILL_REFERENCED = 'Key (id)=(1) is still referenced from table "certificates".';
+  const NOT_PRESENT = 'Key (template_id)=(1) is not present in table "certificate_templates".';
+
+  function foreignKey(detail: string) {
+    return drizzleWrapped(Object.assign(pgError('23503', 'violates foreign key constraint'), { detail }));
+  }
+
+  it.each([
+    ['a row still referenced', foreignKey(STILL_REFERENCED), 409, 'RESOURCE_IN_USE'],
+    ['a reference to a row that does not exist', foreignKey(NOT_PRESENT), 400, 'REFERENCE_NOT_FOUND'],
+    ['a duplicate', drizzleWrapped(pgError('23505', 'duplicate key value')), 409, 'ALREADY_EXISTS'],
+    ['a NUL byte in text', drizzleWrapped(pgError('22021', 'invalid byte sequence')), 400, 'VALIDATION_ERROR'],
+    ['a value too long', drizzleWrapped(pgError('22001', 'value too long')), 400, 'VALIDATION_ERROR'],
+    ['a deadlock', drizzleWrapped(pgError('40P01', 'deadlock detected')), 409, 'CONFLICT'],
+  ])('answers %s with a typed error and no statement text', async (_name, error, status, code) => {
+    const res = await appThrowing(error).request('/boom');
+    expect(res.status).toBe(status);
+    const body = (await res.json()) as { code: string };
+    expect(body.code).toBe(code);
+    expect(JSON.stringify(body)).not.toMatch(/select|query|constraint|params|Key \(/i);
+  });
+
+  it('does not take a Node system error for a statement', async () => {
+    const res = await appThrowing(Object.assign(new Error('write EPIPE'), { code: 'EPIPE' })).request('/boom');
+    expect(res.status).toBe(500);
   });
 });
 

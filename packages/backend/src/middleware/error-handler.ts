@@ -1,6 +1,7 @@
 import type { Context, ErrorHandler } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import { ZodError } from 'zod';
+import { databaseRefusal, databaseRefusalContext } from '@/lib/database-refusal.js';
 import { logger } from '@/lib/logger.js';
 import { isNodeConnectionError } from '@/lib/node-connection-error.js';
 import { redactQueryError } from '@/lib/query-error-redaction.js';
@@ -245,6 +246,13 @@ export const errorHandler: ErrorHandler<AppEnv> = async (err, c) => {
       path: c.req.path,
     });
     return c.json<ApiError>({ code: 'NOT_FOUND', message: invalidUuidMessage(invalidUuidValue(err)) }, 404);
+  }
+
+  // A statement the request itself caused to fail (a row still referenced, a value that cannot be stored).
+  const refusal = databaseRefusal(err);
+  if (refusal) {
+    logger.warn('Database refused a request', { requestId, path: c.req.path, ...databaseRefusalContext(err) });
+    return c.json<ApiError>({ code: refusal.code, message: refusal.message }, refusal.status);
   }
 
   // A node lost while the request read from it (its control stream dropped): the node is unavailable, not Opfield.

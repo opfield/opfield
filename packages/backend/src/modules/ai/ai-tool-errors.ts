@@ -1,4 +1,5 @@
 import { HTTPException } from 'hono/http-exception';
+import { databaseRefusal, isDatabaseError } from '@/lib/database-refusal.js';
 import {
   AppError,
   HTTP_EXCEPTION_CODES,
@@ -49,6 +50,10 @@ export function describeToolError(err: unknown): ToolError {
     const code = HTTP_EXCEPTION_CODES[err.status] ?? (err.status < 500 ? 'REQUEST_REFUSED' : undefined);
     return { code, message: err.message || 'Request failed', expected: err.status < 500 };
   }
+  const refusal = databaseRefusal(err);
+  if (refusal) return { code: refusal.code, message: refusal.message, expected: true };
+  // As the REST API answers: the text of a failed statement carries its SQL and values.
+  if (isDatabaseError(err)) return { code: 'INTERNAL_ERROR', message: 'An unexpected error occurred', expected: false };
   const message = err instanceof Error ? err.message : 'Tool execution failed';
   const code = CODE_PREFIX.exec(message)?.[1];
   return code ? { code, message, expected: true } : { message, expected: false };

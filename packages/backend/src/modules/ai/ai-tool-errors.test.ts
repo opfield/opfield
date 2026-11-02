@@ -8,6 +8,22 @@ function toolErrorText(err: unknown): string {
   return formatToolError(describeToolError(err));
 }
 
+describe('a failed statement in a tool', () => {
+  const failed = (sqlState: string) =>
+    Object.assign(new Error('Failed query: delete from "secrets" where "id" = $1\nparams: abc'), {
+      query: 'delete from "secrets" where "id" = $1',
+      params: ['abc'],
+      cause: Object.assign(new Error('driver text'), { code: sqlState }),
+    });
+
+  it('reports what the REST API answers, without the SQL', () => {
+    expect(describeToolError(failed('23505'))).toMatchObject({ code: 'ALREADY_EXISTS', expected: true });
+    const internal = describeToolError(failed('53300'));
+    expect(internal).toMatchObject({ code: 'INTERNAL_ERROR', expected: false });
+    expect(internal.message).not.toMatch(/select|delete|params|secrets/i);
+  });
+});
+
 describe('tool errors', () => {
   it('carry the REST code of an AppError', () => {
     expect(toolErrorText(new AppError(404, 'NOT_FOUND', 'Deployment not found'))).toBe(
