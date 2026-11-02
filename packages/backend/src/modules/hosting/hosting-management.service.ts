@@ -67,6 +67,8 @@ export function proxmoxResizeFinished(resource: HostingResourceSnapshot, input: 
   );
 }
 
+/** Passes, about 5 s apart, an accepted start or shutdown waits for the VM to read as stopped or running. */
+const HOSTING_SETTLE_READS = 6;
 const UNCONFIRMED_MESSAGE =
   'The provider never confirmed this action. It was not repeated; check the VM and try again.';
 
@@ -676,6 +678,16 @@ export class HostingManagementService {
         ) {
           // `live` was read before the task was seen finished; what is stored must be what the task left.
           const observed = (taskSucceeded && (await adapter.getResource(resource.remoteId))) || live;
+          // A provider's status can lag its task. Ready must not be shown while the VM still reads as before.
+          const settleReads = Number(row.result?.settleReads ?? 0);
+          if (
+            ['start', 'shutdown'].includes(input.action) &&
+            !hostingActionFinished(input.action, observed) &&
+            settleReads < HOSTING_SETTLE_READS
+          ) {
+            row = await this.operations.update(row, { result: { ...row.result, settleReads: settleReads + 1 } });
+            continue;
+          }
           await this.db
             .update(hostingResources)
             .set({
