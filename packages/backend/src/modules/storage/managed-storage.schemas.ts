@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from '@hono/zod-openapi';
 import { appListQueryFields } from '@/modules/apps/app-list-query.js';
 import {
   ManagedAvailabilityEnableSchema,
@@ -223,7 +223,8 @@ const storageBindingEnvironmentSchema = z
     {
       message: 'Use distinct environment variable names',
     }
-  );
+  )
+  .openapi({ minProperties: 1 });
 
 export const CreateManagedStorageBindingSchema = z.object({
   targetNodeId: z.string().uuid(),
