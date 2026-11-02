@@ -66,10 +66,14 @@ export function relayCoreResponseBody(
     sseObserver.clear();
     options.finalize(outcome, error);
   };
-  const send = (controller: ReadableStreamDefaultController<Uint8Array>, bytes: Uint8Array | null | undefined) => {
-    if (!bytes?.byteLength) return;
+  const send = (
+    controller: ReadableStreamDefaultController<Uint8Array>,
+    bytes: Uint8Array | null | undefined
+  ): boolean => {
+    if (!bytes?.byteLength) return false;
     if (chat && ok) chat.emittedOutput = true;
     controller.enqueue(bytes);
+    return true;
   };
   const enqueueHeld = (controller: ReadableStreamDefaultController<Uint8Array>) => {
     const held = modelIds?.flush();
@@ -109,24 +113,28 @@ export function relayCoreResponseBody(
     },
     async pull(controller) {
       try {
-        const { done, value } = await reader.read();
-        if (settled) return;
-        if (!done) {
+        // A pull that enqueues nothing is not called again: a chunk that only extends a held frame
+        // or body would freeze the stream, with the heartbeat off for that pending frame too.
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (settled) return;
+          if (done) break;
           if (isSse) {
             terminal = sseObserver.observe(value);
             if (chat && sseObserver.chatUsage) chat.usage = sseObserver.chatUsage;
           }
           const output = modelIds ? modelIds.push(value) : value;
           const relayed = responsesModel ? responsesModel.push(output) : output;
-          send(controller, heldJson && relayed.byteLength ? heldJson.push(relayed) : relayed);
+          const sent = send(controller, heldJson && relayed.byteLength ? heldJson.push(relayed) : relayed);
           lastOutputAt = Date.now();
           if (terminal) {
             void reader.cancel('Inference stream terminal event received').catch(() => undefined);
             enqueueHeld(controller);
             settle(terminal, sseObserver.contentFiltered ? contentFilterStop() : undefined);
             controller.close();
+            return;
           }
-          return;
+          if (sent) return;
         }
         enqueueHeld(controller);
         if (isSse && !terminal) {
