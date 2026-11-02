@@ -99,7 +99,7 @@ export class DomainsService extends DomainsServiceIngressGroups {
 
   async getDomain(id: string) {
     const [row] = await this.db.select().from(domains).where(eq(domains.id, id)).limit(1);
-    if (!row) throw new Error('Domain not found');
+    if (!row) throw new AppError(404, 'NOT_FOUND', 'Domain not found');
     const [usage, nginxNode, ingressGroup] = await Promise.all([
       this.getUsage(row.domain),
       row.nginxNodeId ? this.getNginxNodeSummary(row.nginxNodeId) : Promise.resolve(null),
@@ -837,7 +837,7 @@ export class DomainsService extends DomainsServiceIngressGroups {
    */
   async checkDns(id: string, options: { repair?: boolean } = {}) {
     let [row] = await this.db.select().from(domains).where(eq(domains.id, id)).limit(1);
-    if (!row) throw new Error('Domain not found');
+    if (!row) throw new AppError(404, 'NOT_FOUND', 'Domain not found');
     if (options.repair === false) return this.observeDns(row);
 
     // A manual check retries a durable approved target before falling back to
@@ -854,7 +854,7 @@ export class DomainsService extends DomainsServiceIngressGroups {
       // The group's members decide the target; drift is repaired towards their current union.
       await this.reconcileIngressGroupDomain(row);
       [row] = await this.db.select().from(domains).where(eq(domains.id, id)).limit(1);
-      if (!row) throw new Error('Domain not found');
+      if (!row) throw new AppError(404, 'NOT_FOUND', 'Domain not found');
       reconciliationTarget = undefined;
     }
     if (
@@ -864,7 +864,7 @@ export class DomainsService extends DomainsServiceIngressGroups {
     ) {
       await this.reconcileDomainTarget(row, reconciliationTarget);
       [row] = await this.db.select().from(domains).where(eq(domains.id, id)).limit(1);
-      if (!row) throw new Error('Domain not found');
+      if (!row) throw new AppError(404, 'NOT_FOUND', 'Domain not found');
     }
 
     return this.observeDns(row, { adoptExternalTarget: true });
