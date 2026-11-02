@@ -1,4 +1,5 @@
 import { LEGACY_PROVIDER_CLIENT_ID } from '@/lib/legacy-compat.js';
+import { AppError } from '@/middleware/error-handler.js';
 import type { InferenceProviderDefinition } from './inference-provider.types.js';
 
 const SUBSCRIPTION_TERMS_VERSION = 'opencodex-unofficial-connectors-2026-07';
@@ -453,7 +454,8 @@ export class InferenceProviderRegistry {
 
   require(providerId: string): InferenceProviderDefinition {
     const provider = this.get(providerId);
-    if (!provider) throw new Error(`Unsupported inference provider: ${providerId}`);
+    if (!provider)
+      throw new AppError(404, 'INFERENCE_PROVIDER_NOT_FOUND', `Unsupported inference provider: ${providerId}`);
     return provider;
   }
 
