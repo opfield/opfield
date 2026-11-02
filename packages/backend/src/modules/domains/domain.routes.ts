@@ -1,6 +1,7 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { container } from '@/container.js';
 import { grantCreatedResourcePermissions } from '@/lib/created-resource-permissions.js';
+import { isDatabaseError } from '@/lib/database-refusal.js';
 import { getFolderScopedIds } from '@/lib/folder-scopes.js';
 import { openApiValidationHook } from '@/lib/openapi.js';
 import { getResourceScopedIds, hasScope, hasScopeForCreation, hasScopeForResource } from '@/lib/permissions.js';
@@ -76,6 +77,12 @@ import {
 import { DomainsService } from './domain.service.js';
 
 export const domainRoutes = new OpenAPIHono<AppEnv>({ defaultHook: openApiValidationHook });
+
+/** The text of a failure a domain route answers itself. A failed statement goes to the error handler: it holds SQL. */
+function domainFailureText(err: unknown, fallback: string): string {
+  if (isDatabaseError(err)) throw err;
+  return err instanceof Error ? err.message : fallback;
+}
 
 domainRoutes.use('*', authMiddleware);
 
@@ -277,7 +284,7 @@ domainRoutes.openapi({ ...previewDomainRoute, middleware: requireScopeBase('doma
     if (err instanceof AppError) {
       return c.json({ code: err.code, message: err.message, details: err.details }, err.statusCode as never);
     }
-    return c.json({ code: 'ERROR', message: err instanceof Error ? err.message : 'Failed to preview domain' }, 400);
+    return c.json({ code: 'ERROR', message: domainFailureText(err, 'Failed to preview domain') }, 400);
   }
 });
 
@@ -322,7 +329,7 @@ domainRoutes.openapi(createDomainRoute, async (c) => {
     if (msg.includes('unique') || msg.includes('duplicate')) {
       return c.json({ code: 'DUPLICATE', message: 'Domain already exists' }, 409);
     }
-    return c.json({ code: 'ERROR', message: msg }, 400);
+    return c.json({ code: 'ERROR', message: domainFailureText(err, msg) }, 400);
   }
 });
 
@@ -341,7 +348,7 @@ domainRoutes.openapi({ ...updateDomainRoute, middleware: requireScopeForResource
     if (err instanceof AppError) {
       return c.json({ code: err.code, message: err.message, details: err.details }, err.statusCode as never);
     }
-    return c.json({ code: 'ERROR', message: err instanceof Error ? err.message : 'Failed to update domain' }, 400);
+    return c.json({ code: 'ERROR', message: domainFailureText(err, 'Failed to update domain') }, 400);
   }
 });
 
@@ -363,7 +370,7 @@ domainRoutes.openapi(
       if (err instanceof SyntaxError) {
         return c.json({ code: 'BAD_REQUEST', message: 'Malformed JSON in request body' }, 400);
       }
-      return c.json({ code: 'ERROR', message: err instanceof Error ? err.message : 'Failed to delete domain' }, 400);
+      return c.json({ code: 'ERROR', message: domainFailureText(err, 'Failed to delete domain') }, 400);
     }
   }
 );
@@ -403,10 +410,7 @@ domainRoutes.openapi(
       if (err instanceof AppError) {
         return c.json({ code: err.code, message: err.message, details: err.details }, err.statusCode as never);
       }
-      return c.json(
-        { code: 'ERROR', message: err instanceof Error ? err.message : 'Failed to resolve Cloudflare migration' },
-        400
-      );
+      return c.json({ code: 'ERROR', message: domainFailureText(err, 'Failed to resolve Cloudflare migration') }, 400);
     }
   }
 );
@@ -424,10 +428,7 @@ domainRoutes.openapi(
       if (err instanceof AppError) {
         return c.json({ code: err.code, message: err.message, details: err.details }, err.statusCode as never);
       }
-      return c.json(
-        { code: 'ERROR', message: err instanceof Error ? err.message : 'Failed to preview ingress migration' },
-        400
-      );
+      return c.json({ code: 'ERROR', message: domainFailureText(err, 'Failed to preview ingress migration') }, 400);
     }
   }
 );
@@ -446,7 +447,7 @@ domainRoutes.openapi(
       if (err instanceof AppError) {
         return c.json({ code: err.code, message: err.message, details: err.details }, err.statusCode as never);
       }
-      return c.json({ code: 'ERROR', message: err instanceof Error ? err.message : 'Failed to migrate ingress' }, 400);
+      return c.json({ code: 'ERROR', message: domainFailureText(err, 'Failed to migrate ingress') }, 400);
     }
   }
 );
@@ -509,7 +510,7 @@ domainRoutes.openapi(
       await grantCreatedResourcePermissions(user.id, 'ssl:cert', cert.certificate.id, { folderId: folderId ?? null });
       return c.json({ data: cert }, 201);
     } catch (err) {
-      return c.json({ code: 'CERT_ERROR', message: err instanceof Error ? err.message : 'Failed to issue cert' }, 400);
+      return c.json({ code: 'CERT_ERROR', message: domainFailureText(err, 'Failed to issue cert') }, 400);
     }
   }
 );
