@@ -26,7 +26,11 @@ import type { HostingConnectorRow, HostingConnectorsService } from './hosting-co
 import { lockHostingFirewalls } from './hosting-firewall-lock.js';
 import { HostingProviderError } from './hosting-http.js';
 import { withKnownLocation } from './hosting-location.js';
-import { hostingConfirmationExpired, type HostingOperationsService, publicHostingOperation } from './hosting-operations.service.js';
+import {
+  type HostingOperationsService,
+  hostingConfirmationExpired,
+  publicHostingOperation,
+} from './hosting-operations.service.js';
 import { assertHostingScope, canViewHostingFinance } from './hosting-permissions.js';
 import type { HostingResourceSnapshot } from './hosting-provider.types.js';
 import {

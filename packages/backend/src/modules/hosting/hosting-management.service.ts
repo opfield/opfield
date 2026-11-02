@@ -27,9 +27,9 @@ import { lockHostingDeletion, unenrolledHostingNodeIds } from './hosting-deletio
 import { HostingProviderError } from './hosting-http.js';
 import { withKnownLocation } from './hosting-location.js';
 import {
-  hostingConfirmationExpired,
   type HostingOperationRow,
   type HostingOperationsService,
+  hostingConfirmationExpired,
   publicHostingOperation,
   transientTaskRetry,
 } from './hosting-operations.service.js';
@@ -67,7 +67,8 @@ export function proxmoxResizeFinished(resource: HostingResourceSnapshot, input: 
   );
 }
 
-const UNCONFIRMED_MESSAGE = 'The provider never confirmed this action. It was not repeated; check the VM and try again.';
+const UNCONFIRMED_MESSAGE =
+  'The provider never confirmed this action. It was not repeated; check the VM and try again.';
 
 /** The nodes a delete still has to remove: those reserved with it, minus the ones it already removed. */
 function destroyNodeIds(row: HostingOperationRow, bound: { nodeId: string }[]): string[] {
@@ -741,7 +742,12 @@ export class HostingManagementService {
             await this.operations.update(row, {
               phase: 'unknown',
               // A later failed read must not replace the reason the outcome became unknown.
-              errorCode: row.phase === 'unknown' && row.errorCode ? row.errorCode : error instanceof AppError ? error.code : 'HOSTING_ACTION_FAILED',
+              errorCode:
+                row.phase === 'unknown' && row.errorCode
+                  ? row.errorCode
+                  : error instanceof AppError
+                    ? error.code
+                    : 'HOSTING_ACTION_FAILED',
               errorMessage:
                 row.phase === 'unknown' && row.errorMessage
                   ? row.errorMessage
