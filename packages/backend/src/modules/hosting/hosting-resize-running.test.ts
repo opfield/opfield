@@ -109,9 +109,9 @@ describe('resize while the guest runs', () => {
 
 describe('an action nothing can confirm', () => {
   it('never sends a reboot to a stopped guest', () => {
-    expect(() =>
-      assertHostingActionPreconditions(target(guest('vm', 'stopped')), { action: 'reboot' })
-    ).toThrowError(expect.objectContaining({ code: 'HOSTING_VM_STOPPED' }));
+    expect(() => assertHostingActionPreconditions(target(guest('vm', 'stopped')), { action: 'reboot' })).toThrowError(
+      expect.objectContaining({ code: 'HOSTING_VM_STOPPED' })
+    );
   });
 
   it('stops holding the VM after the confirmation window, except for teardown of a VM already gone', () => {

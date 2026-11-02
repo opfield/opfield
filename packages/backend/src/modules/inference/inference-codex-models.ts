@@ -126,7 +126,6 @@ function publishedFields(model: CodexCatalogModel, index: number, upstream: Upst
 
 function ownEntry(model: CodexCatalogModel, index: number) {
   const { reasoning, fields } = publishedFields(model, index, null);
-  const tools = model.capabilities.tools !== false;
   return {
     shell_type: 'shell_command',
     apply_patch_tool_type: 'freeform',
