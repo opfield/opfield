@@ -40,12 +40,27 @@ export function hostingResizeStopRequirement(
   return { scope: 'always', reason: 'Shut down the VM before resizing it.' };
 }
 
-/** The capabilities as shown to users: a resize that needs a stop says so, and stays available. */
+function withPowerState(capabilities: HostingCapabilities, powerState: HostingResourceSnapshot['powerState']) {
+  if (powerState === 'running' && capabilities.start.available)
+    return { ...capabilities, start: { available: false, reason: 'The VM is already running' } };
+  if (powerState !== 'stopped') return capabilities;
+  const stopped = { available: false, reason: 'The VM is stopped' };
+  return {
+    ...capabilities,
+    ...(capabilities.shutdown.available ? { shutdown: stopped } : {}),
+    ...(capabilities.reboot.available ? { reboot: stopped } : {}),
+  };
+}
+
+/**
+ * The capabilities as shown to users: a resize that needs a stop says so and stays available, and a power action the
+ * VM is already in the state of is not offered (assertHostingPowerAction refuses it).
+ */
 export function advertisedHostingCapabilities(
   provider: HostingProvider,
   resource: HostingResourceSnapshot
 ): HostingCapabilities {
-  const capabilities = resource.capabilities;
+  const capabilities = withPowerState(resource.capabilities, resource.powerState);
   if (!capabilities.resize.available) return capabilities;
   const stop = hostingResizeStopRequirement(provider, resource);
   if (!stop) return capabilities;
