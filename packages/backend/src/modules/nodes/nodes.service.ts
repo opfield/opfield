@@ -1102,7 +1102,13 @@ export class NodesService {
       connectedNode.commandStream.end();
       await this.registry.deregister(id);
     }
-    await this.systemCertificateLifecycle?.retryPendingCRLs();
+    // The node is gone and its certificates are revoked: a CRL that fails to publish stays pending and is retried.
+    await this.systemCertificateLifecycle?.retryPendingCRLs().catch((error: unknown) => {
+      logger.warn('Publishing a CRL after a node removal failed; it is retried', {
+        nodeId: id,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    });
 
     await this.auditService.log({
       userId,
