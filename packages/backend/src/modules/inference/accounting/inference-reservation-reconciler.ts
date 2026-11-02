@@ -60,7 +60,20 @@ export class InferenceReservationReconciler {
       if (!request.userId) continue;
       try {
         await this.locks.withUserLock(request.userId, async (database) => {
-          if (await this.reservations.isActive({ id: request.id, userId: request.userId! })) return;
+          // A core attempt holds its own reservation; only the legacy engine reserves under the request id.
+          const attempts = await database
+            .select({ reservationId: inferenceRequestAttempts.reservationId })
+            .from(inferenceRequestAttempts)
+            .where(
+              and(
+                eq(inferenceRequestAttempts.requestId, request.id),
+                inArray(inferenceRequestAttempts.status, ['pending', 'running'])
+              )
+            );
+          const held = [request.id, ...attempts.flatMap(({ reservationId }) => reservationId ?? [])];
+          for (const id of held) {
+            if (await this.reservations.isActive({ id, userId: request.userId! })) return;
+          }
           const [row] = await database
             .update(inferenceRequests)
             .set({
