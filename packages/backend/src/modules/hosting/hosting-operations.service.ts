@@ -13,6 +13,7 @@ export type HostingOperationRow = typeof hostingOperations.$inferSelect;
 type OperationPatch = Partial<typeof hostingOperations.$inferInsert>;
 export const HOSTING_OPERATION_LEASE_MS = 90_000;
 export const HOSTING_TERMINAL_PHASES: HostingOperationPhase[] = ['ready', 'failed'];
+const HOSTING_CONFIRMATION_MS = 10 * 60_000;
 
 function canonical(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(canonical);
@@ -82,6 +83,22 @@ export function transientTaskRetry(
     dispatchStartedAt: null,
     result: { ...row.result, transientTaskRetries: retries + 1, lastTransientTaskError: task.error ?? null },
   };
+}
+
+/**
+ * A VM operation sent to the provider whose outcome nothing proved in this time stops holding the VM. It is failed, not
+ * repeated: the provider may have done it. Teardown after the provider confirmed the VM gone keeps waiting.
+ */
+export function hostingConfirmationExpired(
+  row: Pick<HostingOperationRow, 'phase' | 'dispatchStartedAt' | 'result'>,
+  now = Date.now()
+) {
+  return (
+    row.phase === 'unknown' &&
+    !!row.dispatchStartedAt &&
+    row.result?.providerDeleted !== true &&
+    now - row.dispatchStartedAt.getTime() > HOSTING_CONFIRMATION_MS
+  );
 }
 
 /** DB state owns intent and progress. HTTP/UI lifetimes do not own provider mutations. */

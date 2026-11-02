@@ -27,6 +27,7 @@ import { lockHostingDeletion, unenrolledHostingNodeIds } from './hosting-deletio
 import { HostingProviderError } from './hosting-http.js';
 import { withKnownLocation } from './hosting-location.js';
 import {
+  hostingConfirmationExpired,
   type HostingOperationRow,
   type HostingOperationsService,
   publicHostingOperation,
@@ -65,6 +66,8 @@ export function proxmoxResizeFinished(resource: HostingResourceSnapshot, input: 
     (input.diskGb === undefined || resource.diskGb === input.diskGb)
   );
 }
+
+const UNCONFIRMED_MESSAGE = 'The provider never confirmed this action. It was not repeated; check the VM and try again.';
 
 /** The nodes a delete still has to remove: those reserved with it, minus the ones it already removed. */
 function destroyNodeIds(row: HostingOperationRow, bound: { nodeId: string }[]): string[] {
@@ -511,7 +514,14 @@ export class HostingManagementService {
             }
             if (stop.status !== 'succeeded' && stop.status !== 'failed') continue;
           }
-          if (live.powerState !== 'stopped') continue;
+          if (live.powerState !== 'stopped') {
+            if (hostingConfirmationExpired(row))
+              await this.operations.finish(row, 'failed', undefined, {
+                code: 'HOSTING_STOP_FAILED',
+                message: 'The provider never confirmed the shutdown; nothing was deleted',
+              });
+            continue;
+          }
           row = await this.operations.update(row, {
             phase: 'pending',
             dispatchStartedAt: null,
@@ -663,15 +673,22 @@ export class HostingManagementService {
           (input.action !== 'recover' && input.action !== 'delete' && !proxmoxResize && taskSucceeded) ||
           hostingActionFinished(input.action, live, input.size)
         ) {
+          // `live` was read before the task was seen finished; what is stored must be what the task left.
+          const observed = (taskSucceeded && (await adapter.getResource(resource.remoteId))) || live;
           await this.db
             .update(hostingResources)
             .set({
-              snapshot: withKnownLocation(live, resource.snapshot.location),
-              observedAt: new Date(live.observedAt),
+              snapshot: withKnownLocation(observed, resource.snapshot.location),
+              observedAt: new Date(observed.observedAt),
               updatedAt: new Date(),
             })
             .where(eq(hostingResources.id, resource.id));
           await this.operations.finish(row, 'ready', { resourceId: resource.id });
+        } else if (hostingConfirmationExpired(row)) {
+          await this.operations.finish(row, 'failed', undefined, {
+            code: row.errorCode ?? 'HOSTING_ACTION_OUTCOME_UNKNOWN',
+            message: UNCONFIRMED_MESSAGE,
+          });
         } else if (!row.providerOperation?.id && !taskSucceeded) {
           await this.operations.update(row, {
             phase: 'unknown',
@@ -700,6 +717,7 @@ export class HostingManagementService {
             error instanceof AppError &&
             [
               'HOSTING_VM_MUST_STOP',
+              'HOSTING_VM_STOPPED',
               'HOSTING_DISK_SHRINK_UNSUPPORTED',
               'HOSTING_STOP_UNAVAILABLE',
               'HOSTING_RESIZE_REJECTED',
@@ -710,15 +728,26 @@ export class HostingManagementService {
             error instanceof HostingProviderError &&
             !error.outcomeUnknown &&
             [400, 401, 403, 404, 405, 413, 415, 422, 429].includes(error.providerStatus);
-          if (
+          if (hostingConfirmationExpired(row))
+            await this.operations.finish(row, 'failed', undefined, {
+              code: row.errorCode ?? 'HOSTING_ACTION_OUTCOME_UNKNOWN',
+              message: UNCONFIRMED_MESSAGE,
+            });
+          else if (
             !rejectedBeforeWrite &&
             !rejectedByProvider &&
             (row.dispatchStartedAt || (error instanceof HostingProviderError && error.outcomeUnknown))
           )
             await this.operations.update(row, {
               phase: 'unknown',
-              errorCode: error instanceof AppError ? error.code : 'HOSTING_ACTION_FAILED',
-              errorMessage: error instanceof AppError ? error.message : 'VM operation needs reconciliation',
+              // A later failed read must not replace the reason the outcome became unknown.
+              errorCode: row.phase === 'unknown' && row.errorCode ? row.errorCode : error instanceof AppError ? error.code : 'HOSTING_ACTION_FAILED',
+              errorMessage:
+                row.phase === 'unknown' && row.errorMessage
+                  ? row.errorMessage
+                  : error instanceof AppError
+                    ? error.message
+                    : 'VM operation needs reconciliation',
             });
           else
             await this.operations.finish(row, 'failed', undefined, {

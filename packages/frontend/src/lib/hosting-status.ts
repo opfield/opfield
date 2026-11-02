@@ -65,6 +65,8 @@ export function hostingPowerLabel(resource: HostingResource, operation?: Operati
   if (hostingOperationPending(operation)) {
     if (operation!.action === "delete") return "destroying";
     if (operation!.action === "snapshot_restore") return "restoring";
+    // Unconfirmed: nothing says the VM is changing state, so show what was last read.
+    if (operation!.phase === "unknown") return resource.powerState;
     if (operation!.action === "shutdown") return "stopping";
     if (
       ["start", "reboot"].includes(operation!.action) ||

@@ -3,6 +3,7 @@ import '@/db/schema/index.js';
 import { describe, expect, it } from 'vitest';
 import { advertisedHostingCapabilities, assertHostingActionPreconditions } from './hosting-action-preconditions.js';
 import type { HostingRequestOptions } from './hosting-http.js';
+import { hostingConfirmationExpired } from './hosting-operations.service.js';
 import {
   type HostingActionRequest,
   type HostingConnection,
@@ -103,5 +104,22 @@ describe('resize while the guest runs', () => {
     await expect(adapter.action(guest('ct', 'running'), resize({ cpu: 4 }))).rejects.toMatchObject({
       code: 'HOSTING_VM_MUST_STOP',
     });
+  });
+});
+
+describe('an action nothing can confirm', () => {
+  it('never sends a reboot to a stopped guest', () => {
+    expect(() =>
+      assertHostingActionPreconditions(target(guest('vm', 'stopped')), { action: 'reboot' })
+    ).toThrowError(expect.objectContaining({ code: 'HOSTING_VM_STOPPED' }));
+  });
+
+  it('stops holding the VM after the confirmation window, except for teardown of a VM already gone', () => {
+    const dispatchStartedAt = new Date(0);
+    const row = { phase: 'unknown' as const, dispatchStartedAt, result: {} };
+    expect(hostingConfirmationExpired(row, 9 * 60_000)).toBe(false);
+    expect(hostingConfirmationExpired(row, 11 * 60_000)).toBe(true);
+    expect(hostingConfirmationExpired({ ...row, phase: 'provisioning' }, 11 * 60_000)).toBe(false);
+    expect(hostingConfirmationExpired({ ...row, result: { providerDeleted: true } }, 11 * 60_000)).toBe(false);
   });
 });

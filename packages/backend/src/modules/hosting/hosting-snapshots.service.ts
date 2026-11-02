@@ -26,7 +26,7 @@ import type { HostingConnectorRow, HostingConnectorsService } from './hosting-co
 import { lockHostingFirewalls } from './hosting-firewall-lock.js';
 import { HostingProviderError } from './hosting-http.js';
 import { withKnownLocation } from './hosting-location.js';
-import { type HostingOperationsService, publicHostingOperation } from './hosting-operations.service.js';
+import { hostingConfirmationExpired, type HostingOperationsService, publicHostingOperation } from './hosting-operations.service.js';
 import { assertHostingScope, canViewHostingFinance } from './hosting-permissions.js';
 import type { HostingResourceSnapshot } from './hosting-provider.types.js';
 import {
@@ -719,6 +719,12 @@ export class HostingSnapshotsService {
           );
           refreshInventory = true;
           this.connectors.changed(target.connector.id);
+        } else if (hostingConfirmationExpired(row)) {
+          await this.finishWithEntity(row, input, 'failed', undefined, {
+            code: row.errorCode ?? 'HOSTING_SNAPSHOT_OUTCOME_UNKNOWN',
+            message: 'The provider never confirmed this snapshot operation. It was not repeated; check the provider.',
+          });
+          refreshInventory = true;
         } else if (!task?.id) {
           await this.operations.update(row, {
             phase: 'unknown',
@@ -739,7 +745,16 @@ export class HostingSnapshotsService {
             code: error instanceof AppError ? error.code : 'HOSTING_SNAPSHOT_FAILED',
             message: error instanceof AppError ? error.message : 'Snapshot operation failed',
           };
-          if (unknown) {
+          if (hostingConfirmationExpired(row)) {
+            await this.finishWithEntity(
+              row,
+              HostingSnapshotInputSchema.parse(row.request),
+              'failed',
+              undefined,
+              details
+            );
+            refreshInventory = true;
+          } else if (unknown) {
             row = await this.operations.update(row, {
               phase: 'unknown',
               errorCode: details.code,

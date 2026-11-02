@@ -95,6 +95,9 @@ export function hostingDeleteStopsFirst(provider: HostingProvider, live: Hosting
 export function assertHostingActionPreconditions(target: HostingActionTarget, input: HostingActionRequest): void {
   const { live } = target;
   if (input.action === 'resize') assertResize(target, input);
+  // Nothing can prove a reboot of a stopped VM either way, so it must not reach the provider.
+  if (input.action === 'reboot' && live.powerState === 'stopped')
+    throw new AppError(409, 'HOSTING_VM_STOPPED', 'The VM is stopped');
   if (input.action === 'recover') {
     if (!target.canBootstrap || !live.capabilities.recover.available)
       throw new AppError(409, 'HOSTING_RECOVERY_UNAVAILABLE', 'No independent daemon recovery channel is available');
