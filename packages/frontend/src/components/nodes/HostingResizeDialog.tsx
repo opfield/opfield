@@ -254,7 +254,10 @@ export function HostingResizeDialog({
           <Button
             pending={busy}
             disabled={
-              shrink || !displayed?.incarnation || (provider !== "proxmox" && (!size || !price))
+              shrink ||
+              !displayed?.incarnation ||
+              stopRequired === "always" ||
+              (provider !== "proxmox" && (!size || !price))
             }
             onClick={() => void submit()}
           >

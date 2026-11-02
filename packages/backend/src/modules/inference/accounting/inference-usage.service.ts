@@ -288,7 +288,9 @@ export class InferenceUsageService {
     const rows = await this.db
       .select({ id: users.id, email: users.email, name: users.name, avatarUrl: users.avatarUrl })
       .from(users)
-      .where(or(isNull(users.oidcSubject), ne(users.oidcSubject, OPFIELD_SYSTEM_OIDC_SUBJECT)));
+      .where(
+        and(or(isNull(users.oidcSubject), ne(users.oidcSubject, OPFIELD_SYSTEM_OIDC_SUBJECT)), isNull(users.deletedAt))
+      );
     return Promise.all(
       rows.map(async (user) => {
         try {

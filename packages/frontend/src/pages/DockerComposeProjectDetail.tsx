@@ -1185,6 +1185,8 @@ export function DockerComposeProjectDetail() {
         })
       : null;
   const displayedDrift = availabilityActive ? false : project.drifted;
+  // The project's state is the last thing its node reported, however long ago that was.
+  const nodeOffline = !availabilityActive && !!node && node.status !== "online";
   const logicalServiceCount = availabilityActive
     ? (availabilityPolicy.serviceCount ??
       Object.keys(project.activeRevision?.normalizedModel.services ?? {}).length)
@@ -1222,13 +1224,17 @@ export function DockerComposeProjectDetail() {
                 size="inline"
                 className="shrink-0"
                 variant={
-                  availabilityBadgeVariant ??
-                  (project.drifted ? "warning" : projectStatusVariant(project.status))
+                  nodeOffline
+                    ? "destructive"
+                    : (availabilityBadgeVariant ??
+                      (project.drifted ? "warning" : projectStatusVariant(project.status)))
                 }
               >
-                {String(
-                  availabilityStatus ?? (project.drifted ? "Drift" : project.status)
-                ).replaceAll("_", " ")}
+                {nodeOffline
+                  ? "Node offline"
+                  : String(
+                      availabilityStatus ?? (project.drifted ? "Drift" : project.status)
+                    ).replaceAll("_", " ")}
               </Badge>
             </>
           }

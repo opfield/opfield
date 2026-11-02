@@ -80,6 +80,7 @@ export function AvailabilitySummary({
   const controlled = controlledPolicy !== undefined;
   const [localPolicy, setLocalPolicy] = useState<DockerAvailabilityPolicy | null>(null);
   const [localLoading, setLocalLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
   const policy = controlled ? controlledPolicy : localPolicy;
   const loading = controlled ? Boolean(controlledLoading) : localLoading;
   const stableResource = useStableAvailabilityResource(resource);
@@ -88,9 +89,13 @@ export function AvailabilitySummary({
     if (controlled) return;
     void api
       .getDockerAvailability(stableResource)
-      .then(setLocalPolicy)
+      .then((loaded) => {
+        setLocalPolicy(loaded);
+        setLoadFailed(false);
+      })
       .catch((error) => {
         setLocalPolicy(null);
+        setLoadFailed(true);
         toastApiError(error, "Failed to load Availability");
       })
       .finally(() => setLocalLoading(false));
@@ -154,13 +159,27 @@ export function AvailabilitySummary({
           <DetailRow label="Mode" value={label(mode)} />
           <DetailRow
             label="Serving"
-            value={stopped ? "Stopped" : `${serving || (mode === "single" ? 1 : 0)}/${desired}`}
+            value={
+              loadFailed
+                ? "Unknown"
+                : stopped
+                  ? "Stopped"
+                  : `${serving || (mode === "single" ? 1 : 0)}/${desired}`
+            }
           />
           {policy && !stopped ? <AvailabilityPrioritySummaryRows policy={policy} /> : null}
           {policy && !stopped ? <AvailabilityLeaseSummaryRows policy={policy} /> : null}
           <DetailRow
             label="Placement health"
-            value={stopped ? "Stopped" : unhealthy > 0 ? `${unhealthy} need attention` : "Healthy"}
+            value={
+              loadFailed
+                ? "Unknown"
+                : stopped
+                  ? "Stopped"
+                  : unhealthy > 0
+                    ? `${unhealthy} need attention`
+                    : "Healthy"
+            }
           />
           <DetailRow
             label="Current operation"
