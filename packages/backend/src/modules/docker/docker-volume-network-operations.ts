@@ -938,6 +938,7 @@ export async function connectContainerToNetwork(
     resourceId: network.id,
     details: { nodeId, containerId, networkName: network.name },
   });
+  context.eventBus?.publish('docker.network.changed', { nodeId, name: network.name, action: 'connected' });
 }
 
 export async function disconnectContainerFromNetwork(
@@ -967,4 +968,5 @@ export async function disconnectContainerFromNetwork(
     resourceId: network.id,
     details: { nodeId, containerId, networkName: network.name },
   });
+  context.eventBus?.publish('docker.network.changed', { nodeId, name: network.name, action: 'disconnected' });
 }

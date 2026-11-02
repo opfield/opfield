@@ -219,6 +219,9 @@ const RECREATE_SETTLE_TIMEOUT_MS = 60_000;
 /** See DockerSnapshotReconciler.readBackRecreatedContainer. */
 export type DockerRecreateReadBack = (nodeId: string, name: string, newId: string, oldId: string) => Promise<void>;
 
+/** See DockerSnapshotReconciler.refreshContainerNow. */
+export type DockerContainerReadBack = (nodeId: string, keys: readonly (string | undefined)[]) => Promise<void>;
+
 export class DockerManagementService {
   private static readonly LONG_DOCKER_OPERATION_TIMEOUT_MS = 600000; // 10 minutes
 
@@ -232,6 +235,7 @@ export class DockerManagementService {
   private taskService?: DockerTaskService;
   private snapshotReadBack?: DockerSnapshotReadBack;
   private recreateReadBack?: DockerRecreateReadBack;
+  private containerReadBack?: DockerContainerReadBack;
   private environmentService?: DockerEnvironmentService;
   private runtimeSettingsService?: DockerRuntimeSettingsService;
   private secretService?: DockerSecretService;
@@ -302,6 +306,11 @@ export class DockerManagementService {
   /** Reads a recreated container back into the snapshots before the recreate's transition clears. */
   setRecreateReadBack(readBack: DockerRecreateReadBack): void {
     this.recreateReadBack = readBack;
+  }
+
+  /** Reads a changed container back into the snapshots before the change answers. */
+  setContainerReadBack(readBack: DockerContainerReadBack): void {
+    this.containerReadBack = readBack;
   }
 
   /**
@@ -1873,6 +1882,7 @@ export class DockerManagementService {
     if (await this.availabilityMutationCoordinator?.updateConfiguration(nodeId, containerName, config, userId)) return;
     await this.assertContainerMigrationAllowed(nodeId, containerId);
     await liveUpdateDockerContainer(this.containerMutationContext(), nodeId, containerId, config, userId);
+    await this.containerReadBack?.(nodeId, [containerId, containerName]);
   }
 
   async recreateWithConfig(
@@ -2590,6 +2600,8 @@ export class DockerManagementService {
     await this.validateDockerNode(nodeId);
     await this.assertNotAvailabilityManaged(nodeId, containerId, AVAILABILITY_NETWORKS_MANAGED);
     await connectDockerContainerToNetwork(this.volumeNetworkOperationContext(), nodeId, networkId, containerId, userId);
+    await this.readBackSnapshot(nodeId, 'networks');
+    await this.containerReadBack?.(nodeId, [containerId]);
   }
 
   async disconnectContainerFromNetwork(nodeId: string, networkId: string, containerId: string, userId: string) {
@@ -2602,6 +2614,8 @@ export class DockerManagementService {
       containerId,
       userId
     );
+    await this.readBackSnapshot(nodeId, 'networks');
+    await this.containerReadBack?.(nodeId, [containerId]);
   }
 
   // ─── Container stats ───────────────────────────────────────────────
