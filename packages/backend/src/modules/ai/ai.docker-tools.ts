@@ -83,7 +83,7 @@ import { withDockerImageSources } from '@/modules/docker/docker-image-source.js'
 import { inspectUserContainer } from '@/modules/docker/docker-internal-containers.js';
 import { withNodeLossAnswer } from '@/modules/docker/docker-node-loss.js';
 import { DockerInternalRegistryService } from '@/modules/docker/docker-registry-internal.service.js';
-import { sanitizeContainerInspect } from '@/modules/docker/docker-snapshot.service.js';
+import { DockerSnapshotService, sanitizeContainerInspect } from '@/modules/docker/docker-snapshot.service.js';
 import {
   assertNotPendingSourceContainer,
   type DockerSourceService as DockerSourceServiceType,
@@ -763,6 +763,7 @@ async function manageDockerCompose(context: DockerToolContext, user: User, args:
     if (!hasScopeBase(user.scopes, 'docker:compose:create')) throw new Error('Missing docker:compose:create');
     await container.resolve(LicensePolicyService).requireFeature('compose-applications');
     if (operation === 'validate') {
+      await container.resolve(DockerSnapshotService).assertDockerNode(nodeId);
       return service.validate(
         ComposeYamlInputSchema.parse({
           projectName: a.projectName,

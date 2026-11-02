@@ -5,6 +5,7 @@ import { AppError } from '@/middleware/error-handler.js';
 import { appForMember, parseAppListFilter, withDockerAppMembers } from '@/modules/apps/app-membership.js';
 import { requireScopeBase } from '@/modules/auth/auth.middleware.js';
 import { hasDockerResourceScope } from '@/modules/docker/docker-access-resource.service.js';
+import { DockerSnapshotService } from '@/modules/docker/docker-snapshot.service.js';
 import { LicensePolicyService } from '@/modules/license/license-policy.service.js';
 import type { AppEnv } from '@/types.js';
 import { DockerAvailabilityService } from '../availability/docker-availability.service.js';
@@ -151,6 +152,7 @@ export function registerDockerComposeRoutes(router: OpenAPIHono<AppEnv>) {
     { ...validateComposeProjectRoute, middleware: requireScopeBase('docker:compose:create') },
     async (c) => {
       await requireManagedComposeFeature();
+      await container.resolve(DockerSnapshotService).assertDockerNode(c.req.param('nodeId')!);
       const data = container.resolve(DockerComposeService).validate(ComposeYamlInputSchema.parse(await c.req.json()));
       return c.json({ data });
     }
