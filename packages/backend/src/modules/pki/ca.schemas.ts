@@ -1,7 +1,8 @@
 import { z } from 'zod';
+import { certificateNameText } from './cert.schemas.js';
 
 export const CreateRootCASchema = z.object({
-  commonName: z.string().min(1).max(255),
+  commonName: certificateNameText(255, 1),
   keyAlgorithm: z.enum(['rsa-2048', 'rsa-4096', 'ecdsa-p256', 'ecdsa-p384']),
   validityYears: z.number().int().min(1).max(30),
   pathLengthConstraint: z.number().int().min(0).optional(),
@@ -11,7 +12,7 @@ export const CreateRootCASchema = z.object({
 });
 
 export const CreateIntermediateCASchema = z.object({
-  commonName: z.string().min(1).max(255),
+  commonName: certificateNameText(255, 1),
   keyAlgorithm: z.enum(['rsa-2048', 'rsa-4096', 'ecdsa-p256', 'ecdsa-p384']),
   validityYears: z.number().int().min(1).max(20),
   pathLengthConstraint: z.number().int().min(0).optional(),

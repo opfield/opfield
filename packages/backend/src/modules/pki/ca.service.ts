@@ -6,7 +6,7 @@ import type { DrizzleClient } from '@/db/client.js';
 import { certificateAuthorities, certificates, pkiRevokedSerials } from '@/db/schema/index.js';
 import { createChildLogger } from '@/lib/logger.js';
 import { transactionWithScopeCleanup } from '@/lib/resource-scope-cleanup.js';
-import { x509 } from '@/lib/x509.js';
+import { x509, x509DnValue } from '@/lib/x509.js';
 import { AppError } from '@/middleware/error-handler.js';
 import type { AuditService } from '@/modules/audit/audit.service.js';
 import type { CryptoService } from '@/services/crypto.service.js';
@@ -110,9 +110,10 @@ export class CAService {
       await x509.SubjectKeyIdentifierExtension.create(keys.publicKey),
     ];
 
+    const subjectDn = `CN=${x509DnValue(input.commonName)}`;
     const cert = await x509.X509CertificateGenerator.createSelfSigned({
       serialNumber,
-      name: `CN=${input.commonName}`,
+      name: subjectDn,
       notBefore,
       notAfter,
       keys,
@@ -121,7 +122,6 @@ export class CAService {
     });
 
     const certificatePem = cert.toString('pem');
-    const subjectDn = `CN=${input.commonName}`;
 
     // Encrypt private key
     const encrypted = this.cryptoService.encryptPrivateKey(privateKeyPem);
@@ -217,9 +217,10 @@ export class CAService {
       await x509.AuthorityKeyIdentifierExtension.create(parentKeys.publicKey),
     ];
 
+    const subjectDn = `CN=${x509DnValue(input.commonName)}`;
     const cert = await x509.X509CertificateGenerator.create({
       serialNumber,
-      subject: `CN=${input.commonName}`,
+      subject: subjectDn,
       issuer: parent.subjectDn,
       notBefore,
       notAfter,
@@ -230,7 +231,6 @@ export class CAService {
     });
 
     const certificatePem = cert.toString('pem');
-    const subjectDn = `CN=${input.commonName}`;
     const encrypted = this.cryptoService.encryptPrivateKey(privateKeyPem);
 
     const [ca] = await this.db

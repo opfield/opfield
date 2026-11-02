@@ -1,10 +1,26 @@
 import { z } from 'zod';
 
+/** Control characters: a line break in a certificate name left the attribute empty. */
+export function hasControlCharacter(value: string): boolean {
+  return [...value].some((character) => {
+    const code = character.charCodeAt(0);
+    return code < 0x20 || code === 0x7f;
+  });
+}
+
+/** Text of a certificate name attribute: what x509.Name cannot express is refused here, not lost on the way. */
+export const certificateNameText = (max: number, min = 0) =>
+  z
+    .string()
+    .min(min)
+    .max(max)
+    .refine((value) => !hasControlCharacter(value), 'Control characters are not allowed');
+
 export const IssueCertificateSchema = z.object({
   caId: z.string().uuid(),
   templateId: z.string().uuid().optional(),
   type: z.enum(['tls-server', 'tls-client', 'code-signing', 'email']),
-  commonName: z.string().min(1).max(255),
+  commonName: certificateNameText(255, 1),
   sans: z.array(z.string()).default([]),
   keyAlgorithm: z.enum(['rsa-2048', 'rsa-4096', 'ecdsa-p256', 'ecdsa-p384']),
   validityDays: z.number().int().min(1).max(3650),
@@ -12,11 +28,11 @@ export const IssueCertificateSchema = z.object({
   clampToCaValidity: z.boolean().optional(),
   subjectDnFields: z
     .object({
-      o: z.string().max(255).optional(),
-      ou: z.string().max(255).optional(),
-      l: z.string().max(255).optional(),
-      st: z.string().max(255).optional(),
-      c: z.string().max(2).optional(),
+      o: certificateNameText(255).optional(),
+      ou: certificateNameText(255).optional(),
+      l: certificateNameText(255).optional(),
+      st: certificateNameText(255).optional(),
+      c: certificateNameText(2).optional(),
     })
     .optional(),
   /** Destination certificate folder; needs pki:cert:folders:manage, like moving the certificate there. */

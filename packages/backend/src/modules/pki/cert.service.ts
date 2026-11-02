@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { isIP } from 'node:net';
 import { and, asc, count, desc, eq, ilike, inArray, lte, or, sql } from 'drizzle-orm';
 import { inject, injectable } from 'tsyringe';
 import { TOKENS } from '@/container.js';
@@ -13,14 +14,19 @@ import {
 } from '@/db/schema/index.js';
 import { createChildLogger } from '@/lib/logger.js';
 import { buildWhere, escapeLike } from '@/lib/utils.js';
-import { x509 } from '@/lib/x509.js';
+import { x509, x509DnValue } from '@/lib/x509.js';
 import { AppError } from '@/middleware/error-handler.js';
 import type { AuditService } from '@/modules/audit/audit.service.js';
 import type { CryptoService } from '@/services/crypto.service.js';
 import type { EventBusService } from '@/services/event-bus.service.js';
 import type { PaginatedResponse } from '@/types.js';
 import type { CAService } from './ca.service.js';
-import type { CertificateListQuery, IssueCertFromCSRInput, IssueCertificateInput } from './cert.schemas.js';
+import {
+  type CertificateListQuery,
+  hasControlCharacter,
+  type IssueCertFromCSRInput,
+  type IssueCertificateInput,
+} from './cert.schemas.js';
 
 const logger = createChildLogger('CertService');
 
@@ -154,6 +160,8 @@ export class CertService {
       });
     }
 
+    const template = await this.requireTemplate(input.templateId);
+
     const serialNumber = this.cryptoService.generateSerialNumber();
     const { publicKeyPem, privateKeyPem } = this.cryptoService.generateKeyPair(input.keyAlgorithm);
 
@@ -167,13 +175,6 @@ export class CertService {
       true,
       ['verify']
     );
-
-    // Load template if provided
-    const template = input.templateId
-      ? await this.db.query.certificateTemplates.findFirst({
-          where: eq(certificateTemplates.id, input.templateId),
-        })
-      : null;
 
     // Resolve key usage from template or cert type fallback
     const keyUsageStrings =
@@ -304,9 +305,10 @@ export class CertService {
     }
 
     // Extract CN from CSR subject
-    const csrSubject = csr.subject;
-    const cnMatch = csrSubject.match(/CN=([^,]+)/);
-    const commonName = cnMatch ? cnMatch[1] : 'Unknown';
+    const commonName = csr.subjectName.getField('CN')[0] ?? 'Unknown';
+    if (hasControlCharacter(commonName)) {
+      throw new AppError(400, 'INVALID_CSR', 'The CSR common name contains control characters');
+    }
 
     // Use override SANs or extract from CSR
     const sans = input.overrideSans || [];
@@ -330,12 +332,7 @@ export class CertService {
     const caAlgorithm = this.caService.getAlgorithm(ca.keyAlgorithm);
     const caKeys = await this.caService.importKeyPair(ca.certificatePem, caPrivateKeyPem, caAlgorithm, true);
 
-    // Load template if provided
-    const template = input.templateId
-      ? await this.db.query.certificateTemplates.findFirst({
-          where: eq(certificateTemplates.id, input.templateId),
-        })
-      : null;
+    const template = await this.requireTemplate(input.templateId);
 
     // Resolve key usage from template or cert type fallback
     const keyUsageStrings =
@@ -349,7 +346,7 @@ export class CertService {
         : this.getExtKeyUsageStrings(input.type);
     const extKeyUsageOids = this.resolveExtKeyUsageOids(extKeyUsageStrings);
 
-    const subjectDn = `CN=${commonName}`;
+    const subjectDn = `CN=${x509DnValue(commonName)}`;
 
     // Build extensions
     const extensions: x509.Extension[] = [
@@ -813,12 +810,12 @@ export class CertService {
   ): string {
     // Merge: input overrides template defaults
     const merged = { ...templateFields, ...inputFields };
-    const parts = [`CN=${commonName}`];
-    if (merged.o) parts.push(`O=${merged.o}`);
-    if (merged.ou) parts.push(`OU=${merged.ou}`);
-    if (merged.l) parts.push(`L=${merged.l}`);
-    if (merged.st) parts.push(`ST=${merged.st}`);
-    if (merged.c) parts.push(`C=${merged.c}`);
+    const parts = [`CN=${x509DnValue(commonName)}`];
+    if (merged.o) parts.push(`O=${x509DnValue(merged.o)}`);
+    if (merged.ou) parts.push(`OU=${x509DnValue(merged.ou)}`);
+    if (merged.l) parts.push(`L=${x509DnValue(merged.l)}`);
+    if (merged.st) parts.push(`ST=${x509DnValue(merged.st)}`);
+    if (merged.c) parts.push(`C=${x509DnValue(merged.c)}`);
     return parts.join(', ');
   }
 
@@ -890,17 +887,32 @@ export class CertService {
   private buildSANs(sans: string[]): x509.JsonGeneralNames {
     const entries: x509.JsonGeneralNames = [];
     for (const san of sans) {
-      if (san.includes('@')) {
+      if (!san.trim() || hasControlCharacter(san)) {
+        throw new AppError(400, 'INVALID_SAN', 'A subject alternative name is empty or contains control characters');
+      }
+      // URLs first: their scheme carries the colon the IPv6 check below looks for.
+      if (san.startsWith('http://') || san.startsWith('https://')) {
+        entries.push({ type: 'url', value: san });
+      } else if (san.includes('@')) {
         entries.push({ type: 'email', value: san });
       } else if (/^[\d.]+$/.test(san) || san.includes(':')) {
+        if (!isIP(san)) throw new AppError(400, 'INVALID_SAN', `"${san}" is not a valid IP address`);
         entries.push({ type: 'ip', value: san });
-      } else if (san.startsWith('http://') || san.startsWith('https://')) {
-        entries.push({ type: 'url', value: san });
       } else {
         entries.push({ type: 'dns', value: san });
       }
     }
     return entries;
+  }
+
+  /** The template a certificate is issued from: an id naming none is the caller's mistake, not a failed insert. */
+  private async requireTemplate(templateId: string | undefined) {
+    if (!templateId) return null;
+    const template = await this.db.query.certificateTemplates.findFirst({
+      where: eq(certificateTemplates.id, templateId),
+    });
+    if (!template) throw new AppError(404, 'TEMPLATE_NOT_FOUND', 'Certificate template not found');
+    return template;
   }
 
   private pemToBuffer(pem: string, label: string): ArrayBuffer {

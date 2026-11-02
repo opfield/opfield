@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { certificateNameText } from './cert.schemas.js';
 
 const KeyUsageValues = [
   'digitalSignature',
@@ -19,11 +20,11 @@ const _ExtKeyUsageValues = [
 
 const SubjectDnFieldsSchema = z
   .object({
-    o: z.string().max(255).optional(),
-    ou: z.string().max(255).optional(),
-    l: z.string().max(255).optional(),
-    st: z.string().max(255).optional(),
-    c: z.string().max(2).optional(),
+    o: certificateNameText(255).optional(),
+    ou: certificateNameText(255).optional(),
+    l: certificateNameText(255).optional(),
+    st: certificateNameText(255).optional(),
+    c: certificateNameText(2).optional(),
     serialNumber: z.string().max(255).optional(),
   })
   .default({});
