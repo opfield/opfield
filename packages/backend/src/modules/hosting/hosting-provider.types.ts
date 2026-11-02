@@ -232,6 +232,8 @@ export interface HostingActionRequest {
   memoryMb?: number;
   diskGb?: number;
   reason?: string;
+  /** Internal, never request input: a shutdown that stops the guest by force once the graceful timeout has passed. */
+  forceStop?: boolean;
 }
 export interface HostingProviderOperation {
   id: string | null;

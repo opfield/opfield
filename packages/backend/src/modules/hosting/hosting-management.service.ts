@@ -495,19 +495,21 @@ export class HostingManagementService {
         if (input.action === 'delete' && row.result?.destroyStage === 'stopping') {
           if (row.providerOperation?.id) {
             const stop = await adapter.operation(row.providerOperation.id, resource.remoteId);
-            const retriedStop = stop.status === 'failed' ? transientTaskRetry(row, stop) : null;
+            // A task that timed out on a guest which stopped later still leaves what the delete needs.
+            const stopFailed = stop.status === 'failed' && live.powerState !== 'stopped';
+            const retriedStop = stopFailed ? transientTaskRetry(row, stop) : null;
             if (retriedStop) {
               row = await this.operations.update(row, { ...retriedStop, phase: 'pending' });
               continue;
             }
-            if (stop.status === 'failed') {
+            if (stopFailed) {
               await this.operations.finish(row, 'failed', undefined, {
                 code: 'HOSTING_STOP_FAILED',
                 message: stop.error ?? 'VM shutdown failed; nothing was deleted',
               });
               continue;
             }
-            if (stop.status !== 'succeeded') continue;
+            if (stop.status !== 'succeeded' && stop.status !== 'failed') continue;
           }
           if (live.powerState !== 'stopped') continue;
           row = await this.operations.update(row, {
@@ -589,7 +591,8 @@ export class HostingManagementService {
             mutationAttempted = true;
             let task: Awaited<ReturnType<HostingProviderAdapter['action']>>;
             try {
-              task = await adapter.action(live, stopping ? { action: 'shutdown' } : input);
+              // A delete ends with the VM gone: a guest that ignores the shutdown is stopped by force after the timeout.
+              task = await adapter.action(live, stopping ? { action: 'shutdown', forceStop: true } : input);
             } catch (error) {
               // A racing external deletion may reject shutdown/delete. A 404 alone is
               // not proof: independently read the VM, then use the normal cleanup pass

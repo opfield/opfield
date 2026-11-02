@@ -1261,7 +1261,10 @@ export class ProxmoxHostingAdapter implements HostingProviderAdapter {
     }
     const action = input.action === 'start' ? 'start' : input.action;
     return this.task(
-      await this.request<string>(`${base}/status/${action}`, { method: 'POST', body: {} }),
+      await this.request<string>(`${base}/status/${action}`, {
+        method: 'POST',
+        body: input.forceStop ? { forceStop: 1 } : {},
+      }),
       resource.remoteId
     );
   }
