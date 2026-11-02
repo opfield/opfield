@@ -3,6 +3,7 @@ import { inject, injectable } from 'tsyringe';
 import { TOKENS } from '@/container.js';
 import type { DrizzleClient } from '@/db/client.js';
 import { alerts } from '@/db/schema/index.js';
+import { AppError } from '@/middleware/error-handler.js';
 
 @injectable()
 export class AlertService {
@@ -16,7 +17,12 @@ export class AlertService {
   }
 
   async dismissAlert(alertId: string): Promise<void> {
-    await this.db.update(alerts).set({ dismissed: true }).where(eq(alerts.id, alertId));
+    const [dismissed] = await this.db
+      .update(alerts)
+      .set({ dismissed: true })
+      .where(eq(alerts.id, alertId))
+      .returning({ id: alerts.id });
+    if (!dismissed) throw new AppError(404, 'ALERT_NOT_FOUND', 'Alert not found');
   }
 
   async createAlert(data: {
