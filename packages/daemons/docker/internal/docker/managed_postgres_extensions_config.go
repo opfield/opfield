@@ -32,6 +32,7 @@ const (
 	extensionBundleUnavailable    = "EXTENSION_BUNDLE_UNAVAILABLE"
 	extensionBundleInvalidCode    = "EXTENSION_BUNDLE_INVALID"
 	extensionFailedCode           = "EXTENSION_FAILED"
+	extensionEngineStoppedCode    = "EXTENSION_ENGINE_STOPPED"
 )
 
 func extensionError(code, format string, args ...any) error {

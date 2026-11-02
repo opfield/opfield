@@ -53,6 +53,10 @@ func (m *managedDatabaseManager) runPostgresExtensionSQL(ctx context.Context, co
 		AttachStdin: true, AttachStdout: true, AttachStderr: true,
 	})
 	if err != nil {
+		// Docker refuses an exec in a stopped or paused container: a state of the database, not a failure.
+		if strings.Contains(err.Error(), "is not running") || strings.Contains(err.Error(), "is paused") {
+			return "", "", extensionError(extensionEngineStoppedCode, "The database is not running. Start it, then try again.")
+		}
 		return "", "", errors.New("managed database engine command could not start")
 	}
 	attached, err := m.client.cli.ExecAttach(ctx, created.ID, mobyclient.ExecAttachOptions{})
