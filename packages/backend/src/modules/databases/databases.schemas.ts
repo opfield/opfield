@@ -557,12 +557,33 @@ export const RedisGetKeyQuerySchema = z.object({
     .default(64 * 1024),
 });
 
-export const RedisSetKeySchema = z.object({
-  key: z.string().min(1).max(4096),
-  type: z.enum(['string', 'hash', 'list', 'set', 'zset']),
-  ttlSeconds: z.number().int().min(-1).max(31_536_000).optional(),
-  value: z.any(),
-});
+const REDIS_SCALAR = z.union([z.string(), z.number(), z.boolean()]);
+const REDIS_VALUE_SHAPES: Record<'string' | 'hash' | 'list' | 'set' | 'zset', z.ZodTypeAny> = {
+  string: REDIS_SCALAR.nullish(),
+  hash: z.record(z.string(), REDIS_SCALAR).refine((value) => Object.keys(value).length > 0, 'A hash needs a field'),
+  list: z.array(REDIS_SCALAR).min(1),
+  set: z.array(REDIS_SCALAR).min(1),
+  zset: z.array(z.object({ member: z.string(), score: z.number().finite() })).min(1),
+};
+
+/**
+ * The write replaces the key: it is deleted first, in one transaction with the new value. A value of the wrong shape
+ * is refused here, or the transaction would delete the key and write nothing.
+ */
+export const RedisSetKeySchema = z
+  .object({
+    key: z.string().min(1).max(4096),
+    type: z.enum(['string', 'hash', 'list', 'set', 'zset']),
+    ttlSeconds: z.number().int().min(-1).max(31_536_000).optional(),
+    value: z.any(),
+  })
+  .superRefine((body, context) => {
+    const parsed = REDIS_VALUE_SHAPES[body.type].safeParse(body.value);
+    if (parsed.success) return;
+    for (const issue of parsed.error.issues) {
+      context.addIssue({ ...issue, path: ['value', ...issue.path] });
+    }
+  });
 
 export const RedisExpireKeySchema = z.object({
   key: z.string().min(1).max(4096),
