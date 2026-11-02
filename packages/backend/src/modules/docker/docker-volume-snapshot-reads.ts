@@ -55,11 +55,27 @@ export async function assertSnapshotVolumeVisible(nodeId: string, name: string) 
   }
 }
 
+/**
+ * A volume with no cached inspect yet, read from its node: a volume is not "not found" because its first refresh has
+ * not landed. An unreachable node answers not found as before; the caller's visibility check applies to the result.
+ */
+async function inspectUncachedVolume(nodeId: string, name: string) {
+  try {
+    return await container.resolve(DockerManagementService).inspectVolume(nodeId, name);
+  } catch {
+    return null;
+  }
+}
+
 /** Volume detail from the cached inspect, with the public volume visibility applied. */
 export async function inspectDockerVolumeSnapshot(nodeId: string, name: string) {
   const snapshots = container.resolve(DockerSnapshotService);
   const detail = await snapshots.getDetail(nodeId, 'volume-detail', name);
-  const data = await resolveDockerVolumeByName({ inspectVolume: async () => detail?.data }, nodeId, name);
+  const data = await resolveDockerVolumeByName(
+    { inspectVolume: async () => detail?.data ?? (await inspectUncachedVolume(nodeId, name)) },
+    nodeId,
+    name
+  );
   const containerSnapshot = await snapshots.getList<any[]>(nodeId, 'containers');
   // The decorated list also carries managed rows it was not given; a hidden volume must not resolve to one of them.
   const decorated = (

@@ -183,25 +183,29 @@ export class DockerSnapshotReconciler {
   /**
    * Reads a volume or network list (and the changed volume's cached inspect) back from its node now. A create or
    * remove calls it before it answers, so a read right after the answer sees the result: a created volume was 404
-   * until the queued refresh ran, a removed network stayed listed. A removed volume's cached details are dropped. A
-   * failed read is left to the refresh the change event queued.
+   * until the queued refresh ran, a removed network stayed listed. A removed volume's cached details are dropped. Each
+   * read stands alone: a failed list does not cost the changed volume its inspect. A failed read is left to the refresh
+   * the change event queued.
    */
   async readBackNow(
     nodeId: string,
     kind: Extract<DockerSnapshotKind, 'volumes' | 'networks'>,
     change?: { volume: string; removed?: boolean }
   ): Promise<void> {
-    try {
-      if (change?.removed) await this.snapshots.deleteDetails(nodeId, 'volume-detail', [change.volume]);
-      await this.refreshNow(nodeId, kind);
-      if (change && !change.removed) await this.refreshNow(nodeId, 'volume-detail', change.volume);
-    } catch (error) {
-      logger.debug('Docker resource read-back failed', {
-        nodeId,
-        kind,
-        error: error instanceof Error ? error.message : String(error),
-      });
-    }
+    const attempt = async (read: () => Promise<void>) => {
+      try {
+        await read();
+      } catch (error) {
+        logger.debug('Docker resource read-back failed', {
+          nodeId,
+          kind,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    };
+    if (change?.removed) await attempt(() => this.snapshots.deleteDetails(nodeId, 'volume-detail', [change.volume]));
+    await attempt(() => this.refreshNow(nodeId, kind));
+    if (change && !change.removed) await attempt(() => this.refreshNow(nodeId, 'volume-detail', change.volume));
   }
 
   /**
