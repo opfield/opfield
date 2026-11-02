@@ -26,6 +26,13 @@ export function dockerDaemonUserError(message: string): AppError | null {
     );
   }
   if (/no such container/i.test(message)) return new AppError(404, 'CONTAINER_NOT_FOUND', message);
+  if (/container \S+ is not running/i.test(message)) {
+    return new AppError(
+      409,
+      'CONTAINER_NOT_RUNNING',
+      'The container is not running. Processes and files inside it can be read only while it runs: start it first.'
+    );
+  }
   const image = /no such image: (\S+)/i.exec(message)?.[1];
   if (image || /no such image/i.test(message)) {
     return new AppError(
