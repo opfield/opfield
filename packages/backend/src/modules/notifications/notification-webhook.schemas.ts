@@ -1,9 +1,10 @@
 import { z } from 'zod';
+import { queryFlag } from '@/lib/query-flag.js';
 
 export const WebhookListQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(50),
-  enabled: z.coerce.boolean().optional(),
+  enabled: z.preprocess(queryFlag, z.boolean().optional()),
   search: z.string().optional(),
   /** Only the webhooks in this folder (not its subfolders). */
   folderId: z.string().uuid().optional(),

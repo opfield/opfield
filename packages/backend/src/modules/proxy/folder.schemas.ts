@@ -47,7 +47,7 @@ export const ReorderFoldersSchema = z.object({
 
 export const GroupedHostsQuerySchema = z.object({
   type: z.enum(['proxy', 'redirect', '404']).optional(),
-  enabled: z.coerce.boolean().optional(),
+  enabled: z.preprocess(queryFlag, z.boolean().optional()),
   healthStatus: z.enum(['online', 'offline', 'degraded', 'unknown', 'disabled']).optional(),
   search: z.string().max(255).optional(),
   /** Leave out routes that belong to an app (always the case without `appId`). */

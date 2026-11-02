@@ -12,6 +12,7 @@ import {
   successJson,
   UnknownDataResponseSchema,
 } from '@/lib/openapi.js';
+import { queryFlag } from '@/lib/query-flag.js';
 import {
   ContainerArchiveExportQuerySchema,
   ContainerArchiveImportQuerySchema,
@@ -805,7 +806,7 @@ export const removeImageRoute = appRoute({
   path: '/nodes/{nodeId}/images/{imageId}',
   tags: ['Docker Images'],
   summary: 'Remove an image',
-  request: { params: imageParams, query: z.object({ force: z.coerce.boolean().optional() }) },
+  request: { params: imageParams, query: z.object({ force: z.preprocess(queryFlag, z.boolean().optional()) }) },
   responses: successJson,
 });
 export const pruneImagesRoute = appRoute({
@@ -1028,7 +1029,7 @@ export const removeVolumeRoute = appRoute({
   path: '/nodes/{nodeId}/volumes/{name}',
   tags: ['Docker Volumes'],
   summary: 'Remove a volume',
-  request: { params: volumeParams, query: z.object({ force: z.coerce.boolean().optional() }) },
+  request: { params: volumeParams, query: z.object({ force: z.preprocess(queryFlag, z.boolean().optional()) }) },
   responses: successJson,
 });
 

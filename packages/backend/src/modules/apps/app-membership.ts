@@ -74,10 +74,7 @@ export function appMemberFolderCondition(folderColumn: any, folderTable: any, fi
 }
 
 /** Query-string boolean (`true`/`1`); zod's coerce turns "false" into true. */
-export function queryFlag(value: unknown): boolean | undefined {
-  if (value === undefined || value === null || value === '') return undefined;
-  return value === true || value === 'true' || value === '1';
-}
+export { queryFlag } from '@/lib/query-flag.js';
 
 export function hasAppListFilter(filter: AppListFilter): boolean {
   return !!filter.appId || !!filter.excludeAppMembers;

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { queryFlag } from '@/lib/query-flag.js';
 
 export const IntegrationProviderSchema = z.enum(['gitlab', 'github', 'git', 'cloudflare', 'ssh']);
 export const GitLabAllowlistModeSchema = z.enum(['selected', 'all_visible']);
@@ -57,7 +58,7 @@ export const GitUserCredentialAuthorizeSchema = z.object({
 });
 
 export const GitLabConnectorListQuerySchema = z.object({
-  enabled: z.coerce.boolean().optional(),
+  enabled: z.preprocess(queryFlag, z.boolean().optional()),
 });
 
 export const GitLabAllowlistSearchQuerySchema = z.object({
@@ -152,7 +153,7 @@ export const CloudflareConnectorRotateTokenSchema = z.object({
 });
 
 export const CloudflareConnectorListQuerySchema = z.object({
-  enabled: z.coerce.boolean().optional(),
+  enabled: z.preprocess(queryFlag, z.boolean().optional()),
 });
 
 export const CloudflareConnectorPreviewTestSchema = z.object({

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { queryFlag } from '@/lib/query-flag.js';
 import { FILE_UPLOAD_MAX_BYTES } from '@/modules/settings/general-settings.service.js';
 import { changedReservedDockerLabels, reservedDockerLabelsMessage } from './docker-reserved-labels.js';
 
@@ -399,7 +400,7 @@ export const DOCKER_LOG_TAIL_MAX = 1000;
 
 export const LogQuerySchema = z.object({
   tail: z.coerce.number().int().min(1).max(DOCKER_LOG_TAIL_MAX).default(100),
-  timestamps: z.coerce.boolean().default(false),
+  timestamps: z.preprocess(queryFlag, z.boolean().default(false)),
 });
 
 // File browse

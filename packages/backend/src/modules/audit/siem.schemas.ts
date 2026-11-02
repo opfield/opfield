@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { queryFlag } from '@/lib/query-flag.js';
 
 export const SIEM_AUTH_TYPES = ['bearer', 'hmac_sha256', 'custom_header'] as const;
 export const SIEM_DELIVERY_STATUSES = [
@@ -66,7 +67,7 @@ const SiemSecretSchema = z
 export const SiemDestinationListQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(50),
-  enabled: z.coerce.boolean().optional(),
+  enabled: z.preprocess(queryFlag, z.boolean().optional()),
   search: z.string().trim().max(255).optional(),
 });
 

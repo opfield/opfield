@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { queryFlag } from '@/lib/query-flag.js';
 import { ALERT_CATEGORY_IDS } from './notification-catalog.js';
 
 const alertCategorySchema = z.enum(ALERT_CATEGORY_IDS);
@@ -27,7 +28,7 @@ export const AlertRuleListQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(50),
   type: z.enum(['threshold', 'event']).optional(),
   category: alertCategorySchema.optional(),
-  enabled: z.coerce.boolean().optional(),
+  enabled: z.preprocess(queryFlag, z.boolean().optional()),
   search: z.string().optional(),
   /** Only the rules in this folder (not its subfolders). */
   folderId: z.string().uuid().optional(),

@@ -1,11 +1,7 @@
 import { z } from 'zod';
+import { queryFlag } from '@/lib/query-flag.js';
 
 /** Query-string boolean (`true`/`1`); zod's coerce turns "false" into true. */
-function queryFlag(value: unknown): boolean | undefined {
-  if (value === undefined || value === null || value === '') return undefined;
-  return value === true || value === 'true' || value === '1';
-}
-
 /**
  * The app member filters of a foldered resource list (databases, storage, Pages and their managed lists): the
  * normal lists leave app members out, an app's tabs ask for one app's members. `appId` wins over

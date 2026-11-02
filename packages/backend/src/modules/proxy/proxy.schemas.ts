@@ -430,7 +430,7 @@ export const ProxyHostListQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(20),
   type: z.enum(['proxy', 'redirect', '404', 'raw']).optional(),
-  enabled: z.coerce.boolean().optional(),
+  enabled: z.preprocess(queryFlag, z.boolean().optional()),
   healthStatus: z.enum(['online', 'offline', 'degraded', 'unknown', 'disabled']).optional(),
   search: z.string().max(255).optional(),
   /** Routes served by this nginx node, including the routes of its ingress groups. */
