@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 
 const grantPath = process.argv[2] ?? 'CONTINUITY-GRANT.md';
 const grant = await readFile(grantPath, 'utf8');
-const expectedSha256 = '053d9d00ce049363153edbe7450e50038ff6a539d7d9cc6485b3b6c1ddb4c986';
+const expectedSha256 = 'bb9eb6df073e3b77b1e8bcaefc03ae8fe13016b103a7366efcc4983c7623b537';
 const actualSha256 = createHash('sha256').update(grant).digest('hex');
 
 if (actualSha256 !== expectedSha256) {
@@ -14,7 +14,7 @@ if (actualSha256 !== expectedSha256) {
 
 const required = [
   '# Opfield Product Continuity Grant 1.0',
-  'Alexandr Slavinschii, Republic of Moldova',
+  'Alexandr Slavinschii, Individual Entrepreneur registered in the Republic of Armenia',
   'It cannot be revoked.',
   'at any address the Licensor publishes for it. It is available while any of those addresses answers.',
   'for 12 consecutive months, no new Opfield release is published and the license service is not available',

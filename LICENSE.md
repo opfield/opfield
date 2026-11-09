@@ -2,7 +2,7 @@
 
 <https://polyformproject.org/licenses/perimeter/1.0.1>
 
-Required Notice: Copyright (c) 2021-2026 Alexandr Slavinschii, Republic of Moldova (alexandr.s@wiolett.net), the licensor, who publishes the project under the Opfield name.
+Required Notice: Copyright (c) 2021-2026 Alexandr Slavinschii, Individual Entrepreneur registered in the Republic of Armenia, state registration no. 286.1622819 (alexandr.s@wiolett.net), the licensor, who publishes the project under the Opfield name.
 
 ## Acceptance
 

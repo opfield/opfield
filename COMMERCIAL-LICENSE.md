@@ -1,8 +1,8 @@
-# Opfield Paid Key Terms 1.2
+# Opfield Paid Key Terms 1.3
 
 These terms govern Personal, Business, and Enterprise Opfield license keys issued by the **Licensor**. They supplement, and do not modify, the [PolyForm Perimeter License 1.0.1](LICENSE.md).
 
-The **Licensor** is Alexandr Slavinschii, Republic of Moldova (alexandr.s@wiolett.net), who issues the keys and grants these terms personally. References to the Licensor include any later successor to the relevant rights.
+The **Licensor** is Alexandr Slavinschii, Individual Entrepreneur registered in the Republic of Armenia (state registration no. 286.1622819, alexandr.s@wiolett.net). References to the Licensor include any later successor to the relevant rights.
 
 PolyForm Perimeter permits use, modification, and redistribution for permitted purposes, including internal business use. It does not permit providing to others a product marketed as a substitute for Opfield. An ordinary paid key unlocks plan features and limits; it does not waive that competition restriction or grant OEM, white-label, resale, or competing hosted-service rights. Those uses require a separate written agreement signed by the Licensor.
 
@@ -10,7 +10,7 @@ Every release includes the [Product Continuity Grant](CONTINUITY-GRANT.md): if O
 
 ## Acceptance
 
-These terms are automatically offered with every Personal, Business, or Enterprise Opfield license key issued by the Licensor. By activating or using the key, you accept these terms. If you act on behalf of an organization, you represent that you have authority to accept these terms for that organization.
+This version applies to Personal, Business, and Enterprise Opfield license keys first issued under it. Previously issued keys remain governed by the terms under which they were issued. By activating or using the key, you accept these terms. If you act on behalf of an organization, you represent that you have authority to accept these terms for that organization.
 
 ## Paid-plan access
 

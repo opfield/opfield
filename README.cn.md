@@ -293,4 +293,4 @@ Opfield 源代码依据 [PolyForm Perimeter License 1.0.1](LICENSE.md) 发布。
 
 付费密钥到期后，Personal、Business 和 Enterprise 的技术 entitlements 分别继续有效 24 小时、3 天和 7 天。此后 Opfield 会阻止创建新的付费资源和其他新的付费操作，但不会停止或删除已经配置的基础设施。已撤销、已替换、无效或明确停用的密钥会单独处理。
 
-Copyright (c) 2021-2026 Alexandr Slavinschii, Republic of Moldova
+Copyright (c) 2021-2026 Alexandr Slavinschii

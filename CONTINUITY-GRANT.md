@@ -1,6 +1,6 @@
 # Opfield Product Continuity Grant 1.0
 
-The Licensor, Alexandr Slavinschii, Republic of Moldova (alexandr.s@wiolett.net), gives this grant with every Opfield release. It cannot be revoked.
+The Licensor, Alexandr Slavinschii, Individual Entrepreneur registered in the Republic of Armenia (state registration no. 286.1622819, alexandr.s@wiolett.net), gives this grant with every Opfield release. It cannot be revoked.
 
 ## Definitions
 
