@@ -557,19 +557,40 @@ export const RedisGetKeyQuerySchema = z.object({
     .default(64 * 1024),
 });
 
-const REDIS_SCALAR = z.union([z.string(), z.number(), z.boolean()]);
-const REDIS_VALUE_SHAPES: Record<'string' | 'hash' | 'list' | 'set' | 'zset', z.ZodTypeAny> = {
-  string: REDIS_SCALAR.nullish(),
-  hash: z.record(z.string(), REDIS_SCALAR).refine((value) => Object.keys(value).length > 0, 'A hash needs a field'),
-  list: z.array(REDIS_SCALAR).min(1),
-  set: z.array(REDIS_SCALAR).min(1),
-  zset: z.array(z.object({ member: z.string(), score: z.number().finite() })).min(1),
-};
+type RedisValueType = 'string' | 'hash' | 'list' | 'set' | 'zset';
+
+/** What the store itself reads as a score: a number, or text such as "1.5" and "-inf". */
+function isRedisScore(score: unknown): boolean {
+  if (score === undefined || score === null) return true;
+  if (typeof score === 'number') return Number.isFinite(score);
+  if (typeof score !== 'string' || score === '' || /\s/.test(score)) return false;
+  return /^[+-]?inf(inity)?$/i.test(score) || Number.isFinite(Number(score));
+}
 
 /**
- * The write replaces the key: it is deleted first, in one transaction with the new value. A value of the wrong shape
- * is refused here, or the transaction would delete the key and write nothing.
+ * The write replaces the key: it is deleted first, in one transaction with the new value. Returns why a value would
+ * leave the key deleted or fail the write, and nothing for every value the writer can store. Shapes it has always
+ * stored stay accepted: a score as text or left out, a hash as a flat list of pairs, members that are not strings.
  */
+function redisValueRefusal(type: RedisValueType, value: unknown): string | undefined {
+  if (type === 'string') return undefined;
+  if (type === 'hash') {
+    if (Array.isArray(value)) {
+      return value.length > 0 && value.length % 2 === 0 ? undefined : 'A hash needs pairs of field and value';
+    }
+    if (typeof value !== 'object' || value === null) return 'A hash is an object of fields';
+    return Object.keys(value).length > 0 ? undefined : 'A hash needs a field';
+  }
+  if (!Array.isArray(value)) return `A ${type} is an array`;
+  if (value.length === 0) return `A ${type} needs an element`;
+  if (type !== 'zset') return undefined;
+  for (const entry of value) {
+    if (typeof entry !== 'object' || entry === null) return 'A zset element is an object with member and score';
+    if (!isRedisScore((entry as { score?: unknown }).score)) return 'A zset score is a number';
+  }
+  return undefined;
+}
+
 export const RedisSetKeySchema = z
   .object({
     key: z.string().min(1).max(4096),
@@ -578,11 +599,8 @@ export const RedisSetKeySchema = z
     value: z.any(),
   })
   .superRefine((body, context) => {
-    const parsed = REDIS_VALUE_SHAPES[body.type].safeParse(body.value);
-    if (parsed.success) return;
-    for (const issue of parsed.error.issues) {
-      context.addIssue({ ...issue, path: ['value', ...issue.path] });
-    }
+    const message = redisValueRefusal(body.type, body.value);
+    if (message) context.addIssue({ code: 'custom', message, path: ['value'] });
   });
 
 export const RedisExpireKeySchema = z.object({

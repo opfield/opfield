@@ -13,15 +13,22 @@ describe('writing a key of a key-value store', () => {
     ['list', ['a', 1]],
     ['set', ['a']],
     ['zset', [{ member: 'a', score: 1.5 }]],
+    // Shapes released clients already send, which the writer has always stored.
+    ['string', { nested: true }],
+    ['hash', ['field', 'value']],
+    ['list', [null]],
+    ['zset', [{ member: 'a', score: '1.5' }]],
+    ['zset', [{ member: 'a', score: '-inf' }]],
+    ['zset', [{ member: 5 }]],
   ])('takes a %s value', (type, value) => {
     expect(RedisSetKeySchema.safeParse(body(type, value)).success).toBe(true);
   });
 
   it.each([
-    ['string', { nested: true }],
     ['hash', 'text'],
     ['hash', {}],
-    ['hash', { field: { nested: true } }],
+    ['hash', []],
+    ['hash', ['field']],
     ['list', 'text'],
     ['list', []],
     ['set', {}],
@@ -29,8 +36,9 @@ describe('writing a key of a key-value store', () => {
     ['zset', 'text'],
     ['zset', []],
     ['zset', [{ member: 'a', score: 'high' }]],
-    ['zset', [{ member: 'a' }]],
-  ])('refuses a %s value that would replace the key with nothing: %j', (type, value) => {
+    ['zset', [{ member: 'a', score: true }]],
+    ['zset', [null]],
+  ])('refuses a %s value that would delete the key or fail the write: %j', (type, value) => {
     const parsed = RedisSetKeySchema.safeParse(body(type, value));
     expect(parsed.success).toBe(false);
     expect(parsed.error?.issues[0]?.path[0]).toBe('value');

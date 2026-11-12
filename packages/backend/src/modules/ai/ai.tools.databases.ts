@@ -122,7 +122,7 @@ export const DATABASE_AI_TOOLS: AIToolDefinition[] = [
         value: {
           type: 'object',
           description:
-            'Value payload. Use a JSON string for string type, object for hash, array for list/set, array of {member,score} for zset.',
+            'Value payload. Use a JSON string for string type, object for hash, array for list/set, array of {member,score} for zset. The write replaces the key, so an empty hash, list, set or zset and a score that is not a number are refused with 400.',
         },
         ttlSeconds: { type: 'number', description: 'Optional TTL in seconds' },
       },
