@@ -448,6 +448,8 @@ export const assistantDeltaBuffers = new Map<
     version: number;
     message: Extract<WSServerMessage, { type: "assistant.delta" | "assistant.comment_delta" }>;
     timer: ReturnType<typeof setTimeout>;
+    /** The buffer holds enough text and is already due to flush after the waiting messages. */
+    soon: boolean;
   }
 >();
 export const ASSISTANT_DELTA_BATCH_MS = 50;

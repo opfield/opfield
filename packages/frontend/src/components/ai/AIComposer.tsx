@@ -112,6 +112,8 @@ interface AIComposerProps {
 }
 
 const MAX_IMAGE_ATTACHMENTS = 3;
+/** How long the text of an arriving reply must pause before its context use is estimated again. */
+const CONTEXT_USAGE_STREAMING_DELAY_MS = 400;
 
 function formatPlanStepTitle(title: string): string {
   return title.replace(/^\s*\d+[.)]\s+/, "");
@@ -573,19 +575,27 @@ export function AIComposer({
 
   useEffect(() => {
     let active = true;
-    void getAIContextUsage(
-      messages,
-      context,
-      conversationId,
-      selectedModel,
-      selectedReasoningEffort
-    ).then((nextUsage) => {
-      if (active) setUsage(nextUsage);
-    });
+    // While a reply is arriving the messages change many times a second, and each estimate sends
+    // the whole conversation: wait for the text to pause.
+    const timer = window.setTimeout(
+      () => {
+        void getAIContextUsage(
+          messages,
+          context,
+          conversationId,
+          selectedModel,
+          selectedReasoningEffort
+        ).then((nextUsage) => {
+          if (active) setUsage(nextUsage);
+        });
+      },
+      isStreaming ? CONTEXT_USAGE_STREAMING_DELAY_MS : 0
+    );
     return () => {
       active = false;
+      window.clearTimeout(timer);
     };
-  }, [context, conversationId, messages, selectedModel, selectedReasoningEffort]);
+  }, [context, conversationId, isStreaming, messages, selectedModel, selectedReasoningEffort]);
 
   const inferenceQuota = useInferenceQuota({
     enabled: opfieldInferenceMode && canViewInferenceUsage,

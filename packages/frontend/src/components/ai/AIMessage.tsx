@@ -93,45 +93,54 @@ function useAnimatedCommentContent(messageId: string, content: string, enabled: 
   const tokens = useMemo(() => content.match(/\S+\s*/gu) ?? (content ? [content] : []), [content]);
   const [reveal, setReveal] = useState(() => ({
     messageId,
+    enabled,
     revealed: enabled ? 0 : tokens.length,
   }));
   const tokenCount = useRef(tokens.length);
+  // How many words were on screen while the reveal was off, so a later reveal continues from there
+  // instead of hiding shown words again.
+  const shownWithoutReveal = useRef(enabled ? 0 : tokens.length);
   useEffect(() => {
     tokenCount.current = tokens.length;
+    if (!enabled) shownWithoutReveal.current = tokens.length;
   });
 
-  useEffect(() => {
-    if (reveal.messageId !== messageId) {
-      setReveal({ messageId, revealed: enabled ? 0 : tokens.length });
-      return;
-    }
-    // Kept in step so a later reveal continues from here instead of hiding shown words again.
-    if (!enabled && reveal.revealed !== tokens.length) {
-      setReveal({ messageId, revealed: tokens.length });
-    }
-  }, [enabled, messageId, reveal, tokens.length]);
+  // Adjusted while rendering, and only when the message or the switch changes. A state update from
+  // an effect on every piece of arriving text made each of those renders schedule another one, and
+  // React stops a long enough run of them as an update loop, which took the whole console down.
+  let current = reveal;
+  if (reveal.messageId !== messageId) {
+    current = { messageId, enabled, revealed: enabled ? 0 : tokens.length };
+  } else if (reveal.enabled !== enabled) {
+    current = {
+      messageId,
+      enabled,
+      revealed: enabled ? Math.min(shownWithoutReveal.current, tokens.length) : tokens.length,
+    };
+  }
+  if (current !== reveal) setReveal(current);
 
-  const behind = enabled && reveal.messageId === messageId && reveal.revealed < tokens.length;
+  const behind = enabled && current.revealed < tokens.length;
   // One interval for the whole catch-up: a timeout restarted on every render never fired while
   // new text arrived faster than the reveal delay, so the words showed only after the text ended.
   useEffect(() => {
     if (!behind) return;
     const timer = window.setInterval(() => {
-      setReveal((current) => {
-        if (current.messageId !== messageId) return current;
+      setReveal((previous) => {
+        if (previous.messageId !== messageId || !previous.enabled) return previous;
         const batchSize = 1 + Math.floor(Math.random() * 3);
         return {
-          messageId,
-          revealed: Math.min(tokenCount.current, current.revealed + batchSize),
+          ...previous,
+          revealed: Math.min(tokenCount.current, previous.revealed + batchSize),
         };
       });
     }, COMMENT_WORD_REVEAL_DELAY_MS);
     return () => window.clearInterval(timer);
   }, [behind, messageId]);
 
-  // Without the reveal the content is shown as is: the reveal state lags a render behind new text.
+  // Without the reveal the content is shown as is.
   if (!enabled) return content;
-  return tokens.slice(0, Math.min(reveal.revealed, tokens.length)).join("");
+  return tokens.slice(0, Math.min(current.revealed, tokens.length)).join("");
 }
 
 const RESOURCE_MARKER_OPENING = "[[resource:";

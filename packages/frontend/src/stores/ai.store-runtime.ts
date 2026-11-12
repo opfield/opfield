@@ -711,20 +711,26 @@ export function queueAssistantDelta(
   }
   if (buffered && buffered.kind !== kind) flushAssistantDelta(message.runId, set, get);
   const active = assistantDeltaBuffers.get(message.runId);
-  const timer =
-    active?.timer ??
-    setTimeout(() => flushAssistantDelta(message.runId, set, get), ASSISTANT_DELTA_BATCH_MS);
+  const content = `${active?.content ?? ""}${message.content}`;
+  const flush = () => flushAssistantDelta(message.runId, set, get);
+  let timer = active?.timer ?? setTimeout(flush, ASSISTANT_DELTA_BATCH_MS);
+  let soon = active?.soon ?? false;
+  if (!soon && content.trim().split(/\s+/u).filter(Boolean).length >= ASSISTANT_DELTA_BATCH_WORDS) {
+    // Enough text to show: flush right after the messages that are already waiting, not inside
+    // this one. Text that arrives in a burst then lands in one store update instead of one per few
+    // words, each of which is a synchronous render of the conversation.
+    clearTimeout(timer);
+    timer = setTimeout(flush, 0);
+    soon = true;
+  }
   assistantDeltaBuffers.set(message.runId, {
     kind,
-    content: `${active?.content ?? ""}${message.content}`,
+    content,
     version: message.version,
     message,
     timer,
+    soon,
   });
-  const pendingContent = assistantDeltaBuffers.get(message.runId)?.content ?? "";
-  if (pendingContent.trim().split(/\s+/u).filter(Boolean).length >= ASSISTANT_DELTA_BATCH_WORDS) {
-    flushAssistantDelta(message.runId, set, get);
-  }
 }
 
 export function flushAssistantDelta(
