@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { createChildLogger } from '@/lib/logger.js';
-import { queryFlag } from '@/modules/apps/app-membership.js';
+import { queryFlag, queryFlagOrFalse } from '@/modules/apps/app-membership.js';
 import { reservedTemplateVariableNames, withoutReservedTemplateVariables } from './proxy-template-variables.js';
 import {
   clientIpSettingsErrors,
@@ -437,7 +437,7 @@ export const ProxyHostListQuerySchema = z.object({
   nodeId: z.string().uuid().optional(),
   ingressGroupId: z.string().uuid().optional(),
   /** Leave out routes that belong to an app (the normal Routes list). */
-  excludeAppMembers: z.preprocess(queryFlag, z.boolean().optional()),
+  excludeAppMembers: z.preprocess(queryFlagOrFalse, z.boolean().optional()),
   /** Only the routes of this app (any environment). */
   appId: z.string().uuid().optional(),
 });

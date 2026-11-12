@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { queryFlag } from '@/modules/apps/app-membership.js';
+import { queryFlag, queryFlagOrFalse } from '@/modules/apps/app-membership.js';
 
 // ---------------------------------------------------------------------------
 // Create folder
@@ -51,7 +51,7 @@ export const GroupedHostsQuerySchema = z.object({
   healthStatus: z.enum(['online', 'offline', 'degraded', 'unknown', 'disabled']).optional(),
   search: z.string().max(255).optional(),
   /** Leave out routes that belong to an app (always the case without `appId`). */
-  excludeAppMembers: z.preprocess(queryFlag, z.boolean().optional()),
+  excludeAppMembers: z.preprocess(queryFlagOrFalse, z.boolean().optional()),
   /** Only the routes of this app (any environment), listed in `ungroupedHosts` with their `app`. */
   appId: z.string().uuid().optional(),
 });

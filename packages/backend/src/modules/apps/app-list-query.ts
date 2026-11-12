@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { queryFlag } from '@/lib/query-flag.js';
+import { queryFlagOrFalse } from '@/lib/query-flag.js';
 
 /** Query-string boolean (`true`/`1`); zod's coerce turns "false" into true. */
 /**
@@ -9,7 +9,7 @@ import { queryFlag } from '@/lib/query-flag.js';
  */
 export const appListQueryFields = {
   /** Leave out resources that belong to an app (the normal lists). */
-  excludeAppMembers: z.preprocess(queryFlag, z.boolean().optional()),
+  excludeAppMembers: z.preprocess(queryFlagOrFalse, z.boolean().optional()),
   /** Only the members of this app (any environment). */
   appId: z.string().uuid().optional(),
 };

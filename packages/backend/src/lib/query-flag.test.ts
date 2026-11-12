@@ -12,4 +12,14 @@ describe('boolean query parameters', () => {
     expect(queryFlag('')).toBeUndefined();
     expect(ProxyHostListQuerySchema.parse({ enabled: 'false' }).enabled).toBe(false);
   });
+
+  it('reads what other languages print for a boolean', () => {
+    expect(ProxyHostListQuerySchema.parse({ enabled: 'True' }).enabled).toBe(true);
+    expect(ProxyHostListQuerySchema.parse({ enabled: 'FALSE' }).enabled).toBe(false);
+  });
+
+  it('refuses a value it cannot read instead of taking it for false', () => {
+    expect(ProxyHostListQuerySchema.safeParse({ enabled: 'yes' }).success).toBe(false);
+    expect(ProxyHostListQuerySchema.parse({ excludeAppMembers: 'yes' }).excludeAppMembers).toBe(false);
+  });
 });
