@@ -635,6 +635,8 @@ export class HostingSnapshotsService {
           task = snapshots.operation
             ? await snapshots.operation(task.id, live, input.action)
             : await adapter.operation(task.id, live.remoteId);
+        if (task?.id && (task.status === 'running' || task.status === 'pending'))
+          row = await this.operations.providerStillRunning(row);
         if (task?.resourceId && task.resourceId !== live.remoteId)
           throw new AppError(409, 'HOSTING_SNAPSHOT_TASK_MISMATCH', 'Provider snapshot task belongs to a different VM');
         if (!task?.id && row.dispatchStartedAt && input.action === 'snapshot_delete') {

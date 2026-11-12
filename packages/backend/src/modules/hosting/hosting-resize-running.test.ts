@@ -121,5 +121,8 @@ describe('an action nothing can confirm', () => {
     expect(hostingConfirmationExpired(row, 11 * 60_000)).toBe(true);
     expect(hostingConfirmationExpired({ ...row, phase: 'provisioning' }, 11 * 60_000)).toBe(false);
     expect(hostingConfirmationExpired({ ...row, result: { providerDeleted: true } }, 11 * 60_000)).toBe(false);
+    // The provider said "still running" four minutes ago: the window counts from that report.
+    expect(hostingConfirmationExpired({ ...row, result: { providerRunningAt: 7 * 60_000 } }, 11 * 60_000)).toBe(false);
+    expect(hostingConfirmationExpired({ ...row, result: { providerRunningAt: 7 * 60_000 } }, 18 * 60_000)).toBe(true);
   });
 });

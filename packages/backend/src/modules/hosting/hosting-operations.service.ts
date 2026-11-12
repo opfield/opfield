@@ -14,6 +14,7 @@ type OperationPatch = Partial<typeof hostingOperations.$inferInsert>;
 export const HOSTING_OPERATION_LEASE_MS = 90_000;
 export const HOSTING_TERMINAL_PHASES: HostingOperationPhase[] = ['ready', 'failed'];
 const HOSTING_CONFIRMATION_MS = 10 * 60_000;
+const HOSTING_RUNNING_REPORT_MS = 60_000;
 
 function canonical(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(canonical);
@@ -87,18 +88,18 @@ export function transientTaskRetry(
 
 /**
  * A VM operation sent to the provider whose outcome nothing proved in this time stops holding the VM. It is failed, not
- * repeated: the provider may have done it. Teardown after the provider confirmed the VM gone keeps waiting.
+ * repeated: the provider may have done it. Teardown after the provider confirmed the VM gone keeps waiting, and so does
+ * a task the provider still reports as running: the time counts from its last such report, or a long resize or
+ * snapshot would be failed after one unreadable poll and the VM freed for a second action while the first still runs.
  */
 export function hostingConfirmationExpired(
   row: Pick<HostingOperationRow, 'phase' | 'dispatchStartedAt' | 'result'>,
   now = Date.now()
 ) {
-  return (
-    row.phase === 'unknown' &&
-    !!row.dispatchStartedAt &&
-    row.result?.providerDeleted !== true &&
-    now - row.dispatchStartedAt.getTime() > HOSTING_CONFIRMATION_MS
-  );
+  if (row.phase !== 'unknown' || !row.dispatchStartedAt || row.result?.providerDeleted === true) return false;
+  const reported = Number(row.result?.providerRunningAt);
+  const since = Math.max(row.dispatchStartedAt.getTime(), Number.isFinite(reported) ? reported : 0);
+  return now - since > HOSTING_CONFIRMATION_MS;
 }
 
 /** DB state owns intent and progress. HTTP/UI lifetimes do not own provider mutations. */
@@ -337,6 +338,12 @@ export class HostingOperationsService {
     if (!updated) throw new AppError(409, 'HOSTING_OPERATION_LEASE_LOST', 'Hosting operation ownership changed');
     this.publishUpdate(row, updated, patch);
     return updated;
+  }
+  /** Records that the provider just reported this operation's task as still running (at most one write a minute). */
+  async providerStillRunning(row: HostingOperationRow, now = Date.now()): Promise<HostingOperationRow> {
+    const reported = Number(row.result?.providerRunningAt);
+    if (Number.isFinite(reported) && now - reported < HOSTING_RUNNING_REPORT_MS) return row;
+    return this.update(row, { result: { ...row.result, providerRunningAt: now } });
   }
   private publishUpdate(row: HostingOperationRow, updated: HostingOperationRow, patch: OperationPatch) {
     try {

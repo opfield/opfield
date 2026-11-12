@@ -515,7 +515,11 @@ export class HostingManagementService {
               });
               continue;
             }
-            if (stop.status !== 'succeeded' && stop.status !== 'failed') continue;
+            if (stop.status !== 'succeeded' && stop.status !== 'failed') {
+              if (stop.status === 'running' || stop.status === 'pending')
+                await this.operations.providerStillRunning(row);
+              continue;
+            }
           }
           if (live.powerState !== 'stopped') {
             if (hostingConfirmationExpired(row))
@@ -656,6 +660,8 @@ export class HostingManagementService {
             // QGA exec-status forgets an exited process after returning its result.
             // Persist that one-shot receipt before waiting for fresh Opfield health.
             row = await this.operations.update(row, { providerOperation: task });
+          } else if (task.status === 'running' || task.status === 'pending') {
+            row = await this.operations.providerStillRunning(row);
           }
         }
         const recoveryHealthBefore = row.result?.recoveryHealthBefore as Record<string, number | null> | undefined;
