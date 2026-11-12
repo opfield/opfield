@@ -1,8 +1,10 @@
 /** What a request is told about a statement PostgreSQL refused: never the statement, its values or the driver's text. */
 export interface DatabaseRefusal {
-  status: 400 | 409;
+  status: 400 | 409 | 503;
   code: string;
   message: string;
+  /** A constraint a request cannot normally reach on its own: logged as an error so a server bug stays visible. */
+  unexpected?: boolean;
 }
 
 interface PostgresErrorFields {
@@ -25,8 +27,9 @@ const IN_USE: DatabaseRefusal = {
   message: 'Other resources still use this one. Remove or reassign them first.',
 };
 
+// 503, not 409: nothing was changed and the same request succeeds when sent again, which clients do only for a 5xx.
 const CONCURRENT_CHANGE: DatabaseRefusal = {
-  status: 409,
+  status: 503,
   code: 'CONFLICT',
   message: 'Another change to this resource ran at the same time. Try again.',
 };
@@ -36,8 +39,9 @@ const REFUSALS: Readonly<Record<string, DatabaseRefusal>> = {
   // A delete or update the references of a row do not allow.
   '23001': IN_USE,
   '23505': { status: 409, code: 'ALREADY_EXISTS', message: 'A resource with these values already exists.' },
-  '23502': VALUE_REFUSED,
-  '23514': VALUE_REFUSED,
+  // A missing or disallowed value: the schemas refuse these first, so reaching the table is usually this server's bug.
+  '23502': { ...VALUE_REFUSED, unexpected: true },
+  '23514': { ...VALUE_REFUSED, unexpected: true },
   '22001': VALUE_REFUSED,
   '22003': VALUE_REFUSED,
   '22007': VALUE_REFUSED,

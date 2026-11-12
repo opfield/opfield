@@ -251,7 +251,10 @@ export const errorHandler: ErrorHandler<AppEnv> = async (err, c) => {
   // A statement the request itself caused to fail (a row still referenced, a value that cannot be stored).
   const refusal = databaseRefusal(err);
   if (refusal) {
-    logger.warn('Database refused a request', { requestId, path: c.req.path, ...databaseRefusalContext(err) });
+    const context = { requestId, path: c.req.path, ...databaseRefusalContext(err) };
+    if (refusal.unexpected) logger.error('Database refused a value no request should reach it with', context);
+    else logger.warn('Database refused a request', context);
+    if (refusal.status === 503) c.header('Retry-After', '1');
     return c.json<ApiError>({ code: refusal.code, message: refusal.message }, refusal.status);
   }
 

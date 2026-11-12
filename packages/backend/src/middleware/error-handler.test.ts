@@ -63,7 +63,7 @@ describe('errorHandler statements PostgreSQL refused', () => {
     ['a duplicate', drizzleWrapped(pgError('23505', 'duplicate key value')), 409, 'ALREADY_EXISTS'],
     ['a NUL byte in text', drizzleWrapped(pgError('22021', 'invalid byte sequence')), 400, 'VALIDATION_ERROR'],
     ['a value too long', drizzleWrapped(pgError('22001', 'value too long')), 400, 'VALIDATION_ERROR'],
-    ['a deadlock', drizzleWrapped(pgError('40P01', 'deadlock detected')), 409, 'CONFLICT'],
+    ['a deadlock', drizzleWrapped(pgError('40P01', 'deadlock detected')), 503, 'CONFLICT'],
   ])('answers %s with a typed error and no statement text', async (_name, error, status, code) => {
     const res = await appThrowing(error).request('/boom');
     expect(res.status).toBe(status);
