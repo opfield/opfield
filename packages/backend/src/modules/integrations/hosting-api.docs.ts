@@ -261,7 +261,7 @@ const hostingRoutes = [
     path: '/resources/{id}/actions',
     tags: [TAG],
     summary: 'Run an action on a hosting resource',
-    description: `start, shutdown, reboot, resize (size or cpu, memoryMb, diskGb required), delete or recover; confirmed must be true and expectedIncarnation the resource's current one. Runs in the background (202). ${PERMISSIONS}`,
+    description: `start, shutdown, reboot, resize (size or cpu, memoryMb, diskGb required), delete or recover; confirmed must be true and expectedIncarnation the resource's current one. Runs in the background (202); follow the operation, and read the newest finished action of a resource from its \`lastOperation\`. What the last known VM state already rules out is refused before an operation exists: 409 \`HOSTING_VM_RUNNING\` (start of a running VM), \`HOSTING_VM_STOPPED\` (shutdown or reboot of a stopped VM, recover of a VM that is not running), \`HOSTING_VM_MUST_STOP\` (a resize that needs the guest stopped; \`actions.resize.stopRequired\` says which changes do, and a Proxmox container grows its disk while it runs), \`HOSTING_RECOVERY_UNAVAILABLE\`, \`HOSTING_NODE_BINDING_REQUIRED\`; 400 \`HOSTING_DISK_SHRINK_UNSUPPORTED\`; 403 \`HOSTING_STOP_UNAVAILABLE\` (a delete that must stop the VM first without the permission to). An action the provider neither confirms nor reports as running for ten minutes ends \`failed\` and is not repeated. ${PERMISSIONS}`,
     request: { params: IdParams, ...jsonBody(HostingActionSchema) },
     responses: accepted('The hosting operation'),
   }),

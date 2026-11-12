@@ -394,7 +394,7 @@ export const CONTROL_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'manage_system_alerts',
     description:
-      "List Opfield's system alerts about certificates (expiry warnings, CA expiry, revocations) or dismiss one by alertId. Operations: list, dismiss. For Opfield's own health use manage_opfield_diagnostics; for configurable alerts use list_alert_rules.",
+      "List Opfield's system alerts about certificates (expiry warnings, CA expiry, revocations) or dismiss one by alertId (an unknown alertId answers ALERT_NOT_FOUND). Operations: list, dismiss. For Opfield's own health use manage_opfield_diagnostics; for configurable alerts use list_alert_rules.",
     parameters: {
       type: 'object',
       properties: {

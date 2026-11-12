@@ -372,6 +372,7 @@ export const containerTopRoute = appRoute({
   path: '/nodes/{nodeId}/containers/{containerId}/top',
   tags: ['Docker Containers'],
   summary: 'Get container process list',
+  description: 'A container that is not running answers 409 `CONTAINER_NOT_RUNNING`.',
   request: { params: containerParams },
   responses: okJson(UnknownDataResponseSchema),
 });

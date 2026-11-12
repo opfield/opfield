@@ -347,6 +347,8 @@ Create operations marked in the API reference accept an optional `Idempotency-Ke
 - a retry while the first request still runs returns `409 IDEMPOTENCY_KEY_IN_PROGRESS` with `Retry-After`;
 - a completed request whose response was not stored (it looked secret or was over 1 MiB) returns `409 IDEMPOTENCY_RESPONSE_WITHHELD`; look the resource up instead of retrying.
 
+Any write can also answer `400 VALIDATION_ERROR` (a value is too long, out of range or not valid text), `400 REFERENCE_NOT_FOUND` (the request names a resource that does not exist), `409 ALREADY_EXISTS`, `409 RESOURCE_IN_USE` (other resources still use this one) and `503 CONFLICT` with `Retry-After` (another change ran at the same time; nothing was changed, so send the same request again). Boolean query parameters such as `enabled`, `force` and `timestamps` take `true`, `false`, `1` or `0` in any letter case; any other value answers 400.
+
 Operations that return a secret once (tokens, enrollment, keys, credentials) never take the header. MCP create tools take an `idempotencyKey` argument on the same mechanism, scoped to the MCP token and tool, except tools whose result carries a secret; their codes are `IDEMPOTENCY_KEY_REUSED`, `IDEMPOTENCY_KEY_IN_PROGRESS`, and `IDEMPOTENCY_RESULT_WITHHELD`.
 
 ### Scope Rules

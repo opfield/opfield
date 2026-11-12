@@ -647,7 +647,11 @@ export const tags = [
   { name: 'Docker Health Checks', description: 'Opfield-managed Docker health checks' },
   { name: 'Docker Migrations', description: 'Durable Docker node-to-node migrations' },
   { name: 'Docker Secrets', description: 'Container and deployment environment secrets' },
-  { name: 'Docker Files', description: 'Container file browser operations' },
+  {
+    name: 'Docker Files',
+    description:
+      'Container file browser operations. A container that is not running answers 409 `CONTAINER_NOT_RUNNING`.',
+  },
   { name: 'Docker Tasks', description: 'Docker background tasks' },
   { name: 'Docker Webhooks', description: 'External Docker update webhooks' },
   { name: 'SSL Certificates', description: 'SSL/TLS certificate management' },

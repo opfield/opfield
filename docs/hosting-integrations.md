@@ -130,7 +130,7 @@ After confirmed DigitalOcean VM deletion, Opfield also removes its unused owned 
 
 Snapshots use durable pending, ready, failed and deleting entities. Creation can run while the VM is online; application consistency still requires application-level coordination. Proxmox optionally includes RAM and can restore a running VM; other integrations require a stopped VM for restore. Storage prices are estimates where available; an unknown size or price is a dash, not zero. Snapshot folders use stable Opfield entity IDs independently of provider snapshot IDs.
 
-Creation, deletion and restore are mutually exclusive with other VM mutations. An uncertain delete is reconciled using complete inventory of the unchanged VM. An uncertain disk-resize dispatch is not repeated; Proxmox resize checkpoints allow safe continuation between CPU/RAM configuration and disk growth.
+Creation, deletion and restore are mutually exclusive with other VM mutations. A VM or snapshot action whose outcome the provider neither confirms nor reports as still running for ten minutes ends as failed without being repeated, and the VM takes a new action again; check its state first. An uncertain delete is reconciled using complete inventory of the unchanged VM. An uncertain disk-resize dispatch is not repeated; Proxmox resize checkpoints allow safe continuation between CPU/RAM configuration and disk growth.
 
 Hosting alerts support VM power state, operation outcomes, firewall failures, account synchronization and monetary thresholds. Monetary rules require an explicit currency and separate billing access. Persisted provider observations and Redis read models feed the notification bus; stale or unavailable account data does not become a zero balance.
 

@@ -141,7 +141,7 @@ export const updateManagedDatabaseRoute = appRoute({
 });
 
 const MANAGED_EXTENSION_CHANGE_NOTES =
-  'Only the curated extensions the list returns can change (400 `EXTENSION_NOT_ALLOWED`). DDL runs as the control superuser in the application database, on the primary when the database runs on several servers (copies follow). An extension that needs a preload library restarts the database (a rolling update copies-first on several servers); one that comes as a download is installed into the database volume on every server first (409 `EXTENSION_NEEDS_STORAGE` when the volume lacks room). The answer is the extension list; `pending` is set while a restart or a download runs, and the SQL step follows on its own. Refusals: 409 `EXTENSION_NEEDS_IMAGE_UPDATE` (update with `imageUpdate: true` first), `EXTENSION_NOT_AVAILABLE` (not in this version), `MANAGED_DATABASE_DAEMON_UPDATE_REQUIRED` (a node daemon predates extensions), `MANAGED_DATABASE_EXTENSION_CHANGE_PENDING` (another change runs).';
+  'Only the curated extensions the list returns can change (400 `EXTENSION_NOT_ALLOWED`). DDL runs as the control superuser in the application database, on the primary when the database runs on several servers (copies follow). An extension that needs a preload library restarts the database (a rolling update copies-first on several servers); one that comes as a download is installed into the database volume on every server first (409 `EXTENSION_NEEDS_STORAGE` when the volume lacks room). The answer is the extension list; `pending` is set while a restart or a download runs, and the SQL step follows on its own. Refusals: 409 `EXTENSION_NEEDS_IMAGE_UPDATE` (update with `imageUpdate: true` first), `EXTENSION_NOT_AVAILABLE` (not in this version), `MANAGED_DATABASE_DAEMON_UPDATE_REQUIRED` (a node daemon predates extensions), `MANAGED_DATABASE_EXTENSION_CHANGE_PENDING` (another change runs), `EXTENSION_ENGINE_STOPPED` (the database is not running; start it first).';
 
 export const listManagedDatabaseExtensionsRoute = appRoute({
   method: 'get',
@@ -730,6 +730,8 @@ export const setRedisKeyRoute = appRoute({
   path: '/{id}/redis/key',
   tags: ['Databases'],
   summary: 'Set a key of a key-value store',
+  description:
+    'Replaces the key. `value` by `type`: string = text or a number; hash = an object of fields (or a flat list of field and value pairs); list and set = an array; zset = an array of `{ member, score }` with a numeric score (0 when left out). A value that would leave the key deleted is refused with 400: an empty hash, list, set or zset, a value of another shape, a score that is not a number.',
   request: { params: IdParamSchema, ...jsonBody(RedisSetKeySchema) },
   responses: okJson(UnknownDataResponseSchema),
 });

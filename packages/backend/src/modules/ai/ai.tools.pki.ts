@@ -218,7 +218,7 @@ export const PKI_AI_TOOLS: AIToolDefinition[] = [
           type: 'array',
           items: { type: 'string' },
           description:
-            'Subject Alternative Names as plain values WITHOUT type prefix. Examples: "example.com", "*.example.com", "10.0.0.1". Do NOT use "DNS:" or "IP:" prefixes.',
+            'Subject Alternative Names as plain values WITHOUT type prefix. Examples: "example.com", "*.example.com", "10.0.0.1". Do NOT use "DNS:" or "IP:" prefixes; only http:// and https:// URLs are taken as URLs, and an empty value or one with control characters is refused (INVALID_SAN).',
         },
         templateId: { type: 'string', description: 'Optional template UUID to use' },
         folderId: {
