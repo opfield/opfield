@@ -10,6 +10,7 @@ import {
 } from '@/db/schema/index.js';
 import { createChildLogger } from '@/lib/logger.js';
 import { hasScopeForResource } from '@/lib/permissions.js';
+import { x509DnText } from '@/lib/x509.js';
 import { AppError } from '@/middleware/error-handler.js';
 import type { AlertService } from '@/modules/audit/alert.service.js';
 import type { AuditService } from '@/modules/audit/audit.service.js';
@@ -91,7 +92,8 @@ export function subjectDnFieldsFromDn(subjectDn: string): IssueCertificateInput[
     const separator = part.indexOf('=');
     if (separator <= 0) continue;
     const key = part.slice(0, separator).trim();
-    const value = part.slice(separator + 1).trim();
+    // The stored subject carries its values escaped; issuing escapes them again.
+    const value = x509DnText(part.slice(separator + 1).trim());
     if (!value) continue;
     if (key === 'O') fields.o = value;
     else if (key === 'OU') fields.ou = value;

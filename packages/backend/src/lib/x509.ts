@@ -13,3 +13,8 @@ export { x509 };
 export function x509DnValue(value: string): string {
   return value.replace(/[\\",+;<>=#]/g, '\\$&');
 }
+
+/** The text of a value written by x509DnValue, as read back from a stored subject. */
+export function x509DnText(value: string): string {
+  return value.replace(/\\([\\",+;<>=#])/g, '$1');
+}
