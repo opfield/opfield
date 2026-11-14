@@ -1277,7 +1277,8 @@ prepare_stack() {
     -v "$WORK/smtp:/certs:ro" -e MP_SMTP_TLS_CERT=/certs/cert.pem -e MP_SMTP_TLS_KEY=/certs/key.pem \
     -e MP_SMTP_REQUIRE_STARTTLS=true -e MP_SMTP_AUTH_ACCEPT_ANY=true "$MAILPIT_IMAGE" >/dev/null 2>>"$WORK/logs/docker.log" ||
     { fail "Mailpit started" "see logs/docker.log"; return 1; }
-  docker cp "$WORK/smtp/ca.pem" "${app}:${LEGACY_APP_DATA_DIR}/e2e-smtp-ca.pem" >/dev/null || { fail "SMTP CA copied" "$app"; return 1; }
+  # Not `docker cp`: in an unprivileged LXC guest it fails on a read-only remount of /proc.
+  docker exec -i -u 0 "$app" sh -c "cat > '${LEGACY_APP_DATA_DIR}/e2e-smtp-ca.pem'" <"$WORK/smtp/ca.pem" || { fail "SMTP CA copied" "$app"; return 1; }
   env_set RELEASES_API_URL "http://${HOST_ADDR}:${FEED_PORT}/releases"
   env_set NODE_EXTRA_CA_CERTS "${LEGACY_APP_DATA_DIR}/e2e-smtp-ca.pem"
   dc up -d app >>"$WORK/logs/compose.log" 2>&1
@@ -1374,7 +1375,7 @@ phase1_base() {
   else
     feed_pin stable "opfield=${BASE}"
   fi
-  curl -fsSL "${RAW_BASE}/${BASE}/scripts/install.sh" -o "$installer" &&
+  curl -fsSL "${RELEASE_DOWNLOAD}/${BASE}/install.sh" -o "$installer" &&
     curl -fsSL "${RELEASE_DOWNLOAD}/${BASE}/setup-docker-node.sh" -o "$docker_script" &&
     curl -fsSL "${RELEASE_DOWNLOAD}/${BASE}/setup-node.sh" -o "$nginx_script"
   check "${BASE} installers downloaded" "install.sh sha256 $(sha256sum "$installer" | cut -c1-12), setup-docker-node.sh, setup-node.sh" \
@@ -1391,7 +1392,7 @@ phase1_base() {
 
   # The base updater's own rollback for phase 4, taken from the code the base runs.
   # Rendered by the base's own code with node in its app container, so phase 4 runs exactly what the base runs.
-  docker cp "$WORK/py/sidecar-render.cjs" "$(service_id app):/tmp/opfield-e2e-sidecar-render.cjs" >/dev/null 2>&1
+  docker exec -i -u 0 "$(service_id app)" sh -c 'cat > /tmp/opfield-e2e-sidecar-render.cjs' <"$WORK/py/sidecar-render.cjs" >/dev/null 2>&1
   for src in $(docker exec "$(service_id app)" sh -c 'grep -rl "trap on_exit EXIT" /app/packages/backend/dist 2>/dev/null' | grep -v '\.test\.js$' | grep '\.js$'); do
     docker exec "$(service_id app)" node /tmp/opfield-e2e-sidecar-render.cjs "$src" "$PROJECT" "$INSTALL_DIR" \
       >"$WORK/json/base-sidecar.json" 2>"$WORK/logs/sidecar-extract.log" &&
@@ -2526,7 +2527,7 @@ phase5_fresh() {
   command -v docker >/dev/null && teardown_stack
   [[ "$LICENSE_MODE" == allow ]] || license_block 1
   feed_pin "$CHANNEL" "opfield=${CANDIDATE}"
-  curl -fsSL "${RAW_BASE}/${CANDIDATE}/scripts/install.sh" -o "$installer"
+  curl -fsSL "${RELEASE_DOWNLOAD}/${CANDIDATE}/install.sh" -o "$installer"
   check "${CANDIDATE} installer downloaded" "install.sh sha256 $(sha256sum "$installer" 2>/dev/null | cut -c1-12)" test -s "$installer" || return 1
   if [[ "$CANDIDATE" == *-rc.* ]]; then
     # The installer resolves stable tags only; let it take the release candidate the feed returns.
