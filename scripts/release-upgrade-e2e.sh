@@ -566,9 +566,12 @@ PY
   cat >"$WORK/py/sidecar-render.cjs" <<'JS'
 // sidecar-render.cjs SOURCE PROJECT DIR: renders the base updater's sidecar script (through its EXIT trap) the way the
 // base itself does: its template literal and the module functions it calls are evaluated with node, so the result is
-// exactly what the base runs. Prints {"script": ..., "image": ...}; any value the template needs beyond its own
-// parameters and functions stops it with the name.
+// exactly what the base runs. Prints {"script": ..., "image": ...}. A name the template or its functions use is taken
+// from where the base takes it: the app's DATABASE_URL for the database, the module's own constants and its imports
+// for the rest; a name found in none of them stops the render with the name.
 const fs = require('fs');
+const path = require('path');
+const { pathToFileURL } = require('url');
 const [src, composeProject, composeDir] = process.argv.slice(2);
 const text = fs.readFileSync(src, 'utf8');
 function skipString(t, i) {
@@ -604,18 +607,61 @@ for (const name of new Set([...template.matchAll(/\$\{\s*([A-Za-z_$][\w$]*)\s*\(
   if (at < 0) throw new Error(`template function ${name} not found`);
   helpers.push(text.slice(at, skipBlock(text, text.indexOf('{', text.indexOf(')', at)))));
 }
-const rendered = new Function('composeProject', 'composeDir', `${helpers.join('\n')}\nreturn ${template};`)(
-  composeProject,
-  composeDir
-);
-const trap = 'trap on_exit EXIT';
-const cut = rendered.indexOf(trap);
-if (cut < 0) throw new Error('sidecar trap not found');
-const script = rendered.slice(0, cut + trap.length);
-for (const marker of ['rollback() {', 'on_exit() {']) if (!script.includes(marker)) throw new Error(`missing ${marker}`);
-const image = /docker\.io\/library\/docker:[0-9A-Za-z._-]+@sha256:[0-9a-f]{64}/.exec(text);
-if (!image) throw new Error('sidecar image not found');
-process.stdout.write(JSON.stringify({ script, image: image[0] }));
+// The database the app uses, as the base hands it to its template (the role and name in DATABASE_URL).
+function appDatabase() {
+  const match = /^postgres(?:ql)?:\/\/([^:@/]+)(?::[^@]*)?@[^/]+\/([^?#]+)/.exec((process.env.DATABASE_URL || '').trim());
+  if (!match) throw new Error('the template needs the database, and DATABASE_URL does not name one');
+  return { role: decodeURIComponent(match[1]), database: decodeURIComponent(match[2]) };
+}
+// A module-level value by name: imported by the module, or one of its own constants.
+async function moduleValue(name, scope) {
+  for (const [, list, from] of text.matchAll(/^import\s*\{([^}]*)\}\s*from\s*['"]([^'"]+)['"]/gm)) {
+    for (const item of list.split(',')) {
+      const [imported, local = imported] = item.trim().split(/\s+as\s+/);
+      if (local !== name || !from.startsWith('.')) continue;
+      return (await import(pathToFileURL(path.resolve(path.dirname(src), from)).href))[imported];
+    }
+  }
+  const own = new RegExp(`^(?:export\\s+)?const\\s+${name}\\s*=\\s*`, 'm').exec(text);
+  if (!own) throw new Error(`the template needs ${name}, which the module neither imports nor defines`);
+  let end = own.index + own[0].length;
+  for (;;) {
+    const c = text[end];
+    if (c === undefined || c === ';' || (c === '\n' && !/^\s*[.?:+|&]/.test(text.slice(end + 1)))) break;
+    end = c === '"' || c === "'" || c === '`' ? skipString(text, end) : c === '{' ? skipBlock(text, end) : end + 1;
+  }
+  const expr = text.slice(own.index + own[0].length, end);
+  return valueOf(`return (${expr});`, scope);
+}
+// Evaluates BODY with the names in SCOPE, adding each missing name the way the base resolves it.
+async function valueOf(body, scope) {
+  for (let i = 0; i < 80; i += 1) {
+    try {
+      return new Function(...Object.keys(scope), body)(...Object.values(scope));
+    } catch (error) {
+      const missing = error instanceof ReferenceError && /^(\S+) is not defined$/.exec(error.message);
+      if (!missing || missing[1] in scope) throw error;
+      scope[missing[1]] = missing[1] === 'database' ? appDatabase() : await moduleValue(missing[1], scope);
+    }
+  }
+  throw new Error('too many names to resolve');
+}
+(async () => {
+  const rendered = await valueOf(`${helpers.join('\n')}\nreturn ${template};`, { composeProject, composeDir });
+  const trap = 'trap on_exit EXIT';
+  const cut = rendered.indexOf(trap);
+  if (cut < 0) throw new Error('sidecar trap not found');
+  const script = rendered.slice(0, cut + trap.length);
+  for (const marker of ['rollback() {', 'on_exit() {']) if (!script.includes(marker)) throw new Error(`missing ${marker}`);
+  // The image the base runs the script in: named in the module, or imported by it.
+  const pinned = /docker\.io\/library\/docker:[0-9A-Za-z._-]+@sha256:[0-9a-f]{64}/;
+  const image = pinned.exec(text) || pinned.exec(String(await moduleValue('DOCKER_COMPOSE_CLI_IMAGE_REF', {})));
+  if (!image) throw new Error('sidecar image not found');
+  process.stdout.write(JSON.stringify({ script, image: image[0] }));
+})().catch((error) => {
+  console.error(error.message);
+  process.exit(1);
+});
 JS
   cat >"$WORK/py/access.py" <<'PY'
 # access.py snapshot GROUP USERS TOKENS OPERATOR_EMAIL TOKEN_NAME OUT
@@ -1356,7 +1402,13 @@ complete_setup() {
   wait_for 120 "administrator sign-in" login_admin
   api GET /auth/me
   check "${label} first sign-in" "HTTP ${CODE}; group $(jx "$RESP" 'D["groupName"]'), $(jx "$RESP" 'len(D["groupScopes"])') scopes" \
-    test "$CODE" = 200
+    test "$CODE" = 200 || return 1
+  # The password-with-TOTP wizard sets up no SMTP; the seed creates email sign-in accounts, which need a verified one.
+  if [[ -n "$TOTP_SECRET" ]]; then
+    api PUT /api/admin/auth-settings "$(mkjson '{"smtp": {"host": "mailpit", "port": 1025, "tlsMode": "starttls", "username": "e2e",
+      "password": "e2e-smtp-password", "senderName": "Opfield E2E", "senderEmail": "opfield@e2e.test", "testRecipient": a[0]}}' "$ADMIN_EMAIL")"
+    check "${label} SMTP saved and verified by a test email" "HTTP ${CODE} $([[ "$CODE" == 200 ]] || short "$RESP" 200)" test "$CODE" = 200
+  fi
 }
 
 node_status() {
@@ -1367,9 +1419,40 @@ node_status() {
 node_online() { [[ "$(node_status "$1" | cut -d' ' -f1)" == online ]]; }
 node_online_with() { [[ "$(node_status "$1")" == "online $2" ]]; }
 
+# base_daemon_version TYPE: the daemon a customer on BASE runs, the newest stable TYPE daemon release not newer than
+# BASE. A release ships a daemon only when the daemon changed, so BASE itself often has none.
+base_daemon_version() {
+  local page
+  for page in 1 2 3 4 5; do
+    curl -fsSL -m 30 -H 'Accept: application/vnd.github+json' "https://api.github.com/repos/${REPO}/releases?per_page=100&page=${page}" || break
+    printf '\n'
+  done 2>/dev/null | python3 -c '
+import json, re, sys
+suffix, base = sys.argv[1], tuple(int(x) for x in re.match(r"v(\d+)\.(\d+)\.(\d+)", sys.argv[2]).groups())
+found, text, at, decoder = [], sys.stdin.read(), 0, json.JSONDecoder()
+while True:
+    while at < len(text) and text[at].isspace():
+        at += 1
+    try:
+        releases, at = decoder.raw_decode(text, at)
+    except ValueError:
+        break
+    for release in releases if isinstance(releases, list) else []:
+        tag = re.fullmatch(r"v(\d+)\.(\d+)\.(\d+)-" + re.escape(suffix), release.get("tag_name") or "")
+        if tag and not release.get("prerelease") and not release.get("draft"):
+            version = tuple(int(x) for x in tag.groups())
+            if version <= base:
+                found.append(version)
+if found:
+    print("v%d.%d.%d" % max(found))' "$1" "$BASE"
+}
+
 install_node() {
-  local type="$1" label="$2" script="$3" start=$SECONDS id token fp status
+  local type="$1" label="$2" script="$3" start=$SECONDS id token fp status daemon
   shift 3
+  daemon="$(base_daemon_version "$type")"
+  check "${label} daemon of ${BASE} resolved" "${daemon:-no stable ${type} daemon release up to ${BASE}}" test -n "$daemon" || return 1
+  FACT["${type}_daemon_base"]="$daemon"
   api POST /api/nodes "$(mkjson '{"type": a[0], "hostname": a[1], "displayName": a[2]}' "$type" "e2e-${type}" "E2E ${label}")"
   keep_json "node-${type}"
   id="$(jx "$RESP" 'D["node"]["id"]')"
@@ -1377,15 +1460,15 @@ install_node() {
   fp="$(jx "$RESP" 'D["opfieldCertSha256"]')"
   check "${label} node created" "HTTP ${CODE}" test "$CODE" = 201 -a -n "$id" || return 1
   FACT["${type}_node"]="$id"
-  say "installing the ${BASE} ${label} node daemon (log: logs/node-${type}.out)"
-  env TERM=dumb timeout 1500 bash "$script" -y --no-logo --version "$BASE" "$@" --opfield "${HOST_ADDR}:9443" \
+  say "installing the ${daemon} ${label} node daemon (log: logs/node-${type}.out)"
+  env TERM=dumb timeout 1500 bash "$script" -y --no-logo --version "$daemon" "$@" --opfield "${HOST_ADDR}:9443" \
     --token "$token" --opfield-cert-sha256 "$fp" </dev/null >"$WORK/logs/node-${type}.out" 2>&1
   status=$?
   sed -i 's/\x1b\[[0-9;]*[A-Za-z]//g' "$WORK/logs/node-${type}.out"
   check "${label} node installer" "exit ${status} in $((SECONDS - start)) s" test "$status" = 0 ||
     { tail -n 15 "$WORK/logs/node-${type}.out"; return 1; }
-  wait_for 180 "${label} node online" node_online_with "$id" "$BASE"
-  check "${label} node online on ${BASE}" "$(node_status "$id")" node_online_with "$id" "$BASE"
+  wait_for 180 "${label} node online" node_online_with "$id" "$daemon"
+  check "${label} node online on ${daemon}" "$(node_status "$id")" node_online_with "$id" "$daemon"
 }
 
 route_ok() {
@@ -1571,8 +1654,15 @@ LOG_ALLOW=(
   '"msg":"relay endpoint tunnels failing".*dial tcp [^"]*:9443: connect: connection refused'
   # An unprivileged LXC host has no loop devices for disk-image volumes.
   'disk-image volume support unavailable.*loop-control'
+  # The Docker node of this run sits on the Opfield host, so it sees the updater's own containers come and go: the app
+  # container an update recreates, the update and host-move helpers that are removed when they finish.
+  '"msg":"container changed outside Opfield"'
+  '"context":"DockerExternalChanges".*"message":"Managed container changed outside Opfield"'
   # The base daemons' own warnings while they are replaced (old code; lines of base processes are tagged
   # `daemon(base):` by check_logs, so the same warning from a candidate process still fails).
+  '^daemon\(base\): .*"msg":"a socket for nginx workers waits for the nginx workers'"'"' group"'
+  # Opfield restarts in an update and in the host move; the base daemons lose their session and reconnect.
+  '^daemon\(base\): .*"msg":"(migration transfer stream disconnected|session ended, reconnecting)"'
   '^daemon\(base\): .*"msg":"relay endpoint registration disconnected".*endpoint policy was revoked'
   '^daemon\(base\): .*"msg":"proxy secure-link streams failing".*resume rejected'
 )
@@ -1868,16 +1958,18 @@ base_has_launcher_report() {
 
 # After the daemon updates: the launcher the node runs and whether the next update keeps connections.
 check_launcher() {
-  local type id launcher handover
+  local type id launcher handover daemon
   for type in docker nginx; do
     id="${FACT[${type}_node]}"
     # A daemon this release does not ship keeps its launcher (see "daemon update offered").
     [[ "${FACT[updated_${type}]}" == 1 ]] || continue
-    wait_for 120 "${type} launcher ${CANDIDATE}" launcher_is "$id" "$CANDIDATE"
+    # The launcher is the daemon's own: its release, which is the candidate only when the candidate ships this daemon.
+    daemon="$(node_status "$id" | cut -d' ' -f2)"
+    wait_for 120 "${type} launcher ${daemon}" launcher_is "$id" "$daemon"
     api GET "/api/nodes/${id}"
     launcher="$(jx "$RESP" '(D.get("capabilities") or {}).get("launcherVersion")')"
-    check "${type} node details show the ${CANDIDATE#v} launcher" "launcherVersion ${launcher:-unreported}, daemon $(jx "$RESP" 'D.get("daemonVersion")')" \
-      test "${launcher#v}" = "${CANDIDATE#v}"
+    check "${type} node details show the launcher of its ${daemon#v} daemon" "launcherVersion ${launcher:-unreported}, daemon $(jx "$RESP" 'D.get("daemonVersion")')" \
+      test -n "$launcher" -a "${launcher#v}" = "${daemon#v}"
     wait_for 90 "${type} update preview" update_preview_reported "$id"
     handover="$(jx "$RESP" '((D.get("lastHealthReport") or {}).get("updateConnections") or {}).get("handoverAvailable")')"
     check "${type} node: the next daemon update hands connections over" \
@@ -2043,7 +2135,7 @@ check_folder_grant() {
   check "${label}: folder-limited manager refused at the top level" "HTTP ${code} $(short "$RESP" 160)" test "$code" = 403
 }
 
-# PIDs of daemon processes that run the base release: those that logged their start on BASE (or the --via release),
+# PIDs of daemon processes that run the base release: those that logged their start on BASE's daemons (or the --via release),
 # and those that staged a self-update (the process an update replaces; every update this run makes starts from there).
 base_daemon_pids() {
   journalctl -u docker-daemon -u nginx-daemon --no-pager -o json 2>/dev/null | python3 -c '
@@ -2059,7 +2151,7 @@ for line in sys.stdin:
         continue
     if ("\"msg\":\"starting " in message and any(("\"version\":\"%s\"" % base) in message for base in bases)) or "\"msg\":\"starting self-update\"" in message:
         pids.add(entry.get("_PID"))
-print(" ".join(sorted(p for p in pids if p)))' "${BASE},${VIA}"
+print(" ".join(sorted(p for p in pids if p)))' "${BASE},${VIA},${FACT[docker_daemon_base]:-},${FACT[nginx_daemon_base]:-}"
 }
 
 # check_logs LABEL SINCE_EPOCH: warnings and errors of the app, the relay and the daemons since SINCE, against LOG_ALLOW.
@@ -2564,6 +2656,8 @@ teardown_stack() {
   rm -rf "$INSTALL_DIR" "$OPFIELD_DIR"
   [[ -L "$LEGACY_INSTALL_DIR" ]] && rm -f "$LEGACY_INSTALL_DIR"
   docker rm -f opfield-host-move >/dev/null 2>&1
+  # Volumes the stack keeps by name outlive `down -v`; a fresh install must not find the base's database.
+  comm -13 <(cat "$WORK/snapshot/docker-volumes" 2>/dev/null) <(docker volume ls -q | sort) | xargs -r docker volume rm -f >>"$WORK/logs/docker.log" 2>&1
   # The fresh candidate installs where its installer puts it.
   if version_at_least "$CANDIDATE" "$FIRST_OPFIELD_LAYOUT"; then INSTALL_DIR="$OPFIELD_DIR"; fi
 }
