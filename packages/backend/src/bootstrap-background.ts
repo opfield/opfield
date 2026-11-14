@@ -660,7 +660,11 @@ export async function initializeBackgroundServices(): Promise<void> {
   const appIncidentRunner = container.resolve(AppIncidentRunner);
   scheduler.registerInterval('app-incident-retry', 30_000, () => appIncidentRunner.runOpen());
   eventBus.subscribe('node.changed', (payload) => {
-    if ((payload as { status?: string } | undefined)?.status === 'online') void appIncidentRunner.runOpen();
+    if ((payload as { status?: string } | undefined)?.status !== 'online') return;
+    // Not awaited by anyone: a failed read here (the database briefly away) must not end the process; the job retries.
+    void appIncidentRunner
+      .runOpen()
+      .catch((error) => logger.warn('App incident retry on node reconnect failed', { error }));
   });
   void container
     .resolve(AppMaintenanceService)
