@@ -760,12 +760,44 @@ tapi() {
   CODE="$(curl_code -ksS -m 60 -o "$RESP" -w '%{http_code}' -X "$1" -H "Authorization: Bearer ${TOKEN}" -H 'Accept: application/json' "$API$2")"
 }
 
+TOTP_SECRET=""
+# The current TOTP code of the administrator. A code is accepted once, so a second sign-in waits for the next step
+# (kept in a file: the callers run this in a subshell).
+totp_code() {
+  local step last
+  last="$(cat "$WORK/totp.step" 2>/dev/null || echo 0)"
+  step=$(($(date +%s) / 30))
+  while [[ "$step" -le "$last" ]]; do
+    sleep 2
+    step=$(($(date +%s) / 30))
+  done
+  printf '%s\n' "$step" >"$WORK/totp.step"
+  python3 - "$TOTP_SECRET" "$step" <<'PY'
+import base64, hmac, sys
+secret = sys.argv[1]
+key = base64.b32decode(secret + "=" * (-len(secret) % 8), casefold=True)
+digest = hmac.digest(key, int(sys.argv[2]).to_bytes(8, "big"), "sha1")
+offset = digest[-1] & 15
+print(f"{(int.from_bytes(digest[offset:offset + 4], 'big') & 0x7fffffff) % 1000000:06d}")
+PY
+}
+
 login_admin() {
   : >"$JAR"
   RESP="$WORK/resp.json"
   CODE="$(curl_code -ksS -m 30 -o "$RESP" -w '%{http_code}' -c "$JAR" -b "$JAR" -H 'Content-Type: application/json' \
     --data-binary "$(mkjson '{"email": a[0], "password": a[1]}' "$ADMIN_EMAIL" "$ADMIN_PASSWORD")" "$API/auth/password/login")"
   [[ "$CODE" == 200 ]] || return 1
+  # An administrator set up with password and TOTP gets a challenge here; the session comes with the second factor.
+  if [[ -n "$TOTP_SECRET" ]]; then
+    local challenge
+    challenge="$(jx "$RESP" 'D.get("challengeId") or ""')"
+    if [[ -n "$challenge" ]]; then
+      CODE="$(curl_code -ksS -m 30 -o "$RESP" -w '%{http_code}' -c "$JAR" -b "$JAR" -H 'Content-Type: application/json' \
+        --data-binary "$(mkjson '{"challengeId": a[0], "totpCode": a[1]}' "$challenge" "$(totp_code)")" "$API/auth/mfa/verify")"
+      [[ "$CODE" == 200 ]] || return 1
+    fi
+  fi
   refresh_csrf
   [[ -n "$CSRF" ]]
 }
@@ -1292,12 +1324,27 @@ complete_setup() {
   setup_request /unlock "$(mkjson '{"code": a[0]}' "$SETUP_CODE")"
   SETUP_CSRF="$(jx "$RESP" 'D["csrfToken"]')"
   check "${label} setup unlock" "HTTP ${CODE}" test "$CODE" = 200 -a -n "$SETUP_CSRF" || return 1
-  setup_request /wizard/apply "$(mkjson '{"publicUrl": a[0], "network": {"grpcPublicTarget": a[1] + ":9443", "grpcLocalIp": a[1]},
-    "auth": {"methods": {"oidc": False, "password": True, "emailOtp": False},
-             "smtp": {"host": "mailpit", "port": 1025, "tlsMode": "starttls", "username": "e2e", "password": "e2e-smtp-password",
-                      "senderName": "Opfield E2E", "senderEmail": "opfield@e2e.test"}},
-    "administrator": {"name": "E2E Admin", "email": a[2], "authMethod": "password", "password": a[3]},
-    "logging": {"mode": "disabled"}}' "$PUBLIC_URL" "$HOST_ADDR" "$ADMIN_EMAIL" "$ADMIN_PASSWORD")"
+  # Releases with the sign-in choice in the wizard (password with TOTP) create the administrator before the apply;
+  # an earlier release has no such step and takes the administrator and SMTP in the apply itself.
+  local auth='{"option":"password_totp","methods":{"oidc":false,"password":true,"emailOtp":false}}'
+  setup_request /wizard/administrator "$(mkjson '{"auth": json.loads(a[0]), "administrator": {"name": "E2E Admin", "email": a[1], "password": a[2]}}' "$auth" "$ADMIN_EMAIL" "$ADMIN_PASSWORD")"
+  if [[ "$CODE" == 200 ]]; then
+    setup_request /wizard/administrator/totp/setup '{}'
+    TOTP_SECRET="$(jx "$RESP" 'D["secret"]')"
+    check "${label} setup TOTP secret" "HTTP ${CODE}" test "$CODE" = 200 -a -n "$TOTP_SECRET" || return 1
+    setup_request /wizard/administrator/totp/confirm "$(mkjson '{"code": a[0]}' "$(totp_code)")"
+    check "${label} setup TOTP confirmed" "HTTP ${CODE}; $(jx "$RESP" 'len(D["recoveryCodes"])') recovery codes" test "$CODE" = 200 || return 1
+    setup_request /wizard/apply "$(mkjson '{"auth": json.loads(a[0]), "publicUrl": a[1], "network": {"grpcPublicTarget": a[2] + ":9443", "grpcLocalIp": a[2]},
+      "logging": {"mode": "disabled"}}' "$auth" "$PUBLIC_URL" "$HOST_ADDR")"
+  else
+    TOTP_SECRET=""
+    setup_request /wizard/apply "$(mkjson '{"publicUrl": a[0], "network": {"grpcPublicTarget": a[1] + ":9443", "grpcLocalIp": a[1]},
+      "auth": {"methods": {"oidc": False, "password": True, "emailOtp": False},
+               "smtp": {"host": "mailpit", "port": 1025, "tlsMode": "starttls", "username": "e2e", "password": "e2e-smtp-password",
+                        "senderName": "Opfield E2E", "senderEmail": "opfield@e2e.test"}},
+      "administrator": {"name": "E2E Admin", "email": a[2], "authMethod": "password", "password": a[3]},
+      "logging": {"mode": "disabled"}}' "$PUBLIC_URL" "$HOST_ADDR" "$ADMIN_EMAIL" "$ADMIN_PASSWORD")"
+  fi
   check "${label} setup apply" "HTTP ${CODE} $(short "$RESP" 200)" test "$CODE" = 200 || return 1
   setup_request /wizard/license/community '{}'
   check "${label} setup chooses Community" "HTTP ${CODE}; status $(jx "$RESP" 'D["status"]'), registration $(jx "$RESP" 'D["registrationStatus"]')" \
