@@ -35,6 +35,14 @@ export function hasDockerResourceScope(
   );
 }
 
+/**
+ * Whether a grant of BASE covers the node by itself: everywhere, or this node by id. Only such a caller is told that a
+ * node is missing or of another type; one whose grant does not name the node learns nothing about it.
+ */
+export function dockerGrantNamesNode(scopes: string[], baseScope: string, nodeId: string): boolean {
+  return hasScope(scopes, baseScope) || hasScope(scopes, `${baseScope}:${nodeId}`);
+}
+
 export function dockerScopedNodeIds(scopes: readonly string[], baseScopes: readonly string[]): string[] {
   const ids = new Set<string>();
   for (const scope of scopes) {

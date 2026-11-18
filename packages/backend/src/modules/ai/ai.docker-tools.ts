@@ -44,6 +44,7 @@ import type { DockerManagementService } from '@/modules/docker/docker.service.js
 import { assertDockerResourceScope, dockerNodeListAccess } from '@/modules/docker/docker-access.middleware.js';
 import {
   DockerAccessResourceService,
+  dockerGrantNamesNode,
   hasDockerResourceScope,
 } from '@/modules/docker/docker-access-resource.service.js';
 import {
@@ -763,7 +764,10 @@ async function manageDockerCompose(context: DockerToolContext, user: User, args:
     if (!hasScopeBase(user.scopes, 'docker:compose:create')) throw new Error('Missing docker:compose:create');
     await container.resolve(LicensePolicyService).requireFeature('compose-applications');
     if (operation === 'validate') {
-      await container.resolve(DockerSnapshotService).assertDockerNode(nodeId);
+      // Validation itself does not use the node. Its state is told only to a caller whose grant names it.
+      if (dockerGrantNamesNode(user.scopes, 'docker:compose:create', nodeId)) {
+        await container.resolve(DockerSnapshotService).assertDockerNode(nodeId);
+      }
       return service.validate(
         ComposeYamlInputSchema.parse({
           projectName: a.projectName,
