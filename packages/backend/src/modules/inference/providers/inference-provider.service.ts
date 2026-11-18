@@ -326,7 +326,7 @@ export class InferenceProviderService {
   }
 
   async setRoutingStrategy(userId: string, providerId: string, routingStrategy: 'even' | 'balanced' | 'sequential') {
-    this.registry.require(providerId);
+    this.registry.requireRequested(providerId);
     await this.db
       .insert(inferenceProviderSettings)
       .values({ providerId, routingStrategy })

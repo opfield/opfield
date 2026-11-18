@@ -452,7 +452,15 @@ export class InferenceProviderRegistry {
     return this.providers.get(providerId);
   }
 
+  /** The provider of a stored connection or session: an id the registry does not know is a fault here, not a 404. */
   require(providerId: string): InferenceProviderDefinition {
+    const provider = this.get(providerId);
+    if (!provider) throw new Error(`Unsupported inference provider: ${providerId}`);
+    return provider;
+  }
+
+  /** The provider a request names: an unknown id is the caller's, and answers 404. */
+  requireRequested(providerId: string): InferenceProviderDefinition {
     const provider = this.get(providerId);
     if (!provider)
       throw new AppError(404, 'INFERENCE_PROVIDER_NOT_FOUND', `Unsupported inference provider: ${providerId}`);
