@@ -289,7 +289,20 @@ export class InferenceUsageService {
       .select({ id: users.id, email: users.email, name: users.name, avatarUrl: users.avatarUrl })
       .from(users)
       .where(
-        and(or(isNull(users.oidcSubject), ne(users.oidcSubject, OPFIELD_SYSTEM_OIDC_SUBJECT)), isNull(users.deletedAt))
+        and(
+          or(isNull(users.oidcSubject), ne(users.oidcSubject, OPFIELD_SYSTEM_OIDC_SUBJECT)),
+          // A deleted account stays listed while it still has an override, so the override can be found and removed.
+          or(
+            isNull(users.deletedAt),
+            inArray(
+              users.id,
+              this.db
+                .select({ id: inferenceLimitPolicies.userId })
+                .from(inferenceLimitPolicies)
+                .where(and(eq(inferenceLimitPolicies.policyType, 'user'), isNotNull(inferenceLimitPolicies.userId)))
+            )
+          )
+        )
       );
     return Promise.all(
       rows.map(async (user) => {
@@ -309,7 +322,20 @@ export class InferenceUsageService {
       .select({ id: users.id, email: users.email, name: users.name, avatarUrl: users.avatarUrl })
       .from(users)
       .where(
-        and(or(isNull(users.oidcSubject), ne(users.oidcSubject, OPFIELD_SYSTEM_OIDC_SUBJECT)), isNull(users.deletedAt))
+        and(
+          or(isNull(users.oidcSubject), ne(users.oidcSubject, OPFIELD_SYSTEM_OIDC_SUBJECT)),
+          // A deleted account stays listed while it still has an override, so the override can be found and removed.
+          or(
+            isNull(users.deletedAt),
+            inArray(
+              users.id,
+              this.db
+                .select({ id: inferenceLimitPolicies.userId })
+                .from(inferenceLimitPolicies)
+                .where(and(eq(inferenceLimitPolicies.policyType, 'user'), isNotNull(inferenceLimitPolicies.userId)))
+            )
+          )
+        )
       );
     return Promise.all(
       rows.map(async (user) => {
