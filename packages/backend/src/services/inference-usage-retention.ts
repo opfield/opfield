@@ -16,6 +16,8 @@ const MAX_BATCHES = 400;
 /** Quota readings only matter while they are valid (30 minutes); older ones are kept this long. */
 export const QUOTA_SNAPSHOT_KEEP_MS = 2 * 60 * 60 * 1000;
 const QUOTA_DELETE_BATCH = 5000;
+/** Transaction setting the usage ledger's trigger reads: only with it may usage records be deleted. */
+export const INFERENCE_USAGE_RETENTION_SETTING = 'opfield.inference_usage_retention';
 
 type Executor = Pick<DrizzleClient, 'execute'>;
 type TransactionalExecutor = Executor & Pick<DrizzleClient, 'transaction'>;
@@ -81,7 +83,9 @@ export async function cleanInferenceUsage(
           "api_microdollars" = "inference_usage_lifetime_totals"."api_microdollars" + excluded."api_microdollars",
           "updated_at" = now()`);
       // The ledger refers to requests and attempts with on delete restrict: it goes first. Attempts go with their
-      // request (on delete cascade).
+      // request (on delete cascade). The ledger is append-only: its trigger lets a delete through only in a
+      // transaction that names this cleanup, and the setting ends with the transaction.
+      await tx.execute(sql`SELECT set_config(${INFERENCE_USAGE_RETENTION_SETTING}, 'on', true)`);
       const ledger = rowCount(
         await tx.execute(sql`DELETE FROM "inference_usage_ledger" WHERE "request_id" IN (${idList})`)
       );
