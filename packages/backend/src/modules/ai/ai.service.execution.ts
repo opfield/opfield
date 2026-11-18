@@ -64,6 +64,7 @@ import { executeSshTool, SSH_TOOL_NAMES } from './ai.ssh-tools.js';
 import { executeStorageTool, STORAGE_TOOL_NAMES } from './ai.storage-tools.js';
 import { AI_TOOLS, TOOL_STORE_INVALIDATION_MAP } from './ai.tools.js';
 import type { ToolExecutionOptions, ToolExecutionResult } from './ai.types.js';
+import { successfulMcpCallIsAudited } from './ai-approval-policy.js';
 import { assertToolCallAllowedUnderImpersonation } from './ai-impersonation-policy.js';
 import { unknownArgumentsNote } from './ai-tool-contract.js';
 import { describeToolError, formatToolError } from './ai-tool-errors.js';
@@ -295,7 +296,7 @@ export abstract class AIServiceExecution extends AIServiceRuntimeSupport {
         context: toolInvalidationContext(args),
       });
 
-      if (source === 'mcp' && !auditEmittedDuringTool()) {
+      if (source === 'mcp' && !auditEmittedDuringTool() && successfulMcpCallIsAudited(toolName, args)) {
         await this.auditService.log({
           ...auditBase,
           action: `mcp.${toolName}`,

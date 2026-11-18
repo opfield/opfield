@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { AI_TOOLS } from './ai.tools.js';
-import { classifyAIToolForApproval, getAIToolApprovalDecision } from './ai-approval-policy.js';
+import {
+  classifyAIToolForApproval,
+  getAIToolApprovalDecision,
+  successfulMcpCallIsAudited,
+} from './ai-approval-policy.js';
 
 describe('AI backend approval policy', () => {
   it('never asks for system assistant tools', () => {
@@ -226,5 +230,26 @@ describe('AI backend approval policy', () => {
         operation: 'check_opfield',
       }).requiresApproval
     ).toBe(true);
+  });
+});
+
+describe('audit rows of successful MCP calls', () => {
+  it('leaves none for reads', () => {
+    expect(successfulMcpCallIsAudited('manage_inference_usage', { operation: 'self' })).toBe(false);
+    expect(successfulMcpCallIsAudited('list_nodes')).toBe(false);
+    expect(successfulMcpCallIsAudited('manage_pages', { operation: 'tag_list' })).toBe(false);
+    expect(successfulMcpCallIsAudited('manage_certificate', { operation: 'export', format: 'pem' })).toBe(false);
+  });
+
+  it('keeps one for changes, executions and secret material', () => {
+    expect(successfulMcpCallIsAudited('create_node')).toBe(true);
+    expect(successfulMcpCallIsAudited('manage_pages', { operation: 'tag_move' })).toBe(true);
+    expect(successfulMcpCallIsAudited('execute_node_console_command')).toBe(true);
+    expect(successfulMcpCallIsAudited('manage_certificate', { operation: 'export', format: 'pkcs12' })).toBe(true);
+  });
+
+  it('keeps one for an operation the policy does not know', () => {
+    expect(successfulMcpCallIsAudited('manage_inference_usage', { operation: 'purge' })).toBe(true);
+    expect(successfulMcpCallIsAudited('manage_pages', {})).toBe(true);
   });
 });

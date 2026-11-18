@@ -74,6 +74,15 @@ export function classifyAIToolForApproval(
   return tool?.destructive ? 'destructive' : 'read';
 }
 
+/**
+ * Whether an MCP call that worked leaves its own audit row. A read leaves none, as the same read over REST leaves
+ * none: status polls (inference usage) were half of the audit log. A read of sensitive data writes its row in its
+ * service, and a refused or failed call is recorded whatever it is.
+ */
+export function successfulMcpCallIsAudited(toolName: string, toolArguments: Record<string, unknown> = {}): boolean {
+  return classifyAIToolForApproval(toolName, toolArguments) !== 'read';
+}
+
 /** Applies an operation's argument refinement, failing closed on values the policy does not list. */
 function operationApprovalClass(
   policy: AIToolOperationPolicy,

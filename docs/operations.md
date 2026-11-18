@@ -324,6 +324,8 @@ The `mcp:use` scope is a user-account capability gate. The owning user must have
 
 MCP tools cover every resource and management operation the OAuth grant's scopes allow, including node config and files, Docker migrations, the logging backend, Opfield settings, users and groups, inference providers, models, limits, usage and personal inference keys, hosting, and GitLab, GitHub, generic Git, Cloudflare, and external SSH connectors. Only AI Workspace internals (conversations, skills, tool-output paging, web search), AI sandbox tools and sandbox clones, API token and OAuth authorization minting, and embedded-assistant UI actions (setup dialogs, resource pins) are not exposed.
 
+A change made through MCP is recorded in the audit log as `mcp.<tool>`, or as the action of the resource it changed. Refused and failed calls are recorded too. A read that succeeds is not recorded, as over the REST API; reads of sensitive data (SQL queries, node files, key exports) keep their own entries.
+
 By default, Extended MCP compatibility is enabled and the first `tools/list` response includes every tool allowed by the OAuth grant. Administrators can disable it for clients that support dynamic discovery; in that mode MCP starts with a compact core toolset, clients call `discover_tools`, Opfield sends `notifications/tools/list_changed`, and the client refreshes `tools/list` so the activated tools become callable.
 
 The `Ingress` toolset covers Domains, Routes, route folders, nginx templates, access lists, and raw route configuration. For compatibility, callable tool names, resource URIs, OAuth scopes, and REST paths still use `proxy_host`, `proxy`, or `/api/proxy-hosts`; those identifiers refer to the Routes shown in the Operations Console.
