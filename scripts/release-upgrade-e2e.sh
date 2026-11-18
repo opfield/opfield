@@ -1654,10 +1654,10 @@ LOG_ALLOW=(
   '"msg":"relay endpoint tunnels failing".*dial tcp [^"]*:9443: connect: connection refused'
   # An unprivileged LXC host has no loop devices for disk-image volumes.
   'disk-image volume support unavailable.*loop-control'
-  # The Docker node of this run sits on the Opfield host, so it sees the updater's own containers come and go: the app
-  # container an update recreates, the update and host-move helpers that are removed when they finish.
-  '"msg":"container changed outside Opfield"'
-  '"context":"DockerExternalChanges".*"message":"Managed container changed outside Opfield"'
+  # The Docker node of this run sits on the Opfield host, so its daemon sees the updater's own containers come and go:
+  # the app container an update recreates, the update and host-move helpers that are removed when they finish.
+  # Opfield itself must not take them for managed containers changed outside it, so its own warning is not allowed.
+  '^daemon(\(base\))?: .*"msg":"container changed outside Opfield"'
   # The base daemons' own warnings while they are replaced (old code; lines of base processes are tagged
   # `daemon(base):` by check_logs, so the same warning from a candidate process still fails).
   '^daemon\(base\): .*"msg":"a socket for nginx workers waits for the nginx workers'"'"' group"'

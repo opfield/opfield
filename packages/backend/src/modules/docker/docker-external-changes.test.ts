@@ -13,7 +13,8 @@ const records: DockerManagedRecords = {
   recordedIds: new Set(['1a2b3c']),
   reservedNames: new Map([['api', 'its Git source']]),
   sourceContainers: new Map([['api', 'binding-1']]),
-  composeProjects: new Set(['shop']),
+  composeProjects: new Set(['shop', 'opfield']),
+  externalComposeProjects: new Set(['opfield']),
   volumes: new Set(),
   networks: new Set(),
 };
@@ -53,6 +54,16 @@ describe('changes outside Opfield', () => {
 
   it('ignores containers Opfield does not manage', () => {
     expect(managedAs(change({}), records)).toBeNull();
+    // Opfield's own containers on a node of its own host: its helpers, and its stack, which it only discovered.
+    expect(managedAs(change({ labels: { 'net.opfield.role': 'opfield-update-sidecar' } }), records)).toBeNull();
+    expect(managedAs(change({ labels: { 'net.opfield.role': 'opfield-host-move' } }), records)).toBeNull();
+    expect(managedAs(change({ labels: { 'net.opfield.one-shot': '1' } }), records)).toBeNull();
+    expect(
+      managedAs(
+        change({ name: 'opfield-app-1', action: 'created', labels: { 'com.docker.compose.project': 'opfield' } }),
+        records
+      )
+    ).toBeNull();
     expect(managedAs(change({ labels: { 'com.docker.compose.project': 'sandbox' } }), records)).toBeNull();
   });
 });

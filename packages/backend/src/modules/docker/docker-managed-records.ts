@@ -23,6 +23,8 @@ export interface DockerManagedRecords {
   /** Container names a Git source deploys to, with the source binding ID. */
   sourceContainers: Map<string, string>;
   composeProjects: Set<string>;
+  /** Those of composeProjects that Opfield only discovered: they are run outside Opfield, by whoever started them. */
+  externalComposeProjects: Set<string>;
   volumes: Set<string>;
   networks: Set<string>;
 }
@@ -57,7 +59,7 @@ export async function loadDockerManagedRecords(db: DrizzleClient, nodeId: string
       .innerJoin(dockerDeployments, eq(dockerDeployments.id, dockerDeploymentSlots.deploymentId))
       .where(eq(dockerDeployments.nodeId, nodeId)),
     db
-      .select({ name: dockerComposeProjects.name })
+      .select({ name: dockerComposeProjects.name, managementState: dockerComposeProjects.managementState })
       .from(dockerComposeProjects)
       .where(eq(dockerComposeProjects.nodeId, nodeId)),
     db
@@ -71,6 +73,9 @@ export async function loadDockerManagedRecords(db: DrizzleClient, nodeId: string
     reservedNames: new Map(),
     sourceContainers: new Map(),
     composeProjects: new Set(projects.map((row) => row.name)),
+    externalComposeProjects: new Set(
+      projects.filter((row) => row.managementState === 'external').map((row) => row.name)
+    ),
     volumes: new Set(volumes.map((row) => row.name)),
     networks: new Set(),
   };
@@ -96,6 +101,14 @@ export async function loadDockerManagedRecords(db: DrizzleClient, nodeId: string
 const OPFIELD_LABEL = new RegExp(
   `^(?:${['net.opfield.', LEGACY_LABEL_PREFIX, LEGACY_NET_LABEL_PREFIX, LEGACY_COM_LABEL_PREFIX].map((prefix) => prefix.replaceAll('.', '\\.')).join('|')})`
 );
+
+/** Labels of Opfield's own helpers: the update and host-move containers and its one-off runs. */
+const OPFIELD_HELPER_LABELS = ['net.opfield.role', 'net.opfield.one-shot'];
+
+/** Whether a container is a helper Opfield starts and removes itself, not a workload it manages for someone. */
+export function isOpfieldHelper(labels: Record<string, string>): boolean {
+  return OPFIELD_HELPER_LABELS.some((label) => labels[label] !== undefined);
+}
 
 /** Whether a Docker object carries an Opfield label (either namespace). */
 export function hasOpfieldLabel(labels: Record<string, string>): boolean {

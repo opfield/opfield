@@ -7,7 +7,12 @@ import { runOutsideAuditRequestContext } from '@/modules/audit/audit-request-con
 import type { EventBusService } from '@/services/event-bus.service.js';
 import type { NodeDispatchService } from '@/services/node-dispatch.service.js';
 import type { NodeRegistryService } from '@/services/node-registry.service.js';
-import { type DockerManagedRecords, hasOpfieldLabel, loadDockerManagedRecords } from './docker-managed-records.js';
+import {
+  type DockerManagedRecords,
+  hasOpfieldLabel,
+  isOpfieldHelper,
+  loadDockerManagedRecords,
+} from './docker-managed-records.js';
 
 const logger = createChildLogger('DockerExternalChanges');
 
@@ -63,6 +68,8 @@ interface ChangesPage {
 /** What a changed container was to Opfield, or null when Opfield does not manage it. */
 export function managedAs(change: DockerExternalChange, records: DockerManagedRecords): string | null {
   const labels = change.labels ?? {};
+  // Opfield's own update, host-move and one-off containers come and go by its own hand.
+  if (isOpfieldHelper(labels)) return null;
   const names = [change.name, change.oldName].filter((name): name is string => !!name);
   for (const name of names) {
     if (records.sourceContainers.has(name)) return 'Git-source container';
@@ -70,6 +77,8 @@ export function managedAs(change: DockerExternalChange, records: DockerManagedRe
     if (reserved) return reserved;
   }
   const project = labels['com.docker.compose.project'];
+  // A project Opfield only discovered is run outside Opfield (its own stack on a node of the same host is one).
+  if (project && records.externalComposeProjects.has(project)) return null;
   if (project && records.composeProjects.has(project)) return `Compose project "${project}"`;
   if (hasOpfieldLabel(labels)) return 'Opfield workload';
   if (records.recordedIds.has(change.containerId)) return 'container';
