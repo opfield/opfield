@@ -262,7 +262,7 @@ Opfield source is available under the [PolyForm Perimeter License 1.0.1](LICENSE
 
 This repository is the open core: the frontend, the backend, the node daemons, the relay, and the installers. Paid-plan backend features ship as the commercial core, a separately signed package that is not in this repository. Activating a paid key installs the core that matches the running Opfield version through the signed update mechanism; Community builds and runs from this repository alone. See [Community and the commercial core](docs/commercial-core.md).
 
-Every official release also carries the [Product Continuity Grant](CONTINUITY-GRANT.md): if Opfield stops being provided (12 consecutive months with no new release while the license service is unavailable, or an end-of-life notice) or the Licensor can no longer act, the source code of the last release, including the commercial core, becomes available to everyone under the MIT License, and holders of a valid key keep a perpetual, royalty-free right to use and self-host that release and to run it without the license service.
+Every official release also carries the [Product Continuity Grant](CONTINUITY-GRANT.md): if Opfield stops being provided (12 consecutive months with no new release while the license service is unavailable, or an end-of-life notice) or the Licensor is dissolved without a successor, the source code of the last release, including the commercial core, becomes available to everyone under the MIT License, and holders of a valid key keep a perpetual, royalty-free right to use and self-host that release and to run it without the license service.
 
 > [!NOTE]
 > Pricing is preliminary, does not constitute an offer, and is subject to change. Confirm current pricing and terms before purchase.
@@ -288,4 +288,4 @@ See [Plans and licensing](docs/licensing.md) for the complete feature matrix, av
 
 After a paid key expires, full technical entitlements remain active for 24 hours on Personal, 3 days on Business, or 7 days on Enterprise. After that grace period, Opfield blocks creation of new paid-plan resources and other paid-only operations, but does not stop, delete, or disable already configured infrastructure. Existing services continue under the Paid Key Terms' continuity provisions. Revoked, replaced, invalid, or explicitly deactivated keys are handled separately and may disable protected entry points.
 
-Copyright (c) 2021-2026 Alexandr Slavinschii
+Copyright (c) 2021-2026 Wiolett Systems S.R.L.

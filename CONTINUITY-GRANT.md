@@ -1,6 +1,6 @@
-# Opfield Product Continuity Grant 1.0
+# Opfield Product Continuity Grant 1.1
 
-The Licensor, Alexandr Slavinschii, Individual Entrepreneur registered in the Republic of Armenia (state registration no. 286.1622819, alexandr.s@wiolett.net), gives this grant with every Opfield release. It cannot be revoked.
+The Licensor, Wiolett Systems S.R.L., a limited liability company registered in the Republic of Moldova (IDNO 1026023170738, legal@wiolett.net), gives this grant with every Opfield release. It cannot be revoked.
 
 ## Definitions
 
@@ -13,7 +13,7 @@ The grant takes effect at the first **Continuity Event**:
 
 1. for 12 consecutive months, no new Opfield release is published and the license service is not available;
 2. the Licensor publishes a notice that Opfield has reached its end of life and will no longer be provided; or
-3. the Licensor dies or is legally declared unable to act.
+3. the Licensor is dissolved, liquidated or declared insolvent, and no successor has taken over its rights in Opfield.
 
 Nothing else starts it.
 
@@ -34,13 +34,19 @@ If you hold an Opfield license key that is valid at the moment of the Continuity
 
 This grant gives no right to updates, support, trademarks, names or logos, and it does not cover third-party components, which keep their own licenses.
 
+## Earlier releases
+
+Opfield releases published before this version carry the Product Continuity Grant 1.0 given by Alexandr Slavinschii. Those grants stay in force. Wiolett Systems S.R.L. took over his rights in Opfield and performs those grants as the Licensor.
+
+## Other rights
+
 Rights you already have under [LICENSE.md](LICENSE.md), the [Paid Key Terms](COMMERCIAL-LICENSE.md) or another written agreement stay in force.
 
 ## MIT License Terms
 
 MIT License
 
-Copyright (c) 2021-2026 Alexandr Slavinschii
+Copyright (c) 2021-2026 Wiolett Systems S.R.L.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal

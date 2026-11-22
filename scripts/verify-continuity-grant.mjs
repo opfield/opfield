@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 
 const grantPath = process.argv[2] ?? 'CONTINUITY-GRANT.md';
 const grant = await readFile(grantPath, 'utf8');
-const expectedSha256 = 'bb9eb6df073e3b77b1e8bcaefc03ae8fe13016b103a7366efcc4983c7623b537';
+const expectedSha256 = '86030edfb878d915e8e7e5ef2a34ac4c34896c22e22ec0a7e41ffac3205bc328';
 const actualSha256 = createHash('sha256').update(grant).digest('hex');
 
 if (actualSha256 !== expectedSha256) {
@@ -13,13 +13,14 @@ if (actualSha256 !== expectedSha256) {
 }
 
 const required = [
-  '# Opfield Product Continuity Grant 1.0',
-  'Alexandr Slavinschii, Individual Entrepreneur registered in the Republic of Armenia',
+  '# Opfield Product Continuity Grant 1.1',
+  'Wiolett Systems S.R.L., a limited liability company registered in the Republic of Moldova',
   'It cannot be revoked.',
   'at any address the Licensor publishes for it. It is available while any of those addresses answers.',
   'for 12 consecutive months, no new Opfield release is published and the license service is not available',
   'end of life',
-  'dies or is legally declared unable to act',
+  'dissolved, liquidated or declared insolvent, and no successor has taken over its rights',
+  'releases published before this version carry the Product Continuity Grant 1.0',
   'including its commercial core, to everyone under the MIT License terms below. This license is irrevocable.',
   'within 90 days of the Continuity Event',
   'valid at the moment of the Continuity Event',

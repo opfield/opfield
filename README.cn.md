@@ -267,7 +267,7 @@ Opfield 源代码依据 [PolyForm Perimeter License 1.0.1](LICENSE.md) 发布。
 
 本仓库是开放核心：前端、后端、节点守护进程、relay 和安装程序。付费计划的后端功能以商业核心的形式提供，这是一个单独签名、不在本仓库中的软件包。激活付费密钥后，Opfield 会通过签名更新机制安装与当前版本匹配的商业核心；Community 版仅凭本仓库即可构建和运行。详见 [Community and the commercial core](docs/commercial-core.md)。
 
-每个官方版本还附带[产品连续性授权](CONTINUITY-GRANT.md)：如果 Opfield 停止提供（连续 12 个月没有新版本且许可证服务不可用，或发布停止支持公告），或许可方无法再履行职责，最后一个版本的源代码（包括商业核心）将以 MIT 许可证向所有人开放，持有当时有效密钥的用户还将获得永久、免版税的许可，可继续使用和自行托管该版本，并在没有许可证服务的情况下运行。完整条款以授权文件为准。
+每个官方版本还附带[产品连续性授权](CONTINUITY-GRANT.md)：如果 Opfield 停止提供（连续 12 个月没有新版本且许可证服务不可用，或发布停止支持公告），或许可方解散且无继承者，最后一个版本的源代码（包括商业核心）将以 MIT 许可证向所有人开放，持有当时有效密钥的用户还将获得永久、免版税的许可，可继续使用和自行托管该版本，并在没有许可证服务的情况下运行。完整条款以授权文件为准。
 
 > [!NOTE]
 > 以下价格为初步价格，不构成要约，并可能发生变化。购买前请确认最新价格和条款。
@@ -293,4 +293,4 @@ Opfield 源代码依据 [PolyForm Perimeter License 1.0.1](LICENSE.md) 发布。
 
 付费密钥到期后，Personal、Business 和 Enterprise 的技术 entitlements 分别继续有效 24 小时、3 天和 7 天。此后 Opfield 会阻止创建新的付费资源和其他新的付费操作，但不会停止或删除已经配置的基础设施。已撤销、已替换、无效或明确停用的密钥会单独处理。
 
-Copyright (c) 2021-2026 Alexandr Slavinschii
+Copyright (c) 2021-2026 Wiolett Systems S.R.L.

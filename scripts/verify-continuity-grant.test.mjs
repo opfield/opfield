@@ -41,8 +41,8 @@ test('rejects any change to the inactivity trigger', async () => {
   await assertRejected('for 12 consecutive months', 'for 36 consecutive months');
 });
 
-test('rejects removal of the end-of-life and incapacity triggers', async () => {
-  await assertRejected('3. the Licensor dies or is legally declared unable to act.\n', '');
+test('rejects removal of the end-of-life and dissolution triggers', async () => {
+  await assertRejected('3. the Licensor is dissolved, liquidated or declared insolvent, and no successor has taken over its rights in Opfield.\n', '');
 });
 
 test('rejects removal of the right to run without the license server', async () => {

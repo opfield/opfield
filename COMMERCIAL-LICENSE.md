@@ -1,12 +1,12 @@
-# Opfield Paid Key Terms 1.3
+# Opfield Paid Key Terms 1.4
 
 These terms govern Personal, Business, and Enterprise Opfield license keys issued by the **Licensor**. They supplement, and do not modify, the [PolyForm Perimeter License 1.0.1](LICENSE.md).
 
-The **Licensor** is Alexandr Slavinschii, Individual Entrepreneur registered in the Republic of Armenia (state registration no. 286.1622819, alexandr.s@wiolett.net). References to the Licensor include any later successor to the relevant rights.
+The **Licensor** is Wiolett Systems S.R.L., a limited liability company registered in the Republic of Moldova (IDNO 1026023170738, legal@wiolett.net). References to the Licensor include any later successor to the relevant rights.
 
 PolyForm Perimeter permits use, modification, and redistribution for permitted purposes, including internal business use. It does not permit providing to others a product marketed as a substitute for Opfield. An ordinary paid key unlocks plan features and limits; it does not waive that competition restriction or grant OEM, white-label, resale, or competing hosted-service rights. Those uses require a separate written agreement signed by the Licensor.
 
-Every release includes the [Product Continuity Grant](CONTINUITY-GRANT.md): if Opfield stops being provided (12 consecutive months with no new release while the license service is unavailable, or an end-of-life notice) or the Licensor can no longer act, the source code of the last release, including the commercial core, becomes available to everyone under the MIT License, and holders of a valid key keep a perpetual, royalty-free right to use and self-host that release and to run it without the license service.
+Every release includes the [Product Continuity Grant](CONTINUITY-GRANT.md): if Opfield stops being provided (12 consecutive months with no new release while the license service is unavailable, or an end-of-life notice) or the Licensor is dissolved without a successor, the source code of the last release, including the commercial core, becomes available to everyone under the MIT License, and holders of a valid key keep a perpetual, royalty-free right to use and self-host that release and to run it without the license service.
 
 ## Acceptance
 
@@ -63,4 +63,4 @@ As far as the law allows, the software and paid-plan access are provided as is, 
 
 ## Contact
 
-Questions about competing products, OEM, white-label, resale, hosted services, or other commercial licensing may be sent to the Licensor at [alexandr.s@wiolett.net](mailto:alexandr.s@wiolett.net).
+Questions about competing products, OEM, white-label, resale, hosted services, or other commercial licensing may be sent to the Licensor at [legal@wiolett.net](mailto:legal@wiolett.net).

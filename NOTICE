@@ -1,12 +1,13 @@
 Opfield
-Copyright (c) 2021-2026 Alexandr Slavinschii
+Copyright (c) 2021-2026 Wiolett Systems S.R.L.
 Operated under the Opfield project name (https://opfield.dev)
 All rights reserved except as expressly licensed.
 
 LICENSOR
 --------
-Alexandr Slavinschii, Individual Entrepreneur registered in the Republic of Armenia
-(state registration no. 286.1622819, alexandr.s@wiolett.net), is the Licensor.
+Wiolett Systems S.R.L., a limited liability company registered in the
+Republic of Moldova (IDNO 1026023170738, legal@wiolett.net), is the
+Licensor.
 
 SOURCE LICENSE
 --------------
@@ -31,7 +32,7 @@ PRODUCT CONTINUITY
 ------------------
 If Opfield stops being provided (12 consecutive months with no new
 release while the license service is unavailable, or an end-of-life
-notice) or the Licensor dies or can no longer act, the source code of
+notice) or the Licensor is dissolved without a successor, the source code of
 the last release, including the commercial core, becomes available to
 everyone under the MIT License, and holders of a key valid at that
 moment keep a perpetual, royalty-free license to use and self-host
